@@ -1,7 +1,7 @@
 name: iPad simulator baseline
 on:
   push:
-    branches: [codex/ios-baseline]
+    branches: [codex/ios-compile-repair]
     paths: [.github/workflows/ios-baseline.yml]
 permissions:
   contents: read

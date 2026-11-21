@@ -4,7 +4,6 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSTimeZone
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.knownTimeZoneNames
-import platform.Foundation.secondsFromGMTForDate
 import platform.Foundation.systemTimeZone
 import platform.Foundation.timeZoneWithName
 
