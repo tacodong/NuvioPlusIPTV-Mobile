@@ -3,4 +3,5 @@
 TEAM_ID=
 
 PRODUCT_NAME=Nuvio
+INFOPLIST_KEY_CFBundleDisplayName=Nuvio+IPTV
 PRODUCT_BUNDLE_IDENTIFIER=com.nuvio.app.Nuvio$(TEAM_ID)

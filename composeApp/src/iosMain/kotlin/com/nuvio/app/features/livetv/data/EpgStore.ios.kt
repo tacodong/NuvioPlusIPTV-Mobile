@@ -2,91 +2,141 @@ package com.nuvio.app.features.livetv.data
 
 import com.nuvio.app.features.livetv.model.EpgAssignment
 import com.nuvio.app.features.livetv.model.EpgProgram
+import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 
-/** In-memory stand-in until Live TV is built for iOS. */
+/** Indexes the saved XMLTV guide in memory. LiveTvRepository rebuilds it from disk on launch. */
 internal actual object EpgStore {
-    private var programs: Map<String, List<EpgProgram>> = emptyMap()
-    private var auto: Map<String, EpgAssignment> = emptyMap()
-    private var fp: String? = null
+    private data class Guide(
+        val fingerprint: String? = null,
+        val programs: Map<String, List<EpgProgram>> = emptyMap(),
+        val auto: Map<String, EpgAssignment> = emptyMap(),
+    )
+
+    private val lock = SynchronizedObject()
+    private val guide = atomic(Guide())
 
     actual fun replaceAll(fingerprint: String, programs: Map<String, List<EpgProgram>>, auto: Map<String, EpgAssignment>) {
-        this.programs = programs
-        this.auto = auto
-        fp = fingerprint
+        synchronized(lock) {
+            guide.value = Guide(fingerprint, ordered(programs), auto.toMap())
+        }
     }
 
-    actual fun replaceChannels(fingerprint: String, channels: Set<String>, programs: Map<String, List<EpgProgram>>, auto: Map<String, EpgAssignment>) {
-        this.programs = this.programs.filterKeys { it !in channels } + programs.filterKeys { it in channels }
-        this.auto = this.auto.filterKeys { it !in channels } + auto.filterKeys { it in channels }
-        fp = fingerprint
+    actual fun replaceChannels(
+        fingerprint: String, channels: Set<String>,
+        programs: Map<String, List<EpgProgram>>, auto: Map<String, EpgAssignment>,
+    ) {
+        synchronized(lock) {
+            val previous = guide.value
+            guide.value = Guide(
+                fingerprint,
+                previous.programs.filterKeys { it !in channels } + ordered(programs.filterKeys { it in channels }),
+                previous.auto.filterKeys { it !in channels } + auto.filterKeys { it in channels },
+            )
+        }
     }
 
-    actual fun fingerprint(): String? = fp
+    private fun ordered(programs: Map<String, List<EpgProgram>>) =
+        programs.mapValues { (_, rows) -> rows.sortedBy { it.startMs } }
+
+    actual fun fingerprint(): String? = guide.value.fingerprint
 
     actual fun range(fromMs: Long, toMs: Long, light: Boolean, channels: Collection<String>?): Map<String, List<EpgProgram>> {
-        val keys = channels?.toSet()
-        return programs.filterKeys { keys == null || it in keys }
-            .mapValues { (_, l) -> l.filter { it.stopMs > fromMs && it.startMs < toMs } }
-            .filterValues { it.isNotEmpty() }
+        val programs = guide.value.programs
+        val keys = channels ?: programs.keys
+        return buildMap {
+            for (key in keys) {
+                val rows = programs[key].orEmpty().asSequence()
+                    .takeWhile { it.startMs < toMs }.filter { it.stopMs > fromMs }
+                    .map { row -> if (light) row.copy(description = null, people = emptyList()) else row }
+                    .toList()
+                if (rows.isNotEmpty()) put(key, rows)
+            }
+        }
     }
 
-    actual fun channelRange(ch: String, fromMs: Long, toMs: Long): List<EpgProgram> = range(fromMs, toMs, false, listOf(ch))[ch].orEmpty()
+    actual fun channelRange(ch: String, fromMs: Long, toMs: Long): List<EpgProgram> =
+        range(fromMs, toMs, false, listOf(ch))[ch].orEmpty()
 
-    actual fun program(ch: String, startMs: Long): EpgProgram? = programs[ch]?.firstOrNull { it.startMs == startMs }
+    actual fun program(ch: String, startMs: Long): EpgProgram? =
+        guide.value.programs[ch]?.firstOrNull { it.startMs == startMs }
 
-    actual fun findByWords(fromMs: Long, toMs: Long, minStopMs: Long, words: Collection<String>, inDescription: Boolean, limit: Int): List<Pair<String, EpgProgram>> {
+    actual fun findByWords(
+        fromMs: Long, toMs: Long, minStopMs: Long, words: Collection<String>,
+        inDescription: Boolean, limit: Int,
+    ): List<Pair<String, EpgProgram>> {
         val clean = words.map { it.trim().lowercase() }.filter { it.length >= 3 }.distinct()
-        if (clean.isEmpty()) return emptyList()
+        if (clean.isEmpty() || limit <= 0) return emptyList()
         val out = ArrayList<Pair<String, EpgProgram>>()
-        programs.forEach { (ch, list) ->
-            list.forEach { p ->
-                if (out.size >= limit || p.startMs < fromMs || p.startMs >= toMs || p.stopMs <= minStopMs) return@forEach
-                val text = (p.title + if (inDescription) " " + p.description.orEmpty() else "").lowercase()
-                if (clean.any { it in text }) out += ch to p
+        for ((channel, rows) in guide.value.programs) {
+            for (row in rows) {
+                if (row.startMs >= toMs) break
+                if (row.startMs < fromMs || row.stopMs <= minStopMs) continue
+                val text = (row.title + if (inDescription) " " + row.description.orEmpty() else "").lowercase()
+                if (clean.any { it in text }) {
+                    out.add(channel to row)
+                    if (out.size == limit) return out
+                }
             }
         }
         return out
     }
 
-    actual fun scanListings(fromMs: Long, toMs: Long, minStopMs: Long, onRow: (ch: String, start: Long, stop: Long, title: String, descr: String?, cat: String?) -> Unit) {
-        programs.forEach { (ch, list) ->
-            list.forEach { p ->
-                if (p.startMs < fromMs || p.startMs >= toMs || p.stopMs <= minStopMs) return@forEach
-                onRow(ch, p.startMs, p.stopMs, p.title, p.description, p.category)
+    actual fun scanListings(
+        fromMs: Long, toMs: Long, minStopMs: Long,
+        onRow: (ch: String, start: Long, stop: Long, title: String, descr: String?, cat: String?) -> Unit,
+    ) {
+        for ((channel, rows) in guide.value.programs) {
+            for (row in rows) {
+                if (row.startMs >= toMs) break
+                if (row.startMs >= fromMs && row.stopMs > minStopMs) {
+                    onRow(channel, row.startMs, row.stopMs, row.title, row.description, row.category)
+                }
             }
         }
     }
 
     actual fun nowNext(channels: Collection<String>, nowMs: Long): Map<String, NowNext> {
-        val out = HashMap<String, NowNext>()
-        channels.forEach { ch ->
-            val list = programs[ch] ?: return@forEach
-            val now = list.firstOrNull { nowMs >= it.startMs && nowMs < it.stopMs }
-            val next = list.firstOrNull { it.startMs >= (now?.stopMs ?: nowMs) }
-            out[ch] = NowNext(now, next)
+        val programs = guide.value.programs
+        return buildMap {
+            for (channel in channels) {
+                val rows = programs[channel] ?: continue
+                val now = rows.firstOrNull { it.isLive(nowMs) }
+                val next = rows.firstOrNull { it.startMs >= (now?.stopMs ?: nowMs) }
+                put(channel, NowNext(now, next))
+            }
         }
-        return out
     }
 
-    actual fun autoMatches(): Map<String, EpgAssignment> = auto
+    actual fun autoMatches(): Map<String, EpgAssignment> = guide.value.auto
 
     actual fun deleteChannels(channels: Collection<String>) {
-        val set = channels.toSet()
-        programs = programs.filterKeys { it !in set }
-        auto = auto.filterKeys { it !in set }
+        val deleted = channels.toSet()
+        synchronized(lock) {
+            val previous = guide.value
+            guide.value = previous.copy(
+                programs = previous.programs.filterKeys { it !in deleted },
+                auto = previous.auto.filterKeys { it !in deleted },
+            )
+        }
     }
 
-    actual fun purgeOlderThan(beforeMs: Long): Int {
-        var n = 0
-        programs = programs.mapValues { (_, l) -> l.filter { keep -> (keep.stopMs >= beforeMs).also { if (!it) n++ } } }
-        return n
+    actual fun purgeOlderThan(beforeMs: Long): Int = synchronized(lock) {
+        val previous = guide.value
+        var removed = 0
+        val programs = previous.programs.mapValues { (_, rows) ->
+            rows.filter { it.stopMs >= beforeMs }.also { removed += rows.size - it.size }
+        }.filterValues { it.isNotEmpty() }
+        guide.value = previous.copy(programs = programs)
+        removed
     }
 
     actual fun compact() {}
 
     actual fun clear() {
-        programs = emptyMap(); auto = emptyMap(); fp = null
+        synchronized(lock) { guide.value = Guide() }
     }
 
-    actual fun count(): Long = programs.values.sumOf { it.size }.toLong()
+    actual fun count(): Long = guide.value.programs.values.sumOf { it.size.toLong() }
 }

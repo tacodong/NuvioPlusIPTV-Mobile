@@ -8,6 +8,7 @@ import com.nuvio.app.core.ui.LocalFold
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
 import com.nuvio.app.core.ui.NativeProfileSwitcherController
 import com.nuvio.app.features.autosync.AutoSyncPreferencesIos
+import com.nuvio.app.features.livetv.LiveTvPreferencesIos
 import com.nuvio.app.navigation.AppRoute
 import platform.UIKit.UIColor
 import platform.UIKit.UIViewController
@@ -28,7 +29,7 @@ fun MainViewController(
     onGoBack: () -> Unit,
     onReplace: (AppRoute) -> Unit,
     onActivate: (String) -> Unit,
-    onTabTitles: (String, String, String, String, String, String) -> Unit,
+    onTabTitles: (String, String, String, String, String, String, String, Boolean) -> Unit,
     appGateController: AppGateController,
     verticalBar: VerticalBar,
 ): UIViewController {
@@ -112,6 +113,7 @@ private fun nuvioComposeViewController(
     content: @androidx.compose.runtime.Composable () -> Unit,
 ): UIViewController {
     AutoSyncPreferencesIos.initialize()
+    LiveTvPreferencesIos.initialize()
     return ComposeUIViewController(
         configure = { onFocusBehavior = OnFocusBehavior.DoNothing },
         content = {
