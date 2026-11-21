@@ -1,14 +1,14 @@
 name: iPad simulator baseline
 on:
   push:
-    branches: [codex/ios-baseline]
+    branches: [codex/ios-compile-repair]
     paths: [.github/workflows/ios-baseline.yml]
 permissions:
   contents: read
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 55
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
     steps:
@@ -43,14 +43,26 @@ jobs:
           test -f "$framework/ios-arm64_x86_64-simulator/libCNuvioEngine.a"
           mkdir -p ../nuvio-engine/platform/apple
           ditto "$framework" ../nuvio-engine/platform/apple/NuvioEngine.xcframework
+      - name: Compile Kotlin for the iPad simulator
+        timeout-minutes: 24
+        shell: bash
+        run: |
+          set -euo pipefail
+          touch local.properties
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gradle"
+          export KONAN_DATA_DIR="$RUNNER_TEMP/konan"
+          ./gradlew :composeApp:compileKotlinIosSimulatorArm64 --console=plain \
+            -Pnuvio.ios.distribution=full -Pnuvio.android.distribution=full \
+            "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" \
+            "-Pkotlin.daemon.jvmargs=-Xmx1536m" "-Pkotlin.native.jvmArgs=-Xmx3072m" \
+            --max-workers=2
       - name: Build full unsigned iPad simulator app
+        timeout-minutes: 30
         shell: bash
         run: |
           set -euo pipefail
           export GRADLE_USER_HOME="$RUNNER_TEMP/gradle"
           export KONAN_DATA_DIR="$RUNNER_TEMP/konan"
-          # Gradle declares this file as an input even when runtime settings are empty.
-          touch local.properties
           log="$RUNNER_TEMP/xcodebuild.log"
           if env NUVIO_IOS_DISTRIBUTION=full \
             "ORG_GRADLE_PROJECT_org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" \
@@ -59,7 +71,8 @@ jobs:
             "ORG_GRADLE_PROJECT_org.gradle.workers.max=2" \
             xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
               -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/derived" \
-              ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build >"$log" 2>&1; then
+              ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$log" |
+                awk '/^> Task|^Gradle|^BUILD |^error:|\*\* BUILD/ { print; fflush() }'; then
             tail -12 "$log"
           else
             grep -n -i -C 5 -E '(^error:| error:|what went wrong|could not|does not exist)' "$log" | tail -100 || true

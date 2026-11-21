@@ -100,7 +100,7 @@ internal object SportsExtras {
             fun add(o: JSONObject) {
                 val name = o.s("name") ?: return
                 val value = o.s("displayValue") ?: return
-                out.putIfAbsent(name, (o.s("label") ?: o.s("displayName") ?: name) to value)
+                out.getOrPut(name) { (o.s("label") ?: o.s("displayName") ?: name) to value }
             }
             t.optJSONArray("statistics").objs().forEach { o ->
                 val inner = o.optJSONArray("stats")
@@ -208,9 +208,9 @@ internal object SportsExtras {
             else TableRow(pos, name, stat(en, "wins") ?: "", stat(en, "losses") ?: "", stat(en, "winPercent", "leagueWinPercent") ?: "", isMine(en))
         }
         // The top three, and one either side of each of this game's teams (in table order).
-        val keep = sortedSetOf(0, 1, 2)
+        val keep = mutableSetOf(0, 1, 2)
         rows.forEachIndexed { i, r -> if (r.mine) { keep += i - 1; keep += i; keep += i + 1 } }
-        val slice = keep.filter { it in rows.indices }.map { rows[it] }.take(8)
+        val slice = keep.filter { it in rows.indices }.sorted().map { rows[it] }.take(8)
         val title = group.s("header") ?: st.s("header")
         return e.copy(tableTitle = title, tableHead = head, table = slice)
     }

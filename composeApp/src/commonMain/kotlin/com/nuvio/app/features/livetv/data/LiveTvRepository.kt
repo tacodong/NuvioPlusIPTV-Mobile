@@ -1132,7 +1132,7 @@ internal object LiveTvRepository {
     private fun guideUsersStamp(): String? {
         val g = guideUsers
         if (g.isEmpty()) return null
-        return g.toSortedMap().entries.joinToString(";") { (id, set) -> id + "=" + set.sorted().joinToString(",") }.hashCode().toString()
+        return g.entries.sortedBy { it.key }.joinToString(";") { (id, set) -> id + "=" + set.sorted().joinToString(",") }.hashCode().toString()
     }
 
     private fun targetStamp(t: EpgTarget): String =
