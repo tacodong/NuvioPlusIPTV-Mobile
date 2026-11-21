@@ -49,6 +49,8 @@ jobs:
           set -euo pipefail
           export GRADLE_USER_HOME="$RUNNER_TEMP/gradle"
           export KONAN_DATA_DIR="$RUNNER_TEMP/konan"
+          # Gradle declares this file as an input even when runtime settings are empty.
+          touch local.properties
           log="$RUNNER_TEMP/xcodebuild.log"
           if env NUVIO_IOS_DISTRIBUTION=full \
             "ORG_GRADLE_PROJECT_org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" \
@@ -60,7 +62,7 @@ jobs:
               ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build >"$log" 2>&1; then
             tail -12 "$log"
           else
-            grep -n -iE '(^error:| error:|exception|failure:|what went wrong)' "$log" | tail -35 || true
+            grep -n -i -C 5 -E '(^error:| error:|what went wrong|could not|does not exist)' "$log" | tail -100 || true
             tail -80 "$log"
             exit 1
           fi
