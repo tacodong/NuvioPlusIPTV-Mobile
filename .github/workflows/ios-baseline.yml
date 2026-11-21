@@ -1,0 +1,70 @@
+name: iPad simulator baseline
+on:
+  push:
+    branches: [codex/ios-baseline]
+    paths: [.github/workflows/ios-baseline.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          java -version
+          df -h "$RUNNER_TEMP"
+      - name: Stage pinned upstream dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir MPVKit
+          curl -fLsS --retry 2 https://codeload.github.com/NuvioMedia/MPVKit/tar.gz/da4b7da256a5d67dee74f576762ceb9067fc7a71 |
+            tar xz -C MPVKit --strip-components 1
+          test -f MPVKit/Package.swift
+          archive="$RUNNER_TEMP/engine.zip"
+          curl -fLsS --retry 2 https://github.com/NuvioMedia/nuvio-engine/releases/download/v0.1.6/nuvio-engine-apple-0.1.6.zip -o "$archive"
+          printf '%s  %s\n' f556718ec0fd122a61bc5408307b19fcd54397595954c46c6ff8db1e5a179421 "$archive" | shasum -a 256 -c -
+          unzip -q "$archive" -d "$RUNNER_TEMP/engine"
+          framework=$(find "$RUNNER_TEMP/engine" -type d -name NuvioEngine.xcframework -print -quit)
+          test -f "$framework/ios-arm64_x86_64-simulator/libCNuvioEngine.a"
+          mkdir -p ../nuvio-engine/platform/apple
+          ditto "$framework" ../nuvio-engine/platform/apple/NuvioEngine.xcframework
+      - name: Build full unsigned iPad simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GRADLE_USER_HOME="$RUNNER_TEMP/gradle"
+          export KONAN_DATA_DIR="$RUNNER_TEMP/konan"
+          log="$RUNNER_TEMP/xcodebuild.log"
+          if env NUVIO_IOS_DISTRIBUTION=full \
+            "ORG_GRADLE_PROJECT_org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" \
+            "ORG_GRADLE_PROJECT_kotlin.daemon.jvmargs=-Xmx1536m" \
+            "ORG_GRADLE_PROJECT_kotlin.native.jvmArgs=-Xmx3072m" \
+            "ORG_GRADLE_PROJECT_org.gradle.workers.max=2" \
+            xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \
+              -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/derived" \
+              ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build >"$log" 2>&1; then
+            tail -12 "$log"
+          else
+            grep -n -iE '(^error:| error:|exception|failure:|what went wrong)' "$log" | tail -35 || true
+            tail -80 "$log"
+            exit 1
+          fi
+          app=$(find "$RUNNER_TEMP/derived/Build/Products" -maxdepth 2 -name '*.app' -type d -print -quit)
+          test -n "$app"
+          binary=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Info.plist")
+          xcrun lipo -verify_arch arm64 "$app/$binary"
