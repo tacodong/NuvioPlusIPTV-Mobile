@@ -42,7 +42,7 @@ fun App(
     onReplace: ((AppRoute) -> Unit)? = null,
     onActivate: ((AppScreenTab) -> Unit)? = null,
     onAppReady: ((Boolean) -> Unit)? = null,
-    onTabTitles: ((home: String, search: String, library: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
+    onTabTitles: ((home: String, search: String, library: String, profile: String, switchProfile: String, addProfile: String, liveTv: String, showLiveTv: Boolean) -> Unit)? = null,
     nativeProfileSwitcherController: NativeProfileSwitcherController? = null,
     appGateController: AppGateController? = null,
 ) {

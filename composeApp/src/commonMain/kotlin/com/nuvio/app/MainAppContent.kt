@@ -164,6 +164,7 @@ import com.nuvio.app.features.livetv.ui.sports.SportsScreen
 import com.nuvio.app.features.livetv.LiveTvDeepLinks
 import com.nuvio.app.features.livetv.LiveTvLink
 import com.nuvio.app.features.livetv.data.LiveTvRepository
+import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.record.LiveTvRecorder
 import com.nuvio.app.features.livetv.record.LiveTvRecording
 import com.nuvio.app.features.player.PlayerLaunch
@@ -239,7 +240,7 @@ internal fun MainAppContent(
     onGoBack: (() -> Unit)? = null,
     onReplace: ((AppRoute) -> Unit)? = null,
     onActivate: ((AppScreenTab) -> Unit)? = null,
-    onTabTitles: ((home: String, search: String, library: String, profile: String, switchProfile: String, addProfile: String) -> Unit)? = null,
+    onTabTitles: ((home: String, search: String, library: String, profile: String, switchProfile: String, addProfile: String, liveTv: String, showLiveTv: Boolean) -> Unit)? = null,
     appGateController: AppGateController? = null,
     onRootContentReady: ((Boolean) -> Unit)? = null,
     onSwitchProfile: () -> Unit = {},
@@ -499,7 +500,12 @@ internal fun MainAppContent(
         }
     }
 
+    val showNativeLiveTv by LiveTvPreferences.settings.map { it.showInSidebar }
+        .collectAsStateWithLifecycle(initialValue = true)
+    val nativeLiveTvTitle = stringResource(Res.string.livetv_title)
     LaunchedEffect(
+        showNativeLiveTv,
+        nativeLiveTvTitle,
         nativeTabHomeTitle,
         nativeTabSearchTitle,
         nativeTabLibraryTitle,
@@ -521,6 +527,8 @@ internal fun MainAppContent(
             nativeTabProfileTitle,
             nativeSwitchProfileTitle,
             nativeAddProfileTitle,
+            nativeLiveTvTitle,
+            showNativeLiveTv,
         )
     }
 

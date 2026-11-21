@@ -324,10 +324,11 @@ enum NuvioAppTab: String, CaseIterable, Hashable {
     case home = "Home"
     case search = "Search"
     case library = "Library"
+    case liveTv = "LiveTv"
     case settings = "Settings"
 
     var fallbackTitle: String {
-        String(localized: String.LocalizationValue(rawValue))
+        String(localized: String.LocalizationValue(self == .liveTv ? "Live TV" : rawValue))
     }
 
     static func from(kotlinName: String?) -> NuvioAppTab? {
@@ -335,6 +336,7 @@ enum NuvioAppTab: String, CaseIterable, Hashable {
         case "home": return .home
         case "search": return .search
         case "library": return .library
+        case "livetv": return .liveTv
         case "settings", "profile": return .settings
         default: return nil
         }
@@ -345,6 +347,7 @@ enum NuvioAppTab: String, CaseIterable, Hashable {
         case .home: return "NuvioTabHome"
         case .search: return "NuvioTabSearch"
         case .library: return "NuvioTabLibrary"
+        case .liveTv: return "NuvioTabLiveTv"
         case .settings: return "NuvioTabProfile"
         }
     }
@@ -354,6 +357,7 @@ enum NuvioAppTab: String, CaseIterable, Hashable {
         case .home: return "house.fill"
         case .search: return "magnifyingglass"
         case .library: return "rectangle.stack.fill"
+        case .liveTv: return "tv"
         case .settings: return "person.crop.circle.fill"
         }
     }
@@ -634,6 +638,7 @@ final class AppNavigationCoordinator: ObservableObject {
     @Published private(set) var isMainContentVisible = false
     @Published private(set) var isAppReady = false
     @Published private var localizedTabTitles: [NuvioAppTab: String] = [:]
+    @Published private var showsLiveTv = true
     @Published private(set) var localizedSwitchProfileTitle = ""
     @Published private(set) var localizedAddProfileTitle = ""
     @Published var isProfileSwitcherPresented = false
@@ -641,6 +646,7 @@ final class AppNavigationCoordinator: ObservableObject {
     let homeCoordinator = TabNavigationCoordinator()
     let searchCoordinator = TabNavigationCoordinator()
     let libraryCoordinator = TabNavigationCoordinator()
+    let liveTvCoordinator = TabNavigationCoordinator()
     let settingsCoordinator = TabNavigationCoordinator()
     let appGateController = AppGateController()
     let profileSwitcherController = NativeProfileSwitcherController()
@@ -654,7 +660,11 @@ final class AppNavigationCoordinator: ObservableObject {
     }
 
     private var allCoordinators: [TabNavigationCoordinator] {
-        [homeCoordinator, searchCoordinator, libraryCoordinator, settingsCoordinator]
+        [homeCoordinator, searchCoordinator, libraryCoordinator, liveTvCoordinator, settingsCoordinator]
+    }
+
+    var visibleTabs: [NuvioAppTab] {
+        NuvioAppTab.allCases.filter { showsLiveTv || $0 != .liveTv }
     }
 
     func coordinator(for tab: NuvioAppTab) -> TabNavigationCoordinator {
@@ -662,12 +672,13 @@ final class AppNavigationCoordinator: ObservableObject {
         case .home: return homeCoordinator
         case .search: return searchCoordinator
         case .library: return libraryCoordinator
+        case .liveTv: return liveTvCoordinator
         case .settings: return settingsCoordinator
         }
     }
 
     func activateTab(named tabName: String) {
-        guard let tab = NuvioAppTab.from(kotlinName: tabName) else { return }
+        guard let tab = NuvioAppTab.from(kotlinName: tabName), visibleTabs.contains(tab) else { return }
         if tab == .home || isAppReady {
             selectedTab = tab
         }
@@ -683,16 +694,21 @@ final class AppNavigationCoordinator: ObservableObject {
         library: String,
         profile: String,
         switchProfile: String,
-        addProfile: String
+        addProfile: String,
+        liveTv: String,
+        showLiveTv: Bool
     ) {
         localizedTabTitles = [
             .home: home,
             .search: search,
             .library: library,
+            .liveTv: liveTv,
             .settings: profile,
         ]
         localizedSwitchProfileTitle = switchProfile
         localizedAddProfileTitle = addProfile
+        showsLiveTv = showLiveTv
+        if !showLiveTv && selectedTab == .liveTv { selectedTab = .home }
     }
 
     func updateAppReady(_ ready: Bool) {
@@ -733,7 +749,8 @@ final class AppNavigationCoordinator: ObservableObject {
             AppKt.disposeRoute(route: route)
             return
         }
-        let targetTab = NuvioAppTab.from(kotlinName: route.preferredTabName)
+        let preferred = NuvioAppTab.from(kotlinName: route.preferredTabName)
+        let targetTab = preferred.flatMap { visibleTabs.contains($0) ? $0 : nil }
             ?? tab(for: origin)
             ?? selectedTab
         let target = coordinator(for: targetTab)
@@ -783,14 +800,16 @@ struct NativeNavComposeView: UIViewControllerRepresentable {
             onActivate: { tabName in
                 appCoordinator.activateTab(named: tabName)
             },
-            onTabTitles: { home, search, library, profile, switchProfile, addProfile in
+            onTabTitles: { home, search, library, profile, switchProfile, addProfile, liveTv, showLiveTv in
                 appCoordinator.updateTabTitles(
                     home: home,
                     search: search,
                     library: library,
                     profile: profile,
                     switchProfile: switchProfile,
-                    addProfile: addProfile
+                    addProfile: addProfile,
+                    liveTv: liveTv,
+                    showLiveTv: showLiveTv.boolValue
                 )
             },
             appGateController: appCoordinator.appGateController,
@@ -1349,7 +1368,7 @@ struct NativeNavContentView: View {
 
     private var legacyTabs: some View {
         TabView(selection: tabSelection) {
-            ForEach(NuvioAppTab.allCases, id: \.self) { tab in
+            ForEach(appCoordinator.visibleTabs, id: \.self) { tab in
                 TabContentView(
                     tab: tab,
                     usesNativeTabBar: usesNativeTabBar,
@@ -1382,7 +1401,7 @@ struct NativeNavContentView: View {
     @available(iOS 26.0, *)
     private var nativeTabs: some View {
         TabView(selection: tabSelection) {
-            ForEach(NuvioAppTab.allCases, id: \.self) { tab in
+            ForEach(appCoordinator.visibleTabs, id: \.self) { tab in
                 if tab == .settings {
                     Tab(value: tab) {
                         TabContentView(
