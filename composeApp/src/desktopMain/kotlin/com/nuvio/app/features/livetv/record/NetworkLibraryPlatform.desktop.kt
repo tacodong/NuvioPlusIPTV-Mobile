@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 /** Network folders aren't built on Desktop yet: the library stays hidden there. */
+// TODO(desktop): Implement network recording folder discovery and access.
 internal actual object NetworkLibraryPlatform {
     actual val available: Boolean = false
     actual suspend fun list(config: NetworkFolderConfig): Map<String, String> = throw UnsupportedOperationException("Not available on this device")

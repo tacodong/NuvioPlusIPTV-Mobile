@@ -1,6 +1,7 @@
 package com.nuvio.app.features.livetv.record
 
 /** Recordings aren't built for Desktop yet: nothing is written, nothing is scheduled. */
+// TODO(desktop): Implement desktop background recording, alarms, and reminder notifications.
 internal actual object RecordingPlatform {
     actual val available: Boolean get() = false
     actual fun recordingsRoot(): String = ""
