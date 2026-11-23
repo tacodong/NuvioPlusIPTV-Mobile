@@ -1,0 +1,273 @@
+package com.nuvio.app.features.livetv.data
+
+import com.nuvio.app.core.storage.DesktopStorage
+import kotlinx.coroutines.ensureActive
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.PosixFilePermissions
+import com.nuvio.app.features.livetv.model.PlaylistSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+
+internal actual object LiveTvFiles {
+    private val http: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            // A provider that trickles data forever would otherwise hold up every other update.
+            .callTimeout(10, TimeUnit.MINUTES)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .retryOnConnectionFailure(true)
+            .dns(ForkDns.provider)
+            .build()
+    }
+
+    private fun dir(dir: String): File {
+        require(dir.matches(Regex("[a-z]+")))
+        val base = DesktopStorage.rootDir.resolve("livetv")
+        for (path in listOf(base, base.resolve(dir))) {
+            if (!Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                try {
+                    if (Files.getFileStore(path.parent).supportsFileAttributeView("posix")) {
+                        Files.createDirectory(path, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")))
+                    } else Files.createDirectory(path)
+                } catch (_: java.nio.file.FileAlreadyExistsException) { }
+            }
+            check(Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+        }
+        return base.resolve(dir).toFile()
+    }
+
+    private fun file(dir: String, name: String): File {
+        require(name.isNotBlank() && name != "." && name != ".." && name.none { it == '/' || it == '\\' })
+        val target = File(dir(dir), name)
+        check(!Files.isSymbolicLink(target.toPath()))
+        return target
+    }
+
+    private fun publish(tmp: File, target: File) {
+        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    private fun temporary(target: File): File {
+        val parent = target.parentFile.toPath()
+        val path = if (Files.getFileStore(parent).supportsFileAttributeView("posix")) {
+            Files.createTempFile(parent, ".livetv-", ".tmp", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))
+        } else Files.createTempFile(parent, ".livetv-", ".tmp")
+        return path.toFile()
+    }
+
+    actual fun exists(dir: String, name: String): Boolean = file(dir, name).isFile
+
+    actual fun lastModified(dir: String, name: String): Long = file(dir, name).takeIf { it.isFile }?.lastModified() ?: 0L
+
+    actual fun size(dir: String, name: String): Long = file(dir, name).takeIf { it.isFile }?.length() ?: 0L
+
+    actual fun delete(dir: String, name: String) {
+        file(dir, name).delete()
+    }
+
+    actual fun list(dir: String): List<String> = dir(dir).listFiles()?.filter { it.isFile && !it.name.startsWith(".livetv-") }?.map { it.name }.orEmpty()
+
+    actual suspend fun download(
+        url: String,
+        dir: String,
+        name: String,
+        userAgent: String,
+        checkPlaylist: Boolean,
+        onProgress: ((bytes: Long) -> Unit)?,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val target = file(dir, name)
+        val tmp = temporary(target)
+        try {
+            val request = Request.Builder()
+                .url(PlaylistSource.tidyLink(url))
+                .header("User-Agent", userAgent.ifBlank { XtreamClient.DEFAULT_UA })
+                .header("Accept", "*/*")
+                .header("Accept-Encoding", "gzip")
+                .get()
+                .build()
+            http.newCall(request).execute().use { response ->
+                if (checkPlaylist && (response.code == 403 || response.code == 406)) {
+                    throw NotAPlaylistException("an error (${XtreamClient.httpError(response.code)})")
+                }
+                if (!response.isSuccessful) throw HttpStatusException(response.code, XtreamClient.httpError(response.code))
+                val body = response.body ?: error("Empty response")
+                val raw: InputStream = body.byteStream()
+                // Whatever came down (gzip from the server, a .gz file, or plain text) is stored
+                // compressed, so reading it back is always the same.
+                val input = BufferedInputStream(raw, 64 * 1024)
+                // Peeking needs a stream that can go back (a zipped one is wrapped for it).
+                val plain = unzipIfNeeded(input).let { if (checkPlaylist && !it.markSupported()) BufferedInputStream(it, 64 * 1024) else it }
+                if (checkPlaylist) notAPlaylist(plain)?.let { throw NotAPlaylistException(it) }
+                var total = 0L
+                GZIPOutputStream(tmp.outputStream().buffered(64 * 1024), 64 * 1024).use { out ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        ensureActive()
+                        val n = plain.read(buf)
+                        if (n < 0) break
+                        if (n == 0) continue
+                        out.write(buf, 0, n)
+                        total += n
+                        onProgress?.invoke(total)
+                    }
+                }
+                if (total == 0L) error("Empty response")
+            }
+            val changed = !target.isFile || !sameDecoded(target, tmp)
+            publish(tmp, target)
+            // Touch it so "last updated" is now even when the content didn't change.
+            target.setLastModified(System.currentTimeMillis())
+            changed
+        } catch (e: Exception) {
+            tmp.delete()
+            if (e is kotlinx.coroutines.CancellationException || e is NotAPlaylistException || e is HttpStatusException) throw e
+            throw IllegalStateException(describe(e), e)
+        }
+    }
+
+    /**
+     * Looks at the start of a (plain, unzipped) download, leaving it unread, and says what it is
+     * when it's clearly not an M3U: a video or other binary file, or a web page. Anything else,
+     * including lists without the usual header, is let through as before.
+     */
+    private fun notAPlaylist(plain: InputStream): String? {
+        val input = if (plain.markSupported()) plain else return null
+        val peekSize = 16 * 1024
+        input.mark(peekSize + 1)
+        val raw = ByteArray(peekSize)
+        var n = 0
+        while (n < peekSize) {
+            val r = input.read(raw, n, peekSize - n)
+            if (r < 0) break
+            n += r
+        }
+        input.reset()
+        if (n == 0) return null // empty: reported as an empty response as before
+        val text = String(raw, 0, n, Charsets.UTF_8)
+        if (text.contains("#EXTM3U", ignoreCase = true) || text.contains("#EXTINF", ignoreCase = true)) return null
+        val binary = (0 until minOf(n, 1024)).any { val c = raw[it].toInt() and 0xff; c == 0 || c < 0x09 }
+        if (binary) return "a video or other file"
+        if (text.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("<")) return "a web page"
+        return null
+    }
+
+    private fun describe(e: Exception): String = when (e) {
+        // Names the address that wasn't found (as the TV app does): it can differ from the one typed
+        // in, when the provider sends the app on to another server.
+        is UnknownHostException -> "Couldn't find the provider's server${missingHost(e)}. Check the address, your internet, or try again later."
+        is SocketTimeoutException -> "The provider took too long to answer (timeout). It may be busy; try again later."
+        is java.net.ConnectException -> "Couldn't connect to the provider's server."
+        is javax.net.ssl.SSLException -> "Secure connection to the provider failed."
+        is IllegalArgumentException -> "That isn't a valid web address."
+        else -> e.message ?: e.javaClass.simpleName
+    }
+
+    /** " (cdn.example.com)" from Android's "Unable to resolve host "cdn.example.com": …", or "" when it names none. */
+    private fun missingHost(e: Exception): String {
+        val message = e.message.orEmpty()
+        val host = if ('"' in message) message.substringAfter('"').substringBefore('"') else message.trim()
+        return if (host.isNotEmpty() && host.length <= 100 && host.none { it.isWhitespace() }) " ($host)" else ""
+    }
+
+    /** A gzip stream is read through; anything else is handed back as is. */
+    private fun unzipIfNeeded(input: BufferedInputStream): InputStream {
+        input.mark(2)
+        val b1 = input.read()
+        val b2 = input.read()
+        input.reset()
+        return if (b1 == 0x1f && b2 == 0x8b) GZIPInputStream(input, 64 * 1024) else input
+    }
+
+    private fun sameDecoded(a: File, b: File): Boolean = runCatching {
+        fun digest(f: File): ByteArray {
+            val md = MessageDigest.getInstance("SHA-1")
+            open(f).use { s ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = s.read(buf)
+                    if (n < 0) break
+                    md.update(buf, 0, n)
+                }
+            }
+            return md.digest()
+        }
+        digest(a).contentEquals(digest(b))
+    }.getOrDefault(false)
+
+    private fun open(f: File): InputStream {
+        val input = BufferedInputStream(f.inputStream(), 64 * 1024)
+        return unzipIfNeeded(input)
+    }
+
+    actual fun writeText(dir: String, name: String, text: String): Boolean {
+        val target = file(dir, name)
+        val tmp = temporary(target)
+        try {
+            GZIPOutputStream(tmp.outputStream().buffered(64 * 1024), 64 * 1024).use { it.write(text.toByteArray()) }
+            val changed = !target.isFile || !sameDecoded(target, tmp)
+            publish(tmp, target)
+            return changed
+        } finally { tmp.delete() }
+    }
+
+    actual suspend fun writeTextStream(dir: String, name: String,
+        publish: (() -> Unit) -> Unit, producer: suspend ((String) -> Unit) -> Unit): Boolean = withContext(Dispatchers.IO) {
+        val target = file(dir, name)
+        val tmp = temporary(target)
+        try {
+            GZIPOutputStream(tmp.outputStream().buffered(64 * 1024), 64 * 1024).bufferedWriter(Charsets.UTF_8).use { writer ->
+                producer { writer.write(it) }
+            }
+            val changed = !target.isFile || !sameDecoded(target, tmp)
+            publish {
+                // Publish the completed snapshot in one move.
+                publish(tmp, target)
+                target.setLastModified(System.currentTimeMillis())
+            }
+            changed
+        } finally { tmp.delete() }
+    }
+
+    actual fun <T> readChunks(dir: String, name: String, block: (Sequence<String>) -> T): T? {
+        val f = file(dir, name)
+        if (!f.isFile) return null
+        return InputStreamReader(open(f), Charsets.UTF_8).use { reader ->
+            val buf = CharArray(256 * 1024)
+            val seq = generateSequence {
+                val n = reader.read(buf)
+                if (n < 0) null else String(buf, 0, n)
+            }
+            block(seq)
+        }
+    }
+
+    actual fun readSmall(dir: String, name: String): String? =
+        file(dir, name).takeIf { it.isFile }?.readText()
+
+    actual fun writeSmall(dir: String, name: String, text: String) {
+        val target = file(dir, name)
+        val tmp = temporary(target)
+        try {
+            tmp.writeText(text)
+            publish(tmp, target)
+        } finally { tmp.delete() }
+    }
+
+    actual val deviceName: String
+        get() = System.getProperty("os.name", "Desktop")
+}

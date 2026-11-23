@@ -1185,6 +1185,7 @@ kotlin {
             kotlin.srcDir(generatedRuntimeConfigDir)
         }
         androidMain {
+            kotlin.srcDir("src/jvmSharedMain/kotlin")
             kotlin.srcDir(project.file(androidDistributionSourceDir))
             if (androidDistribution == "full") {
                 kotlin.srcDir(fullCommonSourceDir)
@@ -1232,6 +1233,7 @@ kotlin {
             }
         }
         val desktopMain by getting {
+            kotlin.srcDir("src/jvmSharedMain/kotlin")
             kotlin.srcDir(fullPluginSourceDir)
             kotlin.srcDir(fullTrailerSourceDir)
             kotlin.srcDir(
@@ -1249,6 +1251,8 @@ kotlin {
                 }
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.ktor.client.cio)
+                implementation(libs.ktor.client.okhttp)
+                implementation("com.google.code.gson:gson:2.11.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)

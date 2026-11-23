@@ -951,7 +951,7 @@ internal fun releaseRetainedPlayerBeforeNavigation(
     }
 }
 
-private fun PlayerScreenRuntime.requestBack() {
+internal fun PlayerScreenRuntime.requestBack() {
     flushWatchProgress()
     val exitingController = playerLifecycleController
     args.onBack { afterRelease, releaseFailed ->

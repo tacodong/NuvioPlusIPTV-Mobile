@@ -1062,6 +1062,7 @@ private fun TabletSettingsScreen(
                         }
                     }
                     when (page) {
+                        SettingsPage.LiveTv -> liveTvSettingsContent(isTablet = true)
                         SettingsPage.Root -> {
                             settingsSearchRootContent(
                                 query = settingsSearchQuery,
@@ -1251,7 +1252,6 @@ private fun TabletSettingsScreen(
                             .fillMaxHeight()
                             .padding(top = topOffset, bottom = 8.dp, end = 4.dp),
                     )
-                    SettingsPage.LiveTv -> liveTvSettingsContent(isTablet = true)
                 }
             }
         }

@@ -74,6 +74,7 @@ fun main(args: Array<String>) {
     ProfileRepository.loadCachedProfiles()
     AppIconRepository.ensureLoaded()
     AutoSyncPreferencesDesktop.initialize()
+    com.nuvio.app.features.livetv.LiveTvPreferencesDesktop.initialize()
     DiscordPresenceManager.start()
 
     application {

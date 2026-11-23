@@ -47,9 +47,9 @@ import kotlinx.coroutines.flow.drop
 actual fun PlatformPlayerSurface(
     sourceUrl: String,
     sourceAudioUrl: String?,
-    stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy?,
     sourceHeaders: Map<String, String>,
     sourceResponseHeaders: Map<String, String>,
+    stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
     useYoutubeChunkedPlayback: Boolean,
@@ -71,6 +71,14 @@ actual fun PlatformPlayerSurface(
     onError: (String?) -> Unit,
     sourceAvailable: Boolean,
 ) {
+    // TODO(desktop): Route authenticated Stalker media through a per-request transport that
+    // scopes credentials to their allowed origin, including playlist segments and redirects.
+    if (stalkerMediaPolicy != null) {
+        androidx.compose.runtime.LaunchedEffect(stalkerMediaPolicy) {
+            onError("Authenticated Stalker playback is not yet supported on desktop.")
+        }
+        return
+    }
     if (DesktopHostOs.current == DesktopHostOs.MACOS ||
         DesktopHostOs.current == DesktopHostOs.WINDOWS ||
         DesktopHostOs.current == DesktopHostOs.LINUX
