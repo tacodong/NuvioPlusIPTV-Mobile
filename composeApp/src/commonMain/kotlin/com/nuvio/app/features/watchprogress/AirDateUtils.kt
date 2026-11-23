@@ -48,6 +48,9 @@ class ReleaseAlertState(
     val isNewSeasonRelease: Boolean,
 )
 
+private const val ReleaseAlertWindowMs = 60L * 24 * 60 * 60 * 1000
+private val NoReleaseAlertState = ReleaseAlertState(false, false)
+
 fun calculateReleaseAlertState(
     seedLastUpdatedEpochMs: Long,
     seedSeasonNumber: Int?,
@@ -57,25 +60,20 @@ fun calculateReleaseAlertState(
     nowEpochMs: Long = WatchProgressClock.nowEpochMs(),
 ): ReleaseAlertState {
     val releaseEpoch = releaseEpochMs
+        ?: return NoReleaseAlertState
+
     val nowMs = nowEpochMs
+    if (nowMs < releaseEpoch) return NoReleaseAlertState
+    if (releaseEpoch <= seedLastUpdatedEpochMs) return NoReleaseAlertState
+    if (nowMs - releaseEpoch >= ReleaseAlertWindowMs) return NoReleaseAlertState
 
-    if (releaseEpoch == null) {
-        return ReleaseAlertState(false, false)
-    }
-
-    val hasAired = nowMs >= releaseEpoch
-    val sixtyDaysMs = 60L * 24 * 60 * 60 * 1000
-    val isReleaseAlert = hasAired &&
-        releaseEpoch > seedLastUpdatedEpochMs &&
-        (nowMs - releaseEpoch) < sixtyDaysMs
-
-    val isNewSeasonRelease = isReleaseAlert &&
+    val isNewSeasonRelease =
         seedSeasonNumber != null &&
         nextSeasonNumber != null &&
         nextSeasonNumber != seedSeasonNumber
 
     return ReleaseAlertState(
-        isReleaseAlert = isReleaseAlert,
+        isReleaseAlert = true,
         isNewSeasonRelease = isNewSeasonRelease
     )
 }

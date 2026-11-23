@@ -27,7 +27,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.nuvio.app.features.cloud.CloudLibraryContentType
 import com.nuvio.app.features.cloud.cloudLibraryDisplayArtworkUrl
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
@@ -140,7 +139,7 @@ private fun ContinueWatchingSheetHeader(
         ) {
             val artwork = item.poster ?: item.imageUrl
             if (artwork != null) {
-                AsyncImage(
+                NuvioAsyncImage(
                     model = cloudLibraryDisplayArtworkUrl(artwork),
                     contentDescription = item.title,
                     modifier = Modifier.matchParentSize(),

@@ -145,12 +145,12 @@ internal expect object PlayerSettingsStorage {
     fun saveStreamAutoPlayTimeoutSeconds(seconds: Int)
     fun loadSkipIntroEnabled(): Boolean?
     fun loadAutoSkipMovieCredits(): Boolean?
-    fun loadAutoSkipSegmentTypes(): Set<String>?
-    fun saveAutoSkipSegmentTypes(types: Set<String>)
     fun saveAutoSkipMovieCredits(enabled: Boolean)
     fun loadAutoSkipPostCredits(): Boolean?
     fun saveAutoSkipPostCredits(enabled: Boolean)
     fun saveSkipIntroEnabled(enabled: Boolean)
+    fun loadAutoSkipSegmentTypes(): Set<String>?
+    fun saveAutoSkipSegmentTypes(segmentTypes: Set<String>)
     fun loadAnimeSkipEnabled(): Boolean?
     fun saveAnimeSkipEnabled(enabled: Boolean)
     fun loadAnimeSkipClientId(): String?
@@ -214,6 +214,10 @@ internal expect object PlayerSettingsStorage {
     fun saveIosSaturation(value: Int)
     fun loadIosGamma(): Int?
     fun saveIosGamma(value: Int)
+    fun loadNvidiaRtxSuperResolutionEnabled(): Boolean?
+    fun saveNvidiaRtxSuperResolutionEnabled(enabled: Boolean)
+    fun loadNvidiaRtxHdrEnabled(): Boolean?
+    fun saveNvidiaRtxHdrEnabled(enabled: Boolean)
     fun exportToSyncPayload(): JsonObject
     fun replaceFromSyncPayload(payload: JsonObject)
 }

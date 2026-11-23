@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
@@ -59,7 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.format.formatReleaseDateForDisplay
@@ -69,9 +70,13 @@ import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.backdropControlColor
 import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.secondaryClick
 import com.nuvio.app.features.details.MetaDetails
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.EpisodeRatingsVisibility
 import com.nuvio.app.features.details.MetaEpisodeCardStyle
 import com.nuvio.app.features.details.MetaVideo
@@ -177,7 +182,7 @@ fun DetailSeriesContent(
         val containerWidthDp = maxWidth.value
 
         Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else 16.dp),
         ) {
             SeriesSeasonSelector(
                 meta = meta,
@@ -206,7 +211,7 @@ fun DetailSeriesContent(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    if (seasons.size == 1) {
+                    if (!isDesktop || seasons.size <= 1) {
                         DetailSectionTitle(
                             title = if (meta.type != "series" && seasonForContent <= 0) {
                                 stringResource(Res.string.details_videos)
@@ -288,7 +293,7 @@ internal fun DetailSeriesListHeader(
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val sizing = seriesContentSizing(maxWidth.value)
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(if (isDesktop) 12.dp else 16.dp)) {
             SeriesSeasonSelector(
                 meta = meta,
                 seasons = seasons,
@@ -383,7 +388,11 @@ private fun SeriesSeasonSelector(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = if (isDesktop) {
+                Arrangement.spacedBy(12.dp)
+            } else {
+                Arrangement.SpaceBetween
+            },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -511,15 +520,19 @@ private fun SeasonTextChipScrollRow(
         state = seasonListState,
         modifier = Modifier
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .nuvioDesktopDragScroll(seasonListState)
+            .let { if (isDesktop) it.padding(bottom = 4.dp) else it },
         contentPadding = PaddingValues(horizontal = horizontalScrollPadding),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
         items(seasons, key = { season -> season }) { season ->
             val isSelected = season == currentSeason
+            val onSecondaryClick = onLongPress?.let { handler -> { handler(season) } }
+            val chipShape = RoundedCornerShape(sizing.seasonChipRadius)
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(sizing.seasonChipRadius))
+                    .clip(chipShape)
                     .background(
                         if (isSelected) {
                             backdropControlColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
@@ -527,10 +540,12 @@ private fun SeasonTextChipScrollRow(
                             Color.Transparent
                         },
                     )
+                    .nuvioFocusBorder(chipShape)
                     .combinedClickable(
                         onClick = { onSelect(season) },
-                        onLongClick = onLongPress?.let { handler -> { handler(season) } },
+                        onLongClick = onSecondaryClick,
                     )
+                    .secondaryClick(onSecondaryClick)
                     .padding(
                         horizontal = sizing.seasonChipHorizontalPadding,
                         vertical = sizing.seasonChipVerticalPadding,
@@ -584,7 +599,9 @@ private fun SeasonPosterScrollRow(
         state = seasonListState,
         modifier = Modifier
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .nuvioDesktopDragScroll(seasonListState)
+            .let { if (isDesktop) it.padding(bottom = 4.dp) else it },
         contentPadding = PaddingValues(horizontal = horizontalScrollPadding),
         horizontalArrangement = Arrangement.spacedBy(sizing.seasonChipGap),
     ) {
@@ -629,10 +646,8 @@ private fun SeasonPosterButton(
     Column(
         modifier = Modifier
             .width(sizing.seasonPosterWidth)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
+            .nuvioFocusBorder(RoundedCornerShape(sizing.seasonPosterRadius))
+            .posterCardClickable(onClick = onClick, onLongClick = onLongClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
@@ -738,7 +753,8 @@ private fun EpisodeHorizontalRow(
         state = listState,
         modifier = Modifier
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .nuvioDesktopDragScroll(listState),
         contentPadding = PaddingValues(
             horizontal = horizontalScrollPadding + rowMetrics.rowHorizontalPadding,
             vertical = rowMetrics.rowVerticalPadding,
@@ -819,6 +835,7 @@ private fun EpisodeHorizontalCard(
                 surface = NuvioCardDepthSurface.EpisodeCards,
                 fallbackBorderAlpha = 0.12f,
             )
+            .nuvioFocusBorder(cardShape)
             .posterCardClickable(
                 onClick = onClick,
                 onLongClick = onLongPress,
@@ -835,6 +852,7 @@ private fun EpisodeHorizontalCard(
                     .fillMaxSize()
                     .then(if (shouldBlurArtwork) Modifier.blur(18.dp) else Modifier),
                 contentScale = ContentScale.Crop,
+                desktopAnimation = rememberAnimatedArtworkAnimation(),
             )
         }
 
@@ -1203,11 +1221,13 @@ private fun EpisodeListCard(
                 color = Color.White.copy(alpha = 0.1f),
                 shape = cardShape,
             )
+            .nuvioFocusBorder(cardShape)
             .combinedClickable(
                 enabled = onClick != null || onLongPress != null,
                 onClick = { onClick?.invoke() },
                 onLongClick = onLongPress,
-            ),
+            )
+            .secondaryClick(onLongPress),
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -1229,6 +1249,7 @@ private fun EpisodeListCard(
                             .fillMaxSize()
                             .then(if (shouldBlurArtwork) Modifier.blur(18.dp) else Modifier),
                         contentScale = ContentScale.Crop,
+                        desktopAnimation = rememberAnimatedArtworkAnimation(),
                     )
                 } else {
                     Box(

@@ -66,11 +66,11 @@ object AndroidAppUpdaterPlatform {
         preferences().edit().putString(updateChannelKey, channel).apply()
     }
 
-    fun deleteDownloadedApk(path: String) {
+    fun deleteDownloadedUpdate(path: String) {
         File(path).delete()
     }
 
-    suspend fun downloadApk(
+    suspend fun downloadUpdateAsset(
         assetUrl: String,
         assetName: String,
         expectedSha256: String?,
@@ -154,7 +154,7 @@ object AndroidAppUpdaterPlatform {
         context.startActivity(intent)
     }
 
-    fun installDownloadedApk(path: String): Result<Unit> = runCatching {
+    fun installDownloadedUpdate(path: String): Result<Unit> = runCatching {
         val context = requireContext()
         val apkFile = File(path)
         check(apkFile.exists()) { runBlocking { getString(Res.string.updates_downloaded_file_missing) } }

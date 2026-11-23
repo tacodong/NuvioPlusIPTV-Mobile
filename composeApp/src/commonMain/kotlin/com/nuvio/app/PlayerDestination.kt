@@ -27,16 +27,39 @@ internal fun PlayerDestination(
     onExternalPlayerLaunch: (PlayerLaunch) -> Unit,
     launchExternalPlayer: (ExternalPlayerIntentResult.Success) -> Boolean,
     openExternalStreamUrl: (String) -> Boolean,
+    onSystemBackHandlerChanged: (PlayerRoute, (() -> Unit)?) -> Unit,
     onOpenPartyMedia: (PartyMedia) -> Unit,
 ) {
-    val onBack = rememberGuardedPopBackStack(navController, route)
+    val popBack = rememberGuardedPopBackStack(
+        navController = navController,
+        route = route,
+        beforePop = ResumePromptRepository::markPlayerExitedNormally,
+    )
     val launch = remember(route.launchId) { PlayerLaunchStore.get(route.launchId) }
     if (launch == null) {
         LaunchedEffect(route.launchId) {
-            onBack()
+            popBack()
         }
         Box(modifier = Modifier.fillMaxSize())
         return
+    }
+    val currentFullscreen = com.nuvio.app.core.ui.isFullscreenActionActive()
+    val initialFullscreen = remember { currentFullscreen }
+    val onBackBase = rememberGuardedPlayerPopBackStack(
+        navController = navController,
+        route = route,
+        beforePop = ResumePromptRepository::markPlayerExitedNormally,
+    )
+    val onBack = remember(onBackBase, initialFullscreen, currentFullscreen) {
+        { releaseBeforeBack: com.nuvio.app.features.player.PlayerReleaseBeforeBack ->
+            if (currentFullscreen != initialFullscreen) {
+                com.nuvio.app.core.ui.toggleFullscreenAction()
+            }
+            onBackBase(releaseBeforeBack)
+        }
+    }
+    val registerSystemBack = remember(route, onSystemBackHandlerChanged) {
+        { handler: (() -> Unit)? -> onSystemBackHandlerChanged(route, handler) }
     }
     LaunchedEffect(launch.videoId) {
         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
@@ -82,10 +105,11 @@ internal fun PlayerDestination(
         sourceFromLinkCache = launch.sourceFromLinkCache,
         sourceAutoSelected = launch.sourceAutoSelected,
         onBack = onBack,
-        onOpenInExternalPlayer = { request ->
+        onSystemBackHandlerChanged = registerSystemBack,
+        onOpenInExternalPlayer = if (externalPlayerSupported) { external@{ request ->
             if (launch.stalkerMediaPolicy != null) {
                 NuvioToastController.show(com.nuvio.app.features.livetv.stalker.StalkerPlaybackSupport.ENGINE)
-                return@PlayerScreen
+                return@external
             }
             val playerLaunch = PlayerLaunch(
                 profileId = launch.profileId,
@@ -123,7 +147,7 @@ internal fun PlayerDestination(
                     if (!launched) {
                         NuvioToastController.show(externalPlayerFailedText)
                     } else if (externalPlayerId == "infuse") {
-                        onBack()
+                        popBack()
                     }
                 }
                 ExternalPlayerIntentResult.NotConfigured -> {
@@ -133,7 +157,7 @@ internal fun PlayerDestination(
                     NuvioToastController.show(externalPlayerFailedText)
                 }
             }
-        },
+        } } else null,
         onOpenExternalUrl = { url ->
             openExternalStreamUrl(url)
         },

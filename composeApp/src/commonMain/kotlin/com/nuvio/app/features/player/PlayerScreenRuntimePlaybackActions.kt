@@ -161,13 +161,7 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
         lastProgressPersistEpochMs = 0L
         previousIsPlaying = false
         pendingSeekScrobbleRestart = false
-        trackPreferenceRestoreApplied = false
-        preferredAudioSelectionApplied = false
-        appliedAudioPreferences = null
-        preferredSubtitleSelectionApplied = false
-        isUserExplicitAudioSelection = false
-        isUserExplicitSubtitleSelection = false
-        hasScannedTextTracksOnce = false
+        resetTrackSelectionState()
     }
 
     val videoIdentity = "$identity:$activeVideoId:$activeSeasonNumber:$activeEpisodeNumber"
@@ -178,7 +172,23 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
         pendingSeekScrobbleRestart = false
         hasSentCompletionScrobbleForCurrentItem = false
         currentTrackingMedia = null
+        resetTrackSelectionState()
     }
+}
+
+private fun PlayerScreenRuntime.resetTrackSelectionState() {
+    trackPreferenceRestoreApplied = false
+    preferredAudioSelectionApplied = false
+    appliedAudioPreferences = null
+    isUserExplicitAudioSelection = false
+    preferredSubtitleSelectionApplied = false
+    isUserExplicitSubtitleSelection = false
+    hasScannedTextTracksOnce = false
+    audioTracks = emptyList()
+    subtitleTracks = emptyList()
+    selectedSubtitleIndex = -1
+    selectedAddonSubtitleId = null
+    useCustomSubtitles = false
 }
 
 internal fun PlayerScreenRuntime.resetAddonSubtitlesIfSourceChanged() {
@@ -522,6 +532,12 @@ internal fun PlayerScreenRuntime.switchPlaybackEngine() {
             messageArgs = listOf(target.label),
         ),
     )
+}
+
+internal fun PlayerScreenRuntime.refreshStreamInfo() {
+    refreshTracks()
+    val controller = playerController ?: return
+    scope.launch { streamMediaInfo = controller.getMediaInfo() }
 }
 
 /**

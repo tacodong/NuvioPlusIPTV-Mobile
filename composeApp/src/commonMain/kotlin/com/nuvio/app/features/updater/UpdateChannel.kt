@@ -2,7 +2,8 @@ package com.nuvio.app.features.updater
 
 enum class UpdateChannel(val storedValue: String) {
     STABLE("stable"),
-    BETA("beta");
+    BETA("beta"),
+    ALL_RELEASES("all");
 
     companion object {
         fun fromStoredValue(value: String?): UpdateChannel? = entries.firstOrNull {

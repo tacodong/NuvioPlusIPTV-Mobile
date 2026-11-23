@@ -333,6 +333,7 @@
     <string name="compose_nav_library">Biblioteca</string>
     <string name="compose_nav_profile">Perfil</string>
     <string name="compose_nav_search">Pesquisar</string>
+    <string name="compose_nav_settings">Definições</string>
     <string name="compose_player_audio_tracks">Faixas de áudio</string>
     <string name="compose_player_audio_delay">Atraso do áudio</string>
     <string name="compose_player_audio_amplification">Amplificação</string>
@@ -1833,6 +1834,7 @@
     <string name="cw_airs_date">Estreia a %1$s</string>
     <string name="cw_airs_today">Estreia hoje</string>
     <string name="cw_airs_tomorrow">Estreia amanhã</string>
+    <string name="cw_airs_in_days_format">Estreia dentro de %1$d dias</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Estreia dentro de %1$d dia</item>
         <item quantity="other">Estreia dentro de %1$d dias</item>
@@ -1840,6 +1842,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Hoje</string>
     <string name="cw_airs_tomorrow_short">Amanhã</string>
+    <string name="cw_airs_in_days_short_format">Em %1$d dias</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">Em %1$d dia</item>
         <item quantity="other">Em %1$d dias</item>

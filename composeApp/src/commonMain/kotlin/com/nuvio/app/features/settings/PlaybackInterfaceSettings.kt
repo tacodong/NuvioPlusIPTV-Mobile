@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.features.player.PlayerSettingsRepository
 import com.nuvio.app.features.player.formatPlaybackSpeedLabel
+import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.nuvio.app.features.player.PlayerSettingsUiState
@@ -33,14 +34,16 @@ internal fun PlaybackInterfaceSettings(
             isTablet = isTablet,
         ) {
             SettingsGroup(isTablet = isTablet) {
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_playback_legacy_layout),
-                    description = stringResource(Res.string.settings_playback_legacy_layout_description),
-                    checked = settings.useLegacyPlayerLayout,
-                    isTablet = isTablet,
-                    onCheckedChange = PlayerSettingsRepository::setUseLegacyPlayerLayout,
-                )
-                SettingsGroupDivider(isTablet = isTablet)
+                if (!isDesktop) {
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_legacy_layout),
+                        description = stringResource(Res.string.settings_playback_legacy_layout_description),
+                        checked = settings.useLegacyPlayerLayout,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setUseLegacyPlayerLayout,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                }
                 SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_show_loading_overlay),
                     description = stringResource(Res.string.settings_playback_show_loading_overlay_description),
@@ -72,15 +75,17 @@ internal fun PlaybackInterfaceSettings(
                     isTablet = isTablet,
                     onCheckedChange = PlayerSettingsRepository::setShowParentalGuide,
                 )
-                SettingsGroupDivider(isTablet = isTablet)
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.settings_playback_touch_gestures),
-                    description = stringResource(Res.string.settings_playback_touch_gestures_description),
-                    checked = settings.touchGesturesEnabled,
-                    enabled = !settings.externalPlayerEnabled,
-                    isTablet = isTablet,
-                    onCheckedChange = PlayerSettingsRepository::setTouchGesturesEnabled,
-                )
+                if (!isDesktop) {
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsSwitchRow(
+                        title = stringResource(Res.string.settings_playback_touch_gestures),
+                        description = stringResource(Res.string.settings_playback_touch_gestures_description),
+                        checked = settings.touchGesturesEnabled,
+                        enabled = !settings.externalPlayerEnabled,
+                        isTablet = isTablet,
+                        onCheckedChange = PlayerSettingsRepository::setTouchGesturesEnabled,
+                    )
+                }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_hold_to_speed),
@@ -99,11 +104,12 @@ internal fun PlaybackInterfaceSettings(
                         onClick = { showHoldToSpeedValueDialog = true },
                     )
                 }
-                // Chapters work on every engine: ExoPlayer and libmpv on Android, mpv on iOS.
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
                     title = stringResource(Res.string.settings_playback_exo_chapters),
-                    description = stringResource(Res.string.settings_playback_exo_chapters_description),
+                    description = stringResource(
+                        if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description,
+                    ),
                     checked = settings.androidExoChaptersEnabled,
                     enabled = !settings.externalPlayerEnabled,
                     isTablet = isTablet,

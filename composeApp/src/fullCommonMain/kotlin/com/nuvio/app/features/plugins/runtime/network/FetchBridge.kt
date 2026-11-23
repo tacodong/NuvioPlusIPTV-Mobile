@@ -5,6 +5,7 @@ import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.asyncFunction
 import com.nuvio.app.features.addons.httpRequestRaw
 import com.nuvio.app.features.plugins.runtime.host.HostModule
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -30,7 +31,7 @@ internal class FetchBridge : HostModule {
             val followRedirects = args.getOrNull(5) as? Boolean ?: true
             try {
                 performNativeFetch(url, method, headersJson, bodyKind, body, followRedirects)
-            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (t: Throwable) {
                 log.e(t) { "Fetch bridge error for $method $url" }

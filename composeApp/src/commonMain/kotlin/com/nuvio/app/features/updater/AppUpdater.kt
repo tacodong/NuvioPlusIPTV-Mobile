@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.nuvio.app.core.build.AppFeaturePolicy
-import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioToastController
 import kotlinx.coroutines.CoroutineScope
@@ -40,9 +39,9 @@ data class AppUpdaterUiState(
     val isUpdateAvailable: Boolean = false,
     val isDownloading: Boolean = false,
     val downloadProgress: Float? = null,
-    val downloadedApkPath: String? = null,
+    val downloadedUpdatePath: String? = null,
     val showDialog: Boolean = false,
-    val showUnknownSourcesDialog: Boolean = false,
+    val showInstallPermissionDialog: Boolean = false,
     val errorMessage: String? = null,
     val isDebugTest: Boolean = false,
 )
@@ -65,7 +64,7 @@ class AppUpdaterController internal constructor(
                 if (channel != _uiState.value.updateChannel) {
                     updateCheckJob?.cancel()
                     downloadJob?.cancel()
-                    _uiState.value.downloadedApkPath?.let(AppUpdaterPlatform::deleteDownloadedApk)
+                    _uiState.value.downloadedUpdatePath?.let(AppUpdaterPlatform::deleteDownloadedUpdate)
                     _uiState.value = AppUpdaterUiState(updateChannel = channel)
                     if (!AppUpdaterPlatform.isDebugBuild) {
                         checkForUpdates(force = true, showNoUpdateFeedback = false)
@@ -103,7 +102,7 @@ class AppUpdaterController internal constructor(
                 state.copy(
                     isChecking = true,
                     errorMessage = null,
-                    showUnknownSourcesDialog = false,
+                    showInstallPermissionDialog = false,
                     isDebugTest = false,
                 )
             }
@@ -114,7 +113,11 @@ class AppUpdaterController internal constructor(
             if (channel != preferences.channel.value) return@launch
 
             result.onSuccess { update ->
-                val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
+                val remoteNewer = if (channel == UpdateChannel.ALL_RELEASES) {
+                    VersionUtils.isRemoteNewerLegacy(update.tag, AppUpdaterPlatform.currentVersionName)
+                } else {
+                    VersionUtils.isRemoteNewer(update.tag, AppUpdaterPlatform.currentVersionName)
+                }
                 val ignored = ignoredTag != null && ignoredTag == update.tag
                 val shouldShowDialog = remoteNewer && (force || !ignored)
 
@@ -125,11 +128,11 @@ class AppUpdaterController internal constructor(
                         isUpdateAvailable = remoteNewer,
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = state.downloadedApkPath.takeIf {
+                        downloadedUpdatePath = state.downloadedUpdatePath.takeIf {
                             remoteNewer && state.update?.tag == update.tag
                         },
                         showDialog = shouldShowDialog,
-                        showUnknownSourcesDialog = false,
+                        showInstallPermissionDialog = false,
                         errorMessage = null,
                     )
                 }
@@ -143,11 +146,11 @@ class AppUpdaterController internal constructor(
                         isChecking = false,
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = null,
+                        downloadedUpdatePath = null,
                         update = null,
                         isUpdateAvailable = false,
                         showDialog = force && error !is NoChannelReleaseException,
-                        showUnknownSourcesDialog = false,
+                        showInstallPermissionDialog = false,
                         errorMessage = if (force && error !is NoChannelReleaseException) {
                             error.message ?: getString(Res.string.updates_check_failed)
                         } else {
@@ -167,7 +170,7 @@ class AppUpdaterController internal constructor(
     }
 
     private suspend fun noUpdateMessage(channel: UpdateChannel): String = getString(
-        if (channel == UpdateChannel.STABLE && VersionUtils.isPrerelease(AppVersionConfig.VERSION_NAME)) {
+        if (channel == UpdateChannel.STABLE && VersionUtils.isPrerelease(AppUpdaterPlatform.currentVersionName)) {
             Res.string.updates_waiting_for_stable
         } else {
             Res.string.updates_latest_version
@@ -178,7 +181,7 @@ class AppUpdaterController internal constructor(
         _uiState.update { state ->
             state.copy(
                 showDialog = false,
-                showUnknownSourcesDialog = false,
+                showInstallPermissionDialog = false,
                 errorMessage = null,
             )
         }
@@ -212,7 +215,7 @@ class AppUpdaterController internal constructor(
                 )
             }
 
-            val result = AppUpdaterPlatform.downloadApk(
+            val result = AppUpdaterPlatform.downloadUpdateAsset(
                 assetUrl = update.assetUrl,
                 assetName = update.assetName,
                 expectedSha256 = update.sha256,
@@ -233,8 +236,8 @@ class AppUpdaterController internal constructor(
                 _uiState.update { state ->
                     state.copy(
                         isDownloading = false,
-                        downloadProgress = null,
-                        downloadedApkPath = path,
+                        downloadProgress = 1f,
+                        downloadedUpdatePath = path,
                         errorMessage = null,
                     )
                 }
@@ -244,7 +247,7 @@ class AppUpdaterController internal constructor(
                     state.copy(
                         isDownloading = false,
                         downloadProgress = null,
-                        downloadedApkPath = null,
+                        downloadedUpdatePath = null,
                         errorMessage = error.message ?: getString(Res.string.updates_download_failed),
                         showDialog = true,
                     )
@@ -254,14 +257,14 @@ class AppUpdaterController internal constructor(
     }
 
     fun installDownloadedUpdate() {
-        val apkPath = _uiState.value.downloadedApkPath ?: return
-        if (!AppUpdaterPlatform.canRequestPackageInstalls()) {
-            _uiState.update { state -> state.copy(showUnknownSourcesDialog = true, showDialog = true) }
+        val updatePath = _uiState.value.downloadedUpdatePath ?: return
+        if (!AppUpdaterPlatform.canInstallDownloadedUpdate()) {
+            _uiState.update { state -> state.copy(showInstallPermissionDialog = true, showDialog = true) }
             return
         }
 
-        AppUpdaterPlatform.installDownloadedApk(apkPath).onSuccess {
-            _uiState.update { state -> state.copy(showUnknownSourcesDialog = false) }
+        AppUpdaterPlatform.installDownloadedUpdate(updatePath).onSuccess {
+            _uiState.update { state -> state.copy(showInstallPermissionDialog = false) }
         }.onFailure { error ->
             scope.launch {
                 val fallbackMessage = error.message ?: getString(Res.string.updates_install_failed)
@@ -276,10 +279,10 @@ class AppUpdaterController internal constructor(
     }
 
     fun resumeInstallation() {
-        if (AppUpdaterPlatform.canRequestPackageInstalls()) {
+        if (AppUpdaterPlatform.canInstallDownloadedUpdate()) {
             installDownloadedUpdate()
         } else {
-            AppUpdaterPlatform.openUnknownSourcesSettings()
+            AppUpdaterPlatform.openInstallPermissionSettings()
         }
     }
 
@@ -301,7 +304,7 @@ class AppUpdaterController internal constructor(
                     - Release notes live behind the info button.
                 """.trimIndent(),
                 releaseUrl = null,
-                assetName = "Nuvio-debug-preview.apk",
+        assetName = "Nuvio-debug-preview.apk",
                 assetUrl = "debug://update-preview",
                 assetSizeBytes = 185L * 1024L * 1024L,
             ),

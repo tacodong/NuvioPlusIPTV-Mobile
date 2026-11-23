@@ -58,10 +58,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
+import com.nuvio.app.isDesktop
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import com.nuvio.app.core.i18n.localizedShortMonthName
+import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
 import com.nuvio.app.core.ui.SkeletonPosterRow
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
@@ -158,18 +162,37 @@ fun PersonDetailScreen(
             }
 
         if (!LocalUseNativeNavigation.current) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(start = 4.dp, top = 4.dp)
-                    .align(Alignment.TopStart),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(Res.string.action_back),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
+            if (isDesktop) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    NuvioBackButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(
+                                start = desktopPageHorizontalPaddingForWidth(maxWidth.value),
+                                top = 32.dp,
+                            )
+                            .align(Alignment.TopStart),
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        buttonSize = 48.dp,
+                        iconSize = 24.dp,
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(start = 4.dp, top = 4.dp)
+                        .align(Alignment.TopStart),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(Res.string.action_back),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
@@ -295,59 +318,68 @@ private fun PersonDetailContent(
                         animatedVisibilityScope = animatedVisibilityScope,
                     )
                 } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .padding(top = 48.dp),
-                    ) {
-                        HeroSection(
-                            person = person,
-                            collapseProgress = collapseProgress,
-                            fallbackProfilePhoto = initialProfilePhoto,
-                            avatarTransitionKey = avatarTransitionKey,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedVisibilityScope = animatedVisibilityScope,
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(scrollState)
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .padding(top = 48.dp),
+                        ) {
+                            HeroSection(
+                                person = person,
+                                collapseProgress = collapseProgress,
+                                fallbackProfilePhoto = initialProfilePhoto,
+                                avatarTransitionKey = avatarTransitionKey,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            )
+
+                            if (popularCredits.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                DetailPosterRailSection(
+                                    title = stringResource(Res.string.person_popular),
+                                    items = popularCredits,
+                                    watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                                    headerHorizontalPadding = 20.dp,
+                                    onPosterClick = onOpenMeta,
+                                )
+                            }
+
+                            if (latestCredits.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                DetailPosterRailSection(
+                                    title = stringResource(Res.string.person_latest),
+                                    items = latestCredits,
+                                    watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                                    headerHorizontalPadding = 20.dp,
+                                    onPosterClick = onOpenMeta,
+                                )
+                            }
+
+                            if (upcomingCredits.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                DetailPosterRailSection(
+                                    title = stringResource(Res.string.person_upcoming),
+                                    items = upcomingCredits,
+                                    watchedKeys = watchedKeys,
+                                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                                    headerHorizontalPadding = 20.dp,
+                                    onPosterClick = onOpenMeta,
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(32.dp))
+                        }
+                        NuvioDesktopVerticalScrollbar(
+                            state = scrollState,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
                         )
-
-                        if (popularCredits.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            DetailPosterRailSection(
-                                title = stringResource(Res.string.person_popular),
-                                items = popularCredits,
-                                watchedKeys = watchedKeys,
-                                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                                headerHorizontalPadding = 20.dp,
-                                onPosterClick = onOpenMeta,
-                            )
-                        }
-
-                        if (latestCredits.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            DetailPosterRailSection(
-                                title = stringResource(Res.string.person_latest),
-                                items = latestCredits,
-                                watchedKeys = watchedKeys,
-                                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                                headerHorizontalPadding = 20.dp,
-                                onPosterClick = onOpenMeta,
-                            )
-                        }
-
-                        if (upcomingCredits.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            DetailPosterRailSection(
-                                title = stringResource(Res.string.person_upcoming),
-                                items = upcomingCredits,
-                                watchedKeys = watchedKeys,
-                                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                                headerHorizontalPadding = 20.dp,
-                                onPosterClick = onOpenMeta,
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
             }
@@ -399,46 +431,59 @@ private fun WidePersonDetailContent(
                 .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)),
         )
 
-        Column(
+        val contentScrollState = rememberScrollState()
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxHeight()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 40.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(34.dp),
+                .fillMaxHeight(),
         ) {
-            if (popularCredits.isNotEmpty()) {
-                DetailPosterRailSection(
-                    title = stringResource(Res.string.person_popular),
-                    items = popularCredits,
-                    watchedKeys = watchedKeys,
-                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                    headerHorizontalPadding = 0.dp,
-                    onPosterClick = onOpenMeta,
-                )
-            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(contentScrollState)
+                    .padding(start = 40.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(34.dp),
+            ) {
+                if (popularCredits.isNotEmpty()) {
+                    DetailPosterRailSection(
+                        title = stringResource(Res.string.person_popular),
+                        items = popularCredits,
+                        watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                        headerHorizontalPadding = 0.dp,
+                        onPosterClick = onOpenMeta,
+                    )
+                }
 
-            if (latestCredits.isNotEmpty()) {
-                DetailPosterRailSection(
-                    title = stringResource(Res.string.person_latest),
-                    items = latestCredits,
-                    watchedKeys = watchedKeys,
-                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                    headerHorizontalPadding = 0.dp,
-                    onPosterClick = onOpenMeta,
-                )
-            }
+                if (latestCredits.isNotEmpty()) {
+                    DetailPosterRailSection(
+                        title = stringResource(Res.string.person_latest),
+                        items = latestCredits,
+                        watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                        headerHorizontalPadding = 0.dp,
+                        onPosterClick = onOpenMeta,
+                    )
+                }
 
-            if (upcomingCredits.isNotEmpty()) {
-                DetailPosterRailSection(
-                    title = stringResource(Res.string.person_upcoming),
-                    items = upcomingCredits,
-                    watchedKeys = watchedKeys,
-                    fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                    headerHorizontalPadding = 0.dp,
-                    onPosterClick = onOpenMeta,
-                )
+                if (upcomingCredits.isNotEmpty()) {
+                    DetailPosterRailSection(
+                        title = stringResource(Res.string.person_upcoming),
+                        items = upcomingCredits,
+                        watchedKeys = watchedKeys,
+                        fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
+                        headerHorizontalPadding = 0.dp,
+                        onPosterClick = onOpenMeta,
+                    )
+                }
             }
+            NuvioDesktopVerticalScrollbar(
+                state = contentScrollState,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+            )
         }
     }
 }
@@ -484,95 +529,111 @@ private fun PersonIdentitySidebar(
     val creditSummary = remember(credits) {
         buildCreditSummary(credits)
     }
+    val scrollState = rememberScrollState()
 
-    Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .padding(start = 40.dp, end = 36.dp, top = 40.dp, bottom = 42.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
-    ) {
-        Box(
-            modifier = Modifier.size(162.dp),
-            contentAlignment = Alignment.Center,
+    Box(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(
+                    start = 40.dp,
+                    end = 36.dp,
+                    top = if (isDesktop) 72.dp else 40.dp,
+                    bottom = 42.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.14f)),
-            )
-            Box(
-                modifier = Modifier
-                    .then(avatarSharedElementModifier)
-                    .size(148.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.size(162.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (!avatarUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = avatarRequest ?: avatarUrl,
-                        contentDescription = person.name,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop,
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.14f)),
+                )
+                Box(
+                    modifier = Modifier
+                        .then(avatarSharedElementModifier)
+                        .size(148.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = avatarRequest ?: avatarUrl,
+                            contentDescription = person.name,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Text(
+                            text = person.name.initials(),
+                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                Text(
+                    text = person.name,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp,
+                        lineHeight = 34.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+                person.birthday?.let { birthday ->
+                    PersonSidebarFact(
+                        label = stringResource(Res.string.person_detail_born),
+                        value = personBirthLine(birthday = birthday, deathday = person.deathday),
                     )
-                } else {
-                    Text(
-                        text = person.name.initials(),
-                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                }
+                person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { place ->
+                    PersonSidebarFact(label = stringResource(Res.string.person_detail_place_of_birth), value = place)
+                }
+                if (creditSummary.isNotBlank()) {
+                    PersonSidebarFact(label = stringResource(Res.string.person_detail_credits), value = creditSummary)
+                }
+            }
+
+            person.biography?.takeIf { it.isNotBlank() }?.let { biography ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)),
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    SidebarLabel(text = stringResource(Res.string.person_detail_biography))
+                    ExpandableDescription(
+                        text = biography,
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        collapsedMaxLines = 12,
                     )
                 }
             }
         }
-
-        Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            Text(
-                text = person.name,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.5).sp,
-                    lineHeight = 34.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
-            person.birthday?.let { birthday ->
-                PersonSidebarFact(
-                    label = stringResource(Res.string.person_detail_born),
-                    value = personBirthLine(birthday = birthday, deathday = person.deathday),
-                )
-            }
-            person.placeOfBirth?.takeIf { it.isNotBlank() }?.let { place ->
-                PersonSidebarFact(label = stringResource(Res.string.person_detail_place_of_birth), value = place)
-            }
-            if (creditSummary.isNotBlank()) {
-                PersonSidebarFact(label = stringResource(Res.string.person_detail_credits), value = creditSummary)
-            }
-        }
-
-        person.biography?.takeIf { it.isNotBlank() }?.let { biography ->
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.30f)),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                SidebarLabel(text = stringResource(Res.string.person_detail_biography))
-                ExpandableDescription(
-                    text = biography,
-                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    collapsedMaxLines = 12,
-                )
-            }
-        }
+        NuvioDesktopVerticalScrollbar(
+            state = scrollState,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+        )
     }
 }
 

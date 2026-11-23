@@ -1,9 +1,29 @@
 package com.nuvio.app.features.updater
 
+import com.nuvio.app.core.build.AppVersionConfig
+
 actual object AppUpdaterPlatform {
     actual val isSupported: Boolean = true
     actual val isDebugBuild: Boolean
         get() = AndroidAppUpdaterPlatform.isDebugBuild()
+    actual val hasSingleUpdateChannel: Boolean = false
+
+    actual val releaseSource: AppUpdateReleaseSource = AppUpdateReleaseSource(
+        owner = "homelessbrian",
+        repo = "NuvioPlusIPTV-Mobile",
+        channelBranch = null,
+        userAgent = "NuvioMobile",
+    )
+
+    actual val assetSelector: AppUpdateAssetSelector
+        get() = AppUpdateAssetSelector(
+            fileExtensions = listOf(".apk"),
+            contentTypes = listOf("application/vnd.android.package-archive"),
+            preferredNameFragments = AndroidAppUpdaterPlatform.getSupportedAbis(),
+            fallbackNameFragments = listOf("universal", "all"),
+        )
+
+    actual val currentVersionName: String = AppVersionConfig.VERSION_NAME
 
     actual fun getSupportedAbis(): List<String> = AndroidAppUpdaterPlatform.getSupportedAbis()
 
@@ -19,22 +39,22 @@ actual object AppUpdaterPlatform {
         AndroidAppUpdaterPlatform.setUpdateChannel(channel)
     }
 
-    actual fun deleteDownloadedApk(path: String) {
-        AndroidAppUpdaterPlatform.deleteDownloadedApk(path)
+    actual fun deleteDownloadedUpdate(path: String) {
+        AndroidAppUpdaterPlatform.deleteDownloadedUpdate(path)
     }
 
-    actual suspend fun downloadApk(
+    actual suspend fun downloadUpdateAsset(
         assetUrl: String,
         assetName: String,
         expectedSha256: String?,
         onProgress: (downloadedBytes: Long, totalBytes: Long?) -> Unit,
-    ): Result<String> = AndroidAppUpdaterPlatform.downloadApk(assetUrl, assetName, expectedSha256, onProgress)
+    ): Result<String> = AndroidAppUpdaterPlatform.downloadUpdateAsset(assetUrl, assetName, expectedSha256, onProgress)
 
-    actual fun canRequestPackageInstalls(): Boolean = AndroidAppUpdaterPlatform.canRequestPackageInstalls()
+    actual fun canInstallDownloadedUpdate(): Boolean = AndroidAppUpdaterPlatform.canRequestPackageInstalls()
 
-    actual fun openUnknownSourcesSettings() {
+    actual fun openInstallPermissionSettings() {
         AndroidAppUpdaterPlatform.openUnknownSourcesSettings()
     }
 
-    actual fun installDownloadedApk(path: String): Result<Unit> = AndroidAppUpdaterPlatform.installDownloadedApk(path)
+    actual fun installDownloadedUpdate(path: String): Result<Unit> = AndroidAppUpdaterPlatform.installDownloadedUpdate(path)
 }

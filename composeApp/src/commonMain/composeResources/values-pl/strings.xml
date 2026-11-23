@@ -320,6 +320,7 @@
     <string name="compose_nav_library">Biblioteka</string>
     <string name="compose_nav_profile">Profil</string>
     <string name="compose_nav_search">Szukaj</string>
+    <string name="compose_nav_settings">Ustawienia</string>
     <string name="compose_player_audio_tracks">Ścieżki audio</string>
     <string name="compose_player_audio">Audio</string>
     <string name="compose_player_auto_sync">Automatyczna synchronizacja</string>
@@ -1466,6 +1467,7 @@
     <string name="cw_airs_date">Emisja %1$s</string>
     <string name="cw_airs_today">Emisja dzisiaj</string>
     <string name="cw_airs_tomorrow">Emisja jutro</string>
+    <string name="cw_airs_in_days_format">Emisja za %1$d dni</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Emisja za %1$d dzień</item>
         <item quantity="few">Emisja za %1$d dni</item>
@@ -1475,6 +1477,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Dzisiaj</string>
     <string name="cw_airs_tomorrow_short">Jutro</string>
+    <string name="cw_airs_in_days_short_format">Za %1$d dni</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">Za %1$d dzień</item>
         <item quantity="few">Za %1$d dni</item>
@@ -2031,6 +2034,8 @@
         <item quantity="many">%d tytułów</item>
         <item quantity="other">%d tytułów</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d tytuł</string>
+    <string name="entity_browse_title_count_other">%1$d tytułów</string>
 
     <string name="theme_gold">Złoto</string>
     <string name="theme_jade">Jadeit</string>

@@ -66,6 +66,7 @@ import com.nuvio.app.core.ui.DefaultCardDepthSheenStrength
 import com.nuvio.app.core.ui.NuvioActionLabel
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.core.ui.AnimatedArtworkMode
 import com.nuvio.app.core.ui.PosterCardStyleRepository
 import com.nuvio.app.core.ui.PosterCardStyleUiState
 import com.nuvio.app.core.ui.cardDepthVisual
@@ -107,6 +108,10 @@ import nuvio.composeapp.generated.resources.settings_poster_card_style
 import nuvio.composeapp.generated.resources.settings_poster_card_width
 import nuvio.composeapp.generated.resources.settings_poster_custom
 import nuvio.composeapp.generated.resources.settings_poster_description
+import nuvio.composeapp.generated.resources.settings_poster_animated_artwork
+import nuvio.composeapp.generated.resources.settings_poster_animated_artwork_always
+import nuvio.composeapp.generated.resources.settings_poster_animated_artwork_off
+import nuvio.composeapp.generated.resources.settings_poster_animated_artwork_on_hover
 import nuvio.composeapp.generated.resources.settings_poster_hide_labels
 import nuvio.composeapp.generated.resources.settings_poster_always_show_landscape_clearlogo
 import nuvio.composeapp.generated.resources.settings_poster_landscape_mode
@@ -164,11 +169,13 @@ internal fun LazyListScope.posterCustomizationSettingsContent(
                     catalogLandscapeModeEnabled = uiState.catalogLandscapeModeEnabled,
                     hideLabelsEnabled = uiState.hideLabelsEnabled,
                     alwaysShowLandscapeClearlogo = uiState.alwaysShowLandscapeClearlogo,
+                    animatedArtworkMode = uiState.animatedArtworkMode,
                     onWidthSelected = PosterCardStyleRepository::setWidthDp,
                     onCornerRadiusSelected = PosterCardStyleRepository::setCornerRadiusDp,
                     onCatalogLandscapeModeChange = PosterCardStyleRepository::setCatalogLandscapeModeEnabled,
                     onHideLabelsChange = PosterCardStyleRepository::setHideLabelsEnabled,
                     onAlwaysShowLandscapeClearlogoChange = PosterCardStyleRepository::setAlwaysShowLandscapeClearlogo,
+                    onAnimatedArtworkModeSelected = PosterCardStyleRepository::setAnimatedArtworkMode,
                 )
             }
         }
@@ -721,12 +728,19 @@ private fun PosterCardStyleControls(
     catalogLandscapeModeEnabled: Boolean,
     hideLabelsEnabled: Boolean,
     alwaysShowLandscapeClearlogo: Boolean,
+    animatedArtworkMode: AnimatedArtworkMode,
     onWidthSelected: (Int) -> Unit,
     onCornerRadiusSelected: (Int) -> Unit,
     onCatalogLandscapeModeChange: (Boolean) -> Unit,
     onHideLabelsChange: (Boolean) -> Unit,
     onAlwaysShowLandscapeClearlogoChange: (Boolean) -> Unit,
+    onAnimatedArtworkModeSelected: (AnimatedArtworkMode) -> Unit,
 ) {
+    val animatedArtworkOptions = listOf(
+        PresetOption(stringResource(Res.string.settings_poster_animated_artwork_always), AnimatedArtworkMode.Always.ordinal),
+        PresetOption(stringResource(Res.string.settings_poster_animated_artwork_on_hover), AnimatedArtworkMode.OnHover.ordinal),
+        PresetOption(stringResource(Res.string.settings_poster_animated_artwork_off), AnimatedArtworkMode.Off.ordinal),
+    )
     val widthOptions = listOf(
         PresetOption(stringResource(Res.string.settings_poster_width_compact), 104),
         PresetOption(stringResource(Res.string.settings_poster_width_dense), 112),
@@ -783,6 +797,14 @@ private fun PosterCardStyleControls(
             title = stringResource(Res.string.settings_poster_always_show_landscape_clearlogo),
             checked = alwaysShowLandscapeClearlogo,
             onCheckedChange = onAlwaysShowLandscapeClearlogoChange,
+        )
+        PosterStyleOptionRow(
+            title = stringResource(Res.string.settings_poster_animated_artwork),
+            selectedValue = animatedArtworkMode.ordinal,
+            options = animatedArtworkOptions,
+            onSelected = { ordinal ->
+                onAnimatedArtworkModeSelected(AnimatedArtworkMode.entries[ordinal])
+            },
         )
     }
 }

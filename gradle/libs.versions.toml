@@ -34,10 +34,12 @@ mpv-android-lib = "0.2.1"
 supabase = "3.4.1"
 quickjsKt = "1.0.15"
 ksoup = "0.2.6"
+jna = "5.19.1"
 reorderable = "3.0.0"
 desugarJdkLibs = "2.1.5"
 sentry = "8.47.0"
-sentryGradle = "6.14.0"
+sentryDesktop = "8.52.0"
+sentryGradle = "6.18.0"
 
 [libraries]
 smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
@@ -74,9 +76,11 @@ coil-network-cache-control = { module = "io.coil-kt.coil3:coil-network-cache-con
 coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }
 kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 kmpalette-core = { module = "com.materialkolor.palette:core", version.ref = "kmpalette" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "androidx-media3" }
@@ -100,9 +104,11 @@ supabase-storage = { module = "io.github.jan-tennert.supabase:storage-kt", versi
 supabase-realtime = { module = "io.github.jan-tennert.supabase:realtime-kt", version.ref = "supabase" }
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjsKt" }
 ksoup = { module = "com.fleeksoft.ksoup:ksoup", version.ref = "ksoup" }
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentry" }
+sentry-jvm = { module = "io.sentry:sentry", version.ref = "sentryDesktop" }
 
 [plugins]
 androidTest = { id = "com.android.test", version.ref = "agp" }
@@ -115,3 +121,4 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 sentry-android-gradle = { id = "io.sentry.android.gradle", version.ref = "sentryGradle" }
+sentry-jvm-gradle = { id = "io.sentry.jvm.gradle", version.ref = "sentryGradle" }

@@ -19,8 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.NuvioShelfSection
+import com.nuvio.app.core.ui.nuvioShelfHoverOverdraw
 import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
 import com.nuvio.app.core.ui.SkeletonPoster
 import com.nuvio.app.core.ui.landscapePosterWidth
@@ -54,15 +56,23 @@ fun DetailPosterRailSection(
         TmdbSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
 
+    val rowHoverInset = if (isDesktop) DetailRailHoverInset else 0.dp
+    val rowEdgePadding = headerHorizontalPadding + horizontalScrollPadding + rowHoverInset
+
     Column(modifier = modifier.fillMaxWidth()) {
         NuvioShelfSection(
             title = if (showHeader) title else "",
             entries = items,
+            rowModifier = Modifier
+                .nuvioHorizontalScrollBleed(horizontalScrollPadding)
+                .nuvioShelfHoverOverdraw(rowHoverInset),
             headerHorizontalPadding = headerHorizontalPadding,
             rowContentPadding = PaddingValues(
-                horizontal = headerHorizontalPadding + horizontalScrollPadding,
+                start = rowEdgePadding,
+                top = rowHoverInset,
+                end = rowEdgePadding,
+                bottom = rowHoverInset,
             ),
-            rowModifier = Modifier.nuvioHorizontalScrollBleed(horizontalScrollPadding),
             key = { item -> item.stableKey() },
         ) { item ->
             val landscape = posterCardStyle.catalogLandscapeModeEnabled || item.posterShape == PosterShape.Landscape
@@ -115,6 +125,7 @@ fun DetailPosterRailSection(
     }
 }
 
+private val DetailRailHoverInset = 20.dp
 @Composable
 private fun rememberDetailBackdrop(item: MetaPreview, language: String, enabled: Boolean): DetailBackdrop {
     var backdrop by remember(item.id, item.type, language, enabled) {

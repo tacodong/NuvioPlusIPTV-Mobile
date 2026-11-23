@@ -418,6 +418,7 @@
     <string name="compose_nav_library">ספרייה</string>
     <string name="compose_nav_profile">פרופיל</string>
     <string name="compose_nav_search">חיפוש</string>
+    <string name="compose_nav_settings">הגדרות</string>
     <string name="compose_player_audio_tracks">רצועות שמע</string>
     <string name="compose_player_audio_delay">השהיית שמע</string>
     <string name="compose_player_audio_amplification">הגברה</string>

@@ -9,6 +9,7 @@ class AppUpdaterRepositoryTest {
     fun channelsUseTheSameReleaseEndpointsAsTv() {
         assertEquals("releases/latest", AppUpdaterRepository.releasePath(UpdateChannel.STABLE))
         assertEquals("releases?per_page=100", AppUpdaterRepository.releasePath(UpdateChannel.BETA))
+        assertEquals("releases?per_page=20", AppUpdaterRepository.releasePath(UpdateChannel.ALL_RELEASES))
     }
 
     @Test
@@ -53,6 +54,26 @@ class AppUpdaterRepositoryTest {
                 {"name": "app.apk", "browser_download_url": "https://example.com/stable.apk"}]}
         ]"""
         assertEquals("1.1.0", select(response, UpdateChannel.BETA)?.tag)
+    }
+
+    @Test
+    fun desktopSelectsFirstPublishedReleaseInGithubOrderWithoutChannelOrSemverFiltering() {
+        val response = """[
+            {"tag_name": "desktop-preview", "name": "Desktop Preview", "prerelease": true, "assets": [
+                {"name": "Nuvio.dmg", "browser_download_url": "https://example.com/preview.dmg"}]},
+            {"tag_name": "2.0.0", "assets": [
+                {"name": "Nuvio.dmg", "browser_download_url": "https://example.com/stable.dmg"}]}
+        ]"""
+
+        val update = AppUpdaterRepository.selectUpdate(
+            responseBody = response,
+            channel = UpdateChannel.ALL_RELEASES,
+            supportedAbis = emptyList(),
+            selector = AppUpdateAssetSelector(fileExtensions = listOf(".dmg")),
+        )
+
+        assertEquals("desktop-preview", update?.tag)
+        assertEquals("https://example.com/preview.dmg", update?.assetUrl)
     }
 
     @Test

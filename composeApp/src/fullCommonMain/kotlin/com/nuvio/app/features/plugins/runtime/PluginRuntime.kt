@@ -112,7 +112,7 @@ internal object PluginRuntime {
                         evaluateCached({ JsRuntime.settingsCallBytecode(this) }, JsBindings.staticSettingsCallCode)
                         deferred.await()
                     }
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
                     null

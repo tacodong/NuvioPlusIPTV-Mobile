@@ -148,10 +148,7 @@ internal fun StreamDestination(
         hasResolvedVideoId = true
     }
 
-    val playerSettings by remember {
-        PlayerSettingsRepository.ensureLoaded()
-        PlayerSettingsRepository.uiState
-    }.collectAsStateWithLifecycle()
+    val playerSettings by PlayerSettingsRepository.uiState.collectAsStateWithLifecycle()
 
     fun p2pSentinelUrl(infoHash: String, fileIdx: Int?): String =
         "torrent://$infoHash${fileIdx?.let { "?index=$it" }.orEmpty()}"
@@ -397,7 +394,7 @@ internal fun StreamDestination(
                 sourceFromLinkCache = true,
                 sourceAutoSelected = true,
             )
-            if (playerSettings.externalPlayerEnabled) {
+            if (externalPlayerSupported && playerSettings.externalPlayerEnabled) {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()
                 StreamsRepository.setOverlayVisible(false)
@@ -579,7 +576,7 @@ internal fun StreamDestination(
             stream = stream,
             sourceAutoSelected = true,
         )
-        if (playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
+        if (externalPlayerSupported && playerSettings.externalPlayerEnabled && stream.serverTarget == null) {
             openExternalPlayback(playerLaunch)
             StreamsRepository.consumeAutoPlay()
             StreamsRepository.cancelLoading()
@@ -801,7 +798,7 @@ internal fun StreamDestination(
             stream = stream,
         )
 
-        if (!forceInternal && (forceExternal || playerSettings.externalPlayerEnabled)) {
+        if (!forceInternal && externalPlayerSupported && (forceExternal || playerSettings.externalPlayerEnabled)) {
             streamRouteScope.launch {
                 openExternalPlayback(playerLaunch)
                 StreamsRepository.cancelLoading()

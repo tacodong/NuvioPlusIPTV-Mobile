@@ -201,6 +201,7 @@
     <string name="compose_nav_library">Βιβλιοθήκη</string>
     <string name="compose_nav_profile">Προφίλ</string>
     <string name="compose_nav_search">Αναζήτηση</string>
+    <string name="compose_nav_settings">Ρυθμίσεις</string>
     <string name="compose_player_audio_tracks">Κομμάτια ήχου</string>
     <string name="compose_player_audio_delay">Καθυστέρηση ήχου</string>
     <string name="compose_player_audio_amplification">Ενίσχυση</string>
@@ -1479,6 +1480,7 @@
     <string name="cw_airs_date">Πρεμιέρα %1$s</string>
     <string name="cw_airs_today">Πρεμιέρα σήμερα</string>
     <string name="cw_airs_tomorrow">Πρεμιέρα αύριο</string>
+    <string name="cw_airs_in_days_format">Πρεμιέρα σε %1$d ημέρες</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Πρεμιέρα σε %1$d ημέρα</item>
         <item quantity="other">Πρεμιέρα σε %1$d ημέρες</item>
@@ -1486,6 +1488,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Σήμερα</string>
     <string name="cw_airs_tomorrow_short">Αύριο</string>
+    <string name="cw_airs_in_days_short_format">Σε %1$d ημέρες</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">Σε %1$d ημέρα</item>
         <item quantity="other">Σε %1$d ημέρες</item>
@@ -1832,6 +1835,8 @@
     <string name="entity_browse_catalogue">Κατάλογος</string>
     <string name="entity_browse_country">Χώρα</string>
     <string name="entity_browse_type">Τύπος</string>
+    <string name="entity_browse_title_count_one">%1$d τίτλος</string>
+    <string name="entity_browse_title_count_other">%1$d τίτλοι</string>
     <string name="episode_mark_previous_seasons_watched">Σήμανση προηγούμενων σεζόν ως προβληθέντων</string>
     <string name="external_player_android_system">Πρόγραμμα αναπαραγωγής συστήματος Android</string>
     <string name="external_player_failed">Δεν ήταν δυνατό το άνοιγμα του εξωτερικού προγράμματος αναπαραγωγής</string>

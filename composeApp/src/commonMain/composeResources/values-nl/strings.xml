@@ -418,6 +418,7 @@
     <string name="compose_nav_library">Bibliotheek</string>
     <string name="compose_nav_profile">Profiel</string>
     <string name="compose_nav_search">Zoeken</string>
+    <string name="compose_nav_settings">Instellingen</string>
     <string name="compose_player_audio_tracks">Audiosporen</string>
     <string name="compose_player_audio_delay">Audiovertraging</string>
     <string name="compose_player_audio_amplification">Audioversterking</string>
@@ -1207,8 +1208,8 @@
     <string name="settings_playback_subtitle_show_preferred_only">Alleen voorkeurstalen tonen</string>
     <string name="settings_playback_subtitle_show_preferred_only_description">Toon alleen ondertitels die overeenkomen met je voorkeurstalen voor ondertiteling.</string>
     <string name="settings_playback_subtitle_size">Ondertitelgrootte</string>
-    <string name="settings_playback_subtitle_strip_sdh">SDH-ondertiteling verwijderen</string>
-    <string name="settings_playback_subtitle_strip_sdh_description">Verberg geluidsbeschrijvingen en sprekerlabels in tekstondertiteling.</string>
+    <string name="settings_playback_subtitle_strip_sdh">SDH-informatie verwijderen</string>
+    <string name="settings_playback_subtitle_strip_sdh_description">Verberg geluidsbeschrijvingen en sprekerlabels in tekstondertitels.</string>
     <string name="settings_playback_subtitle_text_color">Tekstkleur</string>
     <string name="settings_playback_subtitle_use_forced">Geforceerde ondertitels gebruiken</string>
     <string name="settings_playback_subtitle_use_forced_description">Geef de voorkeur aan geforceerde ondertiteling wanneer de audio overeenkomt met de ondertiteltaal; is die niet beschikbaar, dan wordt er niets geselecteerd.</string>
@@ -2413,6 +2414,8 @@
         <item quantity="one">%d titel</item>
         <item quantity="other">%d titels</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d titel</string>
+    <string name="entity_browse_title_count_other">%1$d titels</string>
     <string name="settings_playback_auto_skip_segments">Automatisch overslaan</string>
     <string name="settings_playback_auto_skip_none">Geen</string>
     <string name="settings_playback_auto_skip_intro">Intro / opening</string>

@@ -29,6 +29,7 @@ import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.DialogSurface
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.features.updater.AppUpdaterPlatform
 import com.nuvio.app.features.updater.UpdateChannel
 import com.nuvio.app.features.updater.UpdatePreferences
 import nuvio.composeapp.generated.resources.*
@@ -37,6 +38,8 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun UpdateChannelSettingsRow(isTablet: Boolean) {
+    if (AppUpdaterPlatform.hasSingleUpdateChannel) return
+
     val channel by UpdatePreferences.shared.channel.collectAsState()
     var showDialog by rememberSaveable { mutableStateOf(false) }
     val tokens = MaterialTheme.nuvio
@@ -62,7 +65,7 @@ internal fun UpdateChannelSettingsRow(isTablet: Boolean) {
             Column(
                 modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState()),
             ) {
-                UpdateChannel.entries.forEach { option ->
+                UpdateChannel.entries.filter { it != UpdateChannel.ALL_RELEASES }.forEach { option ->
                     Row(
                         modifier = Modifier.fillMaxWidth().selectable(
                             selected = option == channel,
@@ -87,6 +90,7 @@ internal fun UpdateChannelSettingsRow(isTablet: Boolean) {
                                     when (option) {
                                         UpdateChannel.STABLE -> Res.string.updates_channel_stable_description
                                         UpdateChannel.BETA -> Res.string.updates_channel_beta_description
+                                        UpdateChannel.ALL_RELEASES -> Res.string.updates_channel_all_releases_description
                                     },
                                 ),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -111,5 +115,6 @@ private fun updateChannelLabel(channel: UpdateChannel): String = stringResource(
     when (channel) {
         UpdateChannel.STABLE -> Res.string.updates_channel_stable
         UpdateChannel.BETA -> Res.string.updates_channel_beta
+        UpdateChannel.ALL_RELEASES -> Res.string.updates_channel_all_releases
     },
 )

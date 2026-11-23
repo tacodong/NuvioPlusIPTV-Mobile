@@ -22,7 +22,9 @@ import com.nuvio.app.features.player.localizedLabel
 import com.nuvio.app.features.player.IosTargetPrimaries
 import com.nuvio.app.features.player.IosTargetTransfer
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
+import com.nuvio.app.isWindows
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -41,8 +43,8 @@ internal fun PlaybackVideoSettings(
     Column(verticalArrangement = Arrangement.spacedBy(if (isTablet) 18.dp else 12.dp)) {
         if (!isIos) {
             val decoderEnabled = !settings.externalPlayerEnabled
-            val exoOptionsEnabled = decoderEnabled && settings.androidPlaybackEngine != AndroidPlaybackEngine.Libmpv
-            val libmpvOptionsVisible = settings.androidPlaybackEngine != AndroidPlaybackEngine.ExoPlayer
+            val exoOptionsEnabled = decoderEnabled && (isDesktop || settings.androidPlaybackEngine != AndroidPlaybackEngine.Libmpv)
+            val libmpvOptionsVisible = !isDesktop && settings.androidPlaybackEngine != AndroidPlaybackEngine.ExoPlayer
             val libmpvOptionsEnabled = decoderEnabled && libmpvOptionsVisible
             SettingsSection(
                 title = stringResource(Res.string.settings_playback_section_decoder),
@@ -84,24 +86,50 @@ internal fun PlaybackVideoSettings(
                         isTablet = isTablet,
                         onClick = { showDecoderPriorityDialog = true },
                     )
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsSwitchRow(
-                        title = stringResource(Res.string.settings_playback_map_dv7_to_hevc),
-                        description = stringResource(Res.string.settings_playback_map_dv7_to_hevc_description),
-                        checked = settings.mapDV7ToHevc,
-                        enabled = exoOptionsEnabled,
-                        isTablet = isTablet,
-                        onCheckedChange = PlayerSettingsRepository::setMapDV7ToHevc,
-                    )
-                    SettingsGroupDivider(isTablet = isTablet)
-                    SettingsSwitchRow(
-                        title = stringResource(Res.string.settings_playback_tunneled_playback),
-                        description = stringResource(Res.string.settings_playback_tunneled_playback_description),
-                        checked = settings.tunnelingEnabled,
-                        enabled = exoOptionsEnabled,
-                        isTablet = isTablet,
-                        onCheckedChange = PlayerSettingsRepository::setTunnelingEnabled,
-                    )
+                    if (!isDesktop) {
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_map_dv7_to_hevc),
+                            description = stringResource(Res.string.settings_playback_map_dv7_to_hevc_description),
+                            checked = settings.mapDV7ToHevc,
+                            enabled = exoOptionsEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setMapDV7ToHevc,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_tunneled_playback),
+                            description = stringResource(Res.string.settings_playback_tunneled_playback_description),
+                            checked = settings.tunnelingEnabled,
+                            enabled = exoOptionsEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setTunnelingEnabled,
+                        )
+                    }
+                }
+            }
+            if (isWindows) {
+                SettingsSection(
+                    title = stringResource(Res.string.settings_playback_nvidia_rtx_video_section),
+                    isTablet = isTablet,
+                ) {
+                    SettingsGroup(isTablet = isTablet) {
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution),
+                            description = stringResource(Res.string.settings_playback_nvidia_rtx_super_resolution_desc),
+                            checked = settings.nvidiaRtxSuperResolutionEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setNvidiaRtxSuperResolutionEnabled,
+                        )
+                        SettingsGroupDivider(isTablet = isTablet)
+                        SettingsSwitchRow(
+                            title = stringResource(Res.string.settings_playback_nvidia_rtx_hdr),
+                            description = stringResource(Res.string.settings_playback_nvidia_rtx_hdr_desc),
+                            checked = settings.nvidiaRtxHdrEnabled,
+                            isTablet = isTablet,
+                            onCheckedChange = PlayerSettingsRepository::setNvidiaRtxHdrEnabled,
+                        )
+                    }
                 }
             }
         } else {

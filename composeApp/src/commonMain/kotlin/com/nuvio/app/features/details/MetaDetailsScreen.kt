@@ -5,13 +5,12 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,13 +18,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -50,7 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +63,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -70,15 +74,18 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import co.touchlab.kermit.Logger
-import coil3.compose.AsyncImage
 import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.TrailerPlaybackMode
+import com.nuvio.app.core.format.formatReleaseDateForDisplay
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.i18n.localizedEpisodeTitle
@@ -86,6 +93,7 @@ import com.nuvio.app.core.i18n.localizedSeasonEpisodeCode
 import com.nuvio.app.core.ui.ArtworkBackdrop
 import com.nuvio.app.core.ui.LocalOnBackdrop
 import com.nuvio.app.core.ui.NuvioBackButton
+import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
 import com.nuvio.app.core.ui.verticalBarWidth
 import com.nuvio.app.core.ui.NuvioCardDepthSurface
@@ -94,6 +102,8 @@ import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.PosterZoomAnchor
 import com.nuvio.app.core.ui.PosterZoomAnchorHolder
 import com.nuvio.app.core.ui.PosterZoomOverlayAction
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.TrackingListPickerDialog
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
@@ -113,6 +123,8 @@ import com.nuvio.app.features.details.components.DetailMetaInfo
 import com.nuvio.app.features.details.components.DetailPosterRailSection
 import com.nuvio.app.features.details.components.DetailProductionSection
 import com.nuvio.app.features.details.components.DetailSeriesContent
+import com.nuvio.app.features.details.components.DesktopDetailBackdrop
+import com.nuvio.app.features.details.components.DesktopDetailHero
 import com.nuvio.app.features.details.components.DetailSeriesListEpisode
 import com.nuvio.app.features.details.components.DetailSeriesListHeader
 import com.nuvio.app.features.details.components.DetailTrailersSection
@@ -145,6 +157,7 @@ import com.nuvio.app.features.streams.rememberPlaybackAvailability
 import com.nuvio.app.features.streams.StreamAutoPlayPolicy
 import com.nuvio.app.features.tmdb.TmdbSettingsRepository
 import com.nuvio.app.features.tmdb.TmdbService
+import com.nuvio.app.features.tmdb.originalTmdbImageUrl
 import com.nuvio.app.features.trakt.TraktAuthRepository
 import com.nuvio.app.features.trakt.TraktCommentReview
 import com.nuvio.app.features.trakt.TraktCommentsRepository
@@ -171,6 +184,7 @@ import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesRepository
 import com.nuvio.app.features.watching.application.WatchingActions
 import com.nuvio.app.features.watching.application.WatchingState
+import com.nuvio.app.isDesktop
 import com.kmpalette.rememberDominantColorState
 import com.kmpalette.extensions.painter.rememberPainterDominantColorState
 import kotlinx.coroutines.delay
@@ -180,6 +194,23 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
 private val watchedMarkerDiagnosticLog = Logger.withTag("WatchedMarkerDiag")
+private const val DetailScrolledBackgroundDefaultMaxAlpha = 0.86f
+private const val DetailScrolledBackgroundCinematicMaxAlpha = 0.36f
+private const val DetailScrolledBackgroundFadeHeroFraction = 0.75f
+
+internal fun detailScrolledBackgroundProgress(scrollOffsetPx: Float, heroHeightPx: Int): Float {
+    if (scrollOffsetPx <= 0f || heroHeightPx <= 0) return 0f
+    val fadeDistancePx = heroHeightPx * DetailScrolledBackgroundFadeHeroFraction
+    return (scrollOffsetPx / fadeDistancePx).coerceIn(0f, 1f)
+}
+
+internal fun detailScrolledBackgroundAlpha(
+    scrollOffsetPx: Float,
+    heroHeightPx: Int,
+    maxAlpha: Float = DetailScrolledBackgroundDefaultMaxAlpha,
+): Float {
+    return detailScrolledBackgroundProgress(scrollOffsetPx, heroHeightPx) * maxAlpha.coerceIn(0f, 1f)
+}
 
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -642,13 +673,6 @@ fun MetaDetailsScreen(
                     meta.type.lowercase() in setOf("series", "tv", "show", "tvshow") &&
                     (shuffleSettings.enabled || hasShuffleEpisodes)
                 val saveShuffle = rememberShuffleSave(meta.id, shuffleProfileId, shuffleSettings)
-                val onShuffleClick: (() -> Unit)? = if (showShuffleButton) {
-                    {
-                        if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
-                    }
-                } else {
-                    null
-                }
                 val seriesAction = remember(watchProgressUiState.entries, watchedUiState.items, meta, todayIsoDate, cwPrefs.upNextFromFurthestEpisode, watchedUiState.watchedKeys, shuffleSettings, shuffleVisit, shuffleProfileId) {
                     if (shuffleSettings.enabled) meta.shufflePrimaryAction(
                         profileId = shuffleProfileId,
@@ -736,7 +760,8 @@ fun MetaDetailsScreen(
                     meta.trailers.isNotEmpty()
                 }
                 val uriHandler = LocalUriHandler.current
-                val inAppTrailerPlaybackEnabled = AppFeaturePolicy.trailerPlaybackMode == TrailerPlaybackMode.IN_APP
+                val trailerPlaybackMode = AppFeaturePolicy.trailerPlaybackMode
+                val inAppTrailerPlaybackEnabled = trailerPlaybackMode == TrailerPlaybackMode.IN_APP
                 val trailerScope = rememberCoroutineScope()
                 var selectedTrailer by remember(meta.id) { mutableStateOf<MetaTrailer?>(null) }
                 var trailerPlaybackSource by remember(meta.id) { mutableStateOf<TrailerPlaybackSource?>(null) }
@@ -781,32 +806,33 @@ fun MetaDetailsScreen(
                     heroTrailerFinished = true
                     onBack()
                 }
-                val resolveTrailer: (MetaTrailer) -> Unit = remember(meta.id, inAppTrailerPlaybackEnabled, uriHandler) {
+                val resolveTrailer: (MetaTrailer) -> Unit = remember(meta.id, trailerPlaybackMode, uriHandler) {
                     { trailer ->
                         val youtubeUrl = trailer.youtubePlaybackUrl()
-                        if (!inAppTrailerPlaybackEnabled) {
-                            runCatching { uriHandler.openUri(youtubeUrl) }
-                        } else {
-                            selectedTrailer = trailer
-                            trailerPlaybackSource = null
-                            trailerErrorMessage = null
-                            trailerLoading = true
-                            trailerRequestToken += 1
-                            val currentRequestToken = trailerRequestToken
-                            trailerScope.launch {
-                                val resolvedSource = runCatching {
-                                    TrailerPlaybackResolver.resolveFromYouTubeUrl(youtubeUrl)
-                                }.getOrNull()
-                                if (currentRequestToken != trailerRequestToken) {
-                                    return@launch
+                        when (trailerPlaybackMode) {
+                            TrailerPlaybackMode.EXTERNAL -> runCatching { uriHandler.openUri(youtubeUrl) }
+                            TrailerPlaybackMode.IN_APP -> {
+                                selectedTrailer = trailer
+                                trailerPlaybackSource = null
+                                trailerErrorMessage = null
+                                trailerLoading = true
+                                trailerRequestToken += 1
+                                val currentRequestToken = trailerRequestToken
+                                trailerScope.launch {
+                                    val resolvedSource = runCatching {
+                                        TrailerPlaybackResolver.resolveFromYouTubeUrl(youtubeUrl)
+                                    }.getOrNull()
+                                    if (currentRequestToken != trailerRequestToken) {
+                                        return@launch
+                                    }
+                                    trailerPlaybackSource = resolvedSource
+                                    trailerErrorMessage = if (resolvedSource == null) {
+                                        getString(Res.string.trailer_no_playable_stream)
+                                    } else {
+                                        null
+                                    }
+                                    trailerLoading = false
                                 }
-                                trailerPlaybackSource = resolvedSource
-                                trailerErrorMessage = if (resolvedSource == null) {
-                                    getString(Res.string.trailer_no_playable_stream)
-                                } else {
-                                    null
-                                }
-                                trailerLoading = false
                             }
                         }
                     }
@@ -1017,9 +1043,8 @@ fun MetaDetailsScreen(
                         .calculateTopPadding()
                         .toPx()
                 }
-                val heroHeightPx = remember(meta.id) { mutableIntStateOf(0) }
-                // Keep pixel-by-pixel list state reads out of this composition. Reading the
-                // offset here would recompose every metadata section on every scroll frame.
+                val heroHeightPx = rememberSaveable(meta.id) { mutableIntStateOf(0) }
+                // Keep pixel-by-pixel list state reads out of this composition.
                 val detailScrollOffsetPx = remember(listState, heroHeightPx) {
                     {
                         if (listState.firstVisibleItemIndex == 0) {
@@ -1034,10 +1059,13 @@ fun MetaDetailsScreen(
                 }
                 val isHeroCollapsed = remember(listState, heroHeightPx, safeAreaTopPx) {
                     derivedStateOf {
-                        val measuredHeroHeightPx = heroHeightPx.intValue
-                        val thresholdPx = (measuredHeroHeightPx - safeAreaTopPx).coerceAtLeast(0f)
-                        measuredHeroHeightPx > 0 &&
-                            (listState.firstVisibleItemIndex > 0 || detailScrollOffsetPx() > thresholdPx)
+                        if (listState.firstVisibleItemIndex > 0) {
+                            true
+                        } else {
+                            val measuredHeroHeightPx = heroHeightPx.intValue
+                            val thresholdPx = (measuredHeroHeightPx - safeAreaTopPx).coerceAtLeast(0f)
+                            measuredHeroHeightPx > 0 && detailScrollOffsetPx() > thresholdPx
+                        }
                     }
                 }
                 val heroTrailerSourceUrl = heroTrailerPlaybackSource
@@ -1046,14 +1074,61 @@ fun MetaDetailsScreen(
                 val heroTrailerSourceAudioUrl = heroTrailerPlaybackSource
                     ?.audioUrl
                     ?.takeIf { heroTrailerSourceUrl != null && it.isNotBlank() }
+                val heroTrailerPlayWhenReady = heroTrailerSourceUrl != null &&
+                    !isLeavingDetails &&
+                    !isHeroCollapsed.value
+                val headerTarget = if (isHeroCollapsed.value) 1f else 0f
+                val headerProgressState = animateFloatAsState(
+                    targetValue = headerTarget,
+                    animationSpec = tween(
+                        durationMillis = if (headerTarget > 0f) 150 else 100,
+                        easing = LinearOutSlowInEasing,
+                    ),
+                    label = "detail_floating_header_progress",
+                )
+                val headerProgressProvider = remember(headerProgressState) {
+                    { headerProgressState.value }
+                }
+                val animatedShowHeroBackButton by remember(headerProgressState) {
+                    derivedStateOf { headerProgressState.value <= 0.05f }
+                }
+                val showHeroBackButton = if (isDesktop) {
+                    !isHeroCollapsed.value
+                } else {
+                    animatedShowHeroBackButton
+                }
+                val headerInteractive by remember(headerProgressState) {
+                    derivedStateOf { headerProgressState.value > 0.05f }
+                }
+
+                val onShuffleClick: (() -> Unit)? = if (showShuffleButton) {
+                    {
+                        if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
+                    }
+                } else {
+                    null
+                }
 
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     val colorScheme = MaterialTheme.colorScheme
-                    val useTabletLayout = minOf(maxWidth, maxHeight) >= 600.dp
+                    val screenMaxWidth = maxWidth
+                    val useTabletLayout = !isDesktop && minOf(maxWidth, maxHeight) >= 600.dp
+                    val isTablet = useTabletLayout || screenMaxWidth >= 720.dp
+                    val isSectionEnabled = { key: MetaScreenSectionKey ->
+                        metaScreenSettingsUiState.items.any { it.key == key && it.enabled }
+                    }
+                    val useDesktopDetailLayout = isDesktop && screenMaxWidth >= 1000.dp
+                    val viewportHeight = maxHeight
                     val screenHeight = maxHeight
-                    val isTablet = useTabletLayout || maxWidth >= 720.dp
-                    val contentHorizontalPadding = if (isTablet) 32.dp else 18.dp
-                    val contentMaxWidth = detailTabletContentMaxWidth(maxWidth, isTablet)
+                    val desktopPageHorizontalPadding = desktopPageHorizontalPaddingForWidth(screenMaxWidth.value)
+                    val contentHorizontalPadding = if (isDesktop) {
+                        desktopPageHorizontalPadding
+                    } else if (isTablet) {
+                        32.dp
+                    } else {
+                        18.dp
+                    }
+                    val contentMaxWidth = detailTabletContentMaxWidth(screenMaxWidth, isTablet)
                     val backdropUrl = meta.background ?: meta.poster
                     val backgroundMode = metaScreenSettingsUiState.backgroundMode
                     val cinematicBackground = backgroundMode == MetaScreenBackgroundMode.Cinematic &&
@@ -1065,6 +1140,10 @@ fun MetaDetailsScreen(
                     val dominantColorEnabled = backgroundMode == MetaScreenBackgroundMode.DominantColor &&
                         deferredMetaWorkAllowed &&
                         !backdropUrl.isNullOrBlank()
+                    val adaptiveScrollbarColorEnabled = useDesktopDetailLayout &&
+                        deferredMetaWorkAllowed &&
+                        !backdropUrl.isNullOrBlank()
+                    val backdropColorExtractionEnabled = dominantColorEnabled || adaptiveScrollbarColorEnabled
                     var dominantBackdropPainter by remember(meta.id, backdropUrl) {
                         mutableStateOf<Painter?>(null)
                     }
@@ -1079,10 +1158,10 @@ fun MetaDetailsScreen(
                         defaultColor = colorScheme.background,
                         defaultOnColor = colorScheme.onBackground,
                     )
-                    LaunchedEffect(dominantColorEnabled, dominantBackdropImageBitmap, dominantBackdropPainter) {
+                    LaunchedEffect(backdropColorExtractionEnabled, dominantBackdropImageBitmap, dominantBackdropPainter) {
                         val imageBitmap = dominantBackdropImageBitmap
                         val painter = dominantBackdropPainter
-                        if (dominantColorEnabled) {
+                        if (backdropColorExtractionEnabled) {
                             when {
                                 imageBitmap != null -> runCatching {
                                     dominantImageBitmapColorState.updateFrom(imageBitmap)
@@ -1111,147 +1190,179 @@ fun MetaDetailsScreen(
                         ),
                         label = "detail_dominant_backdrop_color",
                     )
-                    val heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled }
-                    val heroTrailerPlayWhenReady = {
-                        heroTrailerSourceUrl != null &&
-                            selectedTrailer == null &&
-                            !isLeavingDetails &&
-                            !isHeroCollapsed.value
-                    }
-                    val onBackdropLoaded: (Painter, ImageBitmap?) -> Unit = { painter, imageBitmap ->
-                        dominantBackdropPainter = painter
-                        dominantBackdropImageBitmap = imageBitmap
-                    }
-                    val onHeroTrailerReady: () -> Unit = {
-                        if (!heroTrailerFinished) {
-                            heroTrailerReady = true
-                        }
-                    }
-                    val onHeroTrailerFinished: () -> Unit = {
-                        heroTrailerReady = false
-                        heroTrailerFinished = true
-                    }
-                    val isSectionEnabled = { key: MetaScreenSectionKey ->
-                        metaScreenSettingsUiState.items.any { it.key == key && it.enabled }
-                    }
 
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize().detailsContentReveal(metaScreenSettingsUiState.posterTransitionEnabled)) {
-                            if (useTabletLayout) {
-                                TabletDetailBackdrop(
-                                    meta = meta,
-                                    cinematic = cinematicBackground,
-                                    backdropImage = cinematicBackdrop,
-                                    scrollOffsetPx = detailScrollOffsetPx,
-                                    heroHeightPx = { heroHeightPx.intValue },
-                                    heroTrailerSourceUrl = heroTrailerSourceUrl,
-                                    heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
-                                    heroTrailerReady = heroTrailerReady,
-                                    heroTrailerPlayWhenReady = heroTrailerPlayWhenReady,
-                                    heroTrailerMuted = heroTrailerMuted,
-                                    heroGradientColor = heroGradientColor,
-                                    onBackdropLoaded = onBackdropLoaded,
-                                    onHeroTrailerReady = onHeroTrailerReady,
-                                    onHeroTrailerFinished = onHeroTrailerFinished,
-                                )
-                            } else when (backgroundMode) {
-                                MetaScreenBackgroundMode.Normal -> Unit
-                                MetaScreenBackgroundMode.Cinematic -> if (cinematicBackground) {
-                                    ArtworkBackdrop(image = cinematicBackdrop)
-                                }
-                                MetaScreenBackgroundMode.DominantColor -> if (deferredMetaWorkAllowed) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(dominantBackdropColor),
-                                    )
-                                }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .detailsContentReveal(metaScreenSettingsUiState.posterTransitionEnabled),
+                    ) {
+                        if (useTabletLayout) {
+                            TabletDetailBackdrop(
+                                meta = meta,
+                                cinematic = cinematicBackground,
+                                backdropImage = cinematicBackdrop,
+                                scrollOffsetPx = detailScrollOffsetPx,
+                                heroHeightPx = { heroHeightPx.intValue },
+                                heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
+                                heroTrailerReady = heroTrailerReady,
+                                heroTrailerPlayWhenReady = { heroTrailerPlayWhenReady },
+                                heroTrailerMuted = heroTrailerMuted,
+                                heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                onBackdropLoaded = { painter, imageBitmap ->
+                                    dominantBackdropPainter = painter
+                                    dominantBackdropImageBitmap = imageBitmap
+                                },
+                                onHeroTrailerReady = {
+                                    if (!heroTrailerFinished) heroTrailerReady = true
+                                },
+                                onHeroTrailerFinished = {
+                                    heroTrailerReady = false
+                                    heroTrailerFinished = true
+                                },
+                            )
+                        } else when (backgroundMode) {
+                            MetaScreenBackgroundMode.Normal -> Unit
+                            MetaScreenBackgroundMode.Cinematic -> if (cinematicBackground && !useDesktopDetailLayout) {
+                                ArtworkBackdrop(image = cinematicBackdrop)
                             }
-                            CompositionLocalProvider(LocalOnBackdrop provides backgroundMode.usesBackdropBackground) {
-                                LazyColumn(
-                                    state = listState,
+                            MetaScreenBackgroundMode.DominantColor -> if (deferredMetaWorkAllowed) {
+                                Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .nestedScroll(heroStretchState.nestedScrollConnection)
-                                        .zIndex(1f),
-                                ) {
-                                    item(key = "detail-hero") {
-                                        if (useTabletLayout) {
-                                            TabletDetailHero(
-                                                meta = meta,
-                                                showOverview = isSectionEnabled(MetaScreenSectionKey.OVERVIEW),
-                                                showOverallRatings = metaScreenSettingsUiState.showOverallRatings,
-                                                isMdbListActive = mdbListSettings.isActive,
-                                                horizontalPadding = contentHorizontalPadding,
-                                                heroTrailerSourceUrl = heroTrailerSourceUrl,
-                                                heroTrailerReady = heroTrailerReady,
-                                                heroTrailerMuted = heroTrailerMuted,
-                                                onHeroTrailerMuteToggle = HeroTrailerAudioState::toggleMuted,
-                                                onHeightChanged = { heroHeightPx.intValue = it },
-                                                actions = if (isSectionEnabled(MetaScreenSectionKey.ACTIONS)) {
-                                                    {
-                                                        DetailActions(
-                                                            playLabel = playButtonLabel,
-                                                            playEnabled = isPrimaryPlayEnabled,
-                                                            isSaved = isSaved,
-                                                            isWatched = isWatched,
-                                                            isTablet = true,
-                                                            shuffleEnabled = shuffleSettings.enabled,
-                                                            onPlayClick = onPrimaryPlayClick,
-                                                            onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
-                                                            onShuffleClick = onShuffleClick,
-                                                            onWatchedClick = toggleWatched,
-                                                            onSaveClick = toggleSaved,
-                                                            onSaveLongClick = openLibraryListPicker,
-                                                        )
-                                                    }
-                                                } else {
-                                                    null
-                                                },
-                                            )
-                                        } else {
-                                            DetailHero(
-                                                meta = meta,
-                                                isTablet = isTablet,
-                                                contentMaxWidth = contentMaxWidth,
-                                                scrollOffset = heroScrollOffset,
-                                                stretchPx = { heroStretchState.stretchPx },
-                                                onHeightChanged = { heroHeightPx.intValue = it },
-                                                heroTrailerSourceUrl = heroTrailerSourceUrl,
-                                                heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
-                                                heroTrailerReady = heroTrailerReady,
-                                                heroTrailerPlayWhenReady = heroTrailerPlayWhenReady,
-                                                heroTrailerMuted = heroTrailerMuted,
-                                                heroGradientColor = heroGradientColor,
-                                                cinematicBackground = cinematicBackground,
-                                                onBackdropLoaded = onBackdropLoaded,
-                                                onHeroTrailerMuteToggle = HeroTrailerAudioState::toggleMuted,
-                                                onHeroTrailerReady = onHeroTrailerReady,
-                                                onHeroTrailerEnded = onHeroTrailerFinished,
-                                                onHeroTrailerError = onHeroTrailerFinished,
-                                            )
-                                        }
-                                    }
+                                        .background(dominantBackdropColor),
+                                )
+                            }
+                        }
+                        if (useDesktopDetailLayout) {
+                            DesktopDetailBackdrop(
+                                meta = meta,
+                                viewportHeight = viewportHeight,
+                                heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
+                                heroTrailerReady = heroTrailerReady,
+                                heroTrailerPlayWhenReady = heroTrailerPlayWhenReady,
+                                heroTrailerMuted = heroTrailerMuted,
+                                heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                onBackdropLoaded = { painter -> dominantBackdropPainter = painter },
+                                onHeroTrailerReady = {
+                                    if (!heroTrailerFinished) heroTrailerReady = true
+                                },
+                                onHeroTrailerEnded = {
+                                    heroTrailerReady = false
+                                    heroTrailerFinished = true
+                                },
+                                onHeroTrailerError = {
+                                    heroTrailerReady = false
+                                    heroTrailerFinished = true
+                                },
+                            )
 
-                                    configuredMetaSectionItems(
-                                        settings = if (useTabletLayout) {
-                                            metaScreenSettingsUiState.copy(
-                                                items = metaScreenSettingsUiState.items.filterNot { it.key in tabletHeroSectionKeys },
+                            if (backgroundMode == MetaScreenBackgroundMode.Cinematic) {
+                                DesktopDetailBackdrop(
+                                    meta = meta,
+                                    viewportHeight = viewportHeight,
+                                    heroTrailerSourceUrl = null,
+                                    heroTrailerSourceAudioUrl = null,
+                                    heroTrailerReady = false,
+                                    heroTrailerPlayWhenReady = false,
+                                    heroTrailerMuted = true,
+                                    blurBackdrop = true,
+                                    onHeroTrailerReady = {},
+                                    onHeroTrailerEnded = {},
+                                    onHeroTrailerError = {},
+                                    modifier = Modifier
+                                        .zIndex(0.25f)
+                                        .graphicsLayer {
+                                            alpha = detailScrolledBackgroundProgress(
+                                                scrollOffsetPx = detailScrollOffsetPx(),
+                                                heroHeightPx = heroHeightPx.intValue,
                                             )
-                                        } else {
-                                            metaScreenSettingsUiState
                                         },
+                                )
+                            }
+
+                            val scrolledBackgroundColor = if (dominantColorEnabled) {
+                                dominantBackdropColor
+                            } else {
+                                colorScheme.background
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .zIndex(0.5f)
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        alpha = detailScrolledBackgroundAlpha(
+                                            scrollOffsetPx = detailScrollOffsetPx(),
+                                            heroHeightPx = heroHeightPx.intValue,
+                                            maxAlpha = if (backgroundMode == MetaScreenBackgroundMode.Cinematic) {
+                                                DetailScrolledBackgroundCinematicMaxAlpha
+                                            } else {
+                                                DetailScrolledBackgroundDefaultMaxAlpha
+                                            },
+                                        )
+                                    }
+                                    .background(scrolledBackgroundColor),
+                            )
+                        }
+                        CompositionLocalProvider(LocalOnBackdrop provides backgroundMode.usesBackdropBackground) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .nestedScroll(heroStretchState.nestedScrollConnection)
+                                    .zIndex(1f),
+                            ) {
+                                if (useDesktopDetailLayout) {
+                                    item(
+                                        key = "detail-desktop-hero",
+                                        contentType = "detail-hero",
+                                    ) {
+                                        DesktopDetailHero(
+                                            meta = meta,
+                                            showOverallRatings = metaScreenSettingsUiState.showOverallRatings,
+                                            isMdbListActive = mdbListSettings.isActive,
+                                            playButtonLabel = playButtonLabel,
+                                            isPrimaryPlayEnabled = isPrimaryPlayEnabled,
+                                            isSaved = isSaved,
+                                            isWatched = isWatched,
+                                            onHeightChanged = { heroHeightPx.intValue = it },
+                                            heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                            heroTrailerReady = heroTrailerReady,
+                                            heroTrailerMuted = heroTrailerMuted,
+                                            onHeroTrailerMuteToggle = {
+                                                HeroTrailerAudioState.toggleMuted()
+                                            },
+                                            onPlayClick = onPrimaryPlayClick,
+                                            onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                                            onShuffleClick = if (showShuffleButton) ({
+                                                if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
+                                            }) else null,
+                                            shuffleEnabled = shuffleSettings.enabled,
+                                            onWatchedClick = toggleWatched,
+                                            onSaveClick = toggleSaved,
+                                            onSaveLongClick = openLibraryListPicker,
+                                        )
+                                    }
+                                    configuredMetaSectionItems(
+                                        settings = metaScreenSettingsUiState.copy(
+                                            items = metaScreenSettingsUiState.items.filterNot {
+                                                it.key in desktopHeroOwnedMetaSectionKeys
+                                            },
+                                        ),
                                         isMdbListActive = mdbListSettings.isActive,
                                         meta = meta,
-                                        isTablet = isTablet,
-                                        contentHorizontalPadding = contentHorizontalPadding,
-                                        contentMaxWidth = if (isTablet && !useTabletLayout) contentMaxWidth else Dp.Unspecified,
+                                        isTablet = true,
+                                        contentHorizontalPadding = desktopPageHorizontalPadding,
+                                        contentMaxWidth = Dp.Unspecified,
                                         playButtonLabel = playButtonLabel,
                                         isPrimaryPlayEnabled = isPrimaryPlayEnabled,
                                         isSaved = isSaved,
                                         isWatched = isWatched,
                                         onPrimaryPlayClick = onPrimaryPlayClick,
-                                        onShuffleClick = onShuffleClick,
+                                        onShuffleClick = if (showShuffleButton) ({
+                                            if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
+                                        }) else null,
                                         shuffleEnabled = shuffleSettings.enabled,
                                         onPrimaryPlayLongClick = onPrimaryPlayLongClick,
                                         onSaveClick = toggleSaved,
@@ -1326,61 +1437,272 @@ fun MetaDetailsScreen(
                                         sharedTransitionScope = sharedTransitionScope,
                                         animatedVisibilityScope = animatedVisibilityScope,
                                     )
-
-                                    item(key = "detail-bottom-spacer") {
-                                        Spacer(modifier = Modifier.height(nuvioSafeBottomPadding(32.dp)))
-                                    }
-                                }
-                            }
-
-                            if (!useTabletLayout && dominantColorEnabled && heroHeightPx.intValue > 0) {
-                                val blendColor = dominantBackdropColor.takeIf { dominantColorEnabled }
-                                    ?: colorScheme.background
-                                Box(
-                                    modifier = Modifier
-                                        .zIndex(0.5f)
-                                        .fillMaxWidth()
-                                        .height(132.dp)
-                                        .graphicsLayer {
-                                            translationY = heroHeightPx.intValue.toFloat() - detailScrollOffsetPx()
-                                        }
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(
-                                                    blendColor.copy(alpha = 0.98f),
-                                                    blendColor.copy(alpha = 0.84f),
-                                                    blendColor.copy(alpha = 0.52f),
-                                                    Color.Transparent,
-                                                ),
-                                            ),
-                                        ),
-                                )
-                            }
-                        }
-
-                        DetailHeaderOverlay(
-                            meta = meta,
-                            isSaved = isSaved,
-                            isHeroCollapsed = isHeroCollapsed,
-                            backgroundColor = dominantBackdropColor.takeIf { dominantColorEnabled },
-                            headerBackground = if (cinematicBackground) {
-                                {
-                                    CinematicHeaderBackdrop(
-                                        image = cinematicBackdrop,
-                                        screenHeight = screenHeight,
-                                        alignment = if (useTabletLayout) {
-                                            TabletArtworkBackdropAlignment
+                                } else {
+                                    item(
+                                        key = "detail-hero",
+                                        contentType = "detail-hero",
+                                    ) {
+                                        if (useTabletLayout) {
+                                            TabletDetailHero(
+                                                meta = meta,
+                                                showOverview = isSectionEnabled(MetaScreenSectionKey.OVERVIEW),
+                                                showOverallRatings = metaScreenSettingsUiState.showOverallRatings,
+                                                isMdbListActive = mdbListSettings.isActive,
+                                                horizontalPadding = contentHorizontalPadding,
+                                                heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                                heroTrailerReady = heroTrailerReady,
+                                                heroTrailerMuted = heroTrailerMuted,
+                                                onHeroTrailerMuteToggle = HeroTrailerAudioState::toggleMuted,
+                                                onHeightChanged = { heroHeightPx.intValue = it },
+                                                actions = if (isSectionEnabled(MetaScreenSectionKey.ACTIONS)) {
+                                                    {
+                                                        DetailActions(
+                                                            playLabel = playButtonLabel,
+                                                            playEnabled = isPrimaryPlayEnabled,
+                                                            isSaved = isSaved,
+                                                            isWatched = isWatched,
+                                                            isTablet = true,
+                                                            shuffleEnabled = shuffleSettings.enabled,
+                                                            onPlayClick = onPrimaryPlayClick,
+                                                            onPlayLongClick = if (showManualPlayOption) onPrimaryPlayLongClick else null,
+                                                            onShuffleClick = onShuffleClick,
+                                                            onWatchedClick = toggleWatched,
+                                                            onSaveClick = toggleSaved,
+                                                            onSaveLongClick = openLibraryListPicker,
+                                                        )
+                                                    }
+                                                } else {
+                                                    null
+                                                },
+                                            )
                                         } else {
-                                            Alignment.Center
+                                            DetailHero(
+                                            meta = meta,
+                                            isTablet = isTablet,
+                                            contentMaxWidth = contentMaxWidth,
+                                            viewportHeight = viewportHeight,
+                                            scrollOffset = heroScrollOffset,
+                                            stretchPx = { heroStretchState.stretchPx },
+                                            onHeightChanged = { heroHeightPx.intValue = it },
+                                            heroTrailerSourceUrl = heroTrailerSourceUrl,
+                                            heroTrailerSourceAudioUrl = heroTrailerSourceAudioUrl,
+                                            heroTrailerReady = heroTrailerReady,
+                                            heroTrailerPlayWhenReady = { heroTrailerPlayWhenReady },
+                                            heroTrailerMuted = heroTrailerMuted,
+                                            heroGradientColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                            onBackdropLoaded = { painter, imageBitmap ->
+                                                dominantBackdropPainter = painter
+                                                dominantBackdropImageBitmap = imageBitmap
+                                            },
+                                            onHeroTrailerMuteToggle = {
+                                                HeroTrailerAudioState.toggleMuted()
+                                            },
+                                            onHeroTrailerReady = {
+                                                if (!heroTrailerFinished) {
+                                                    heroTrailerReady = true
+                                                }
+                                            },
+                                            onHeroTrailerEnded = {
+                                                heroTrailerReady = false
+                                                heroTrailerFinished = true
+                                            },
+                                            onHeroTrailerError = {
+                                                heroTrailerReady = false
+                                                heroTrailerFinished = true
+                                            },
+                                        )
+                                        }
+                                    }
+
+                                    configuredMetaSectionItems(
+                                        settings = if (useTabletLayout) {
+                                            metaScreenSettingsUiState.copy(
+                                                items = metaScreenSettingsUiState.items.filterNot { it.key in tabletHeroSectionKeys },
+                                            )
+                                        } else {
+                                            metaScreenSettingsUiState
                                         },
+                                        isMdbListActive = mdbListSettings.enabled && mdbListSettings.hasApiKey,
+                                        meta = meta,
+                                        isTablet = isTablet,
+                                        contentHorizontalPadding = contentHorizontalPadding,
+                                        contentMaxWidth = if (isTablet && !useTabletLayout) contentMaxWidth else Dp.Unspecified,
+                                        playButtonLabel = playButtonLabel,
+                                        isPrimaryPlayEnabled = isPrimaryPlayEnabled,
+                                        isSaved = isSaved,
+                                        isWatched = isWatched,
+                                        onShuffleClick = if (showShuffleButton) ({
+                                            if (shuffleSettings.enabled) saveShuffle(shuffleSettings.copy(enabled = false)) else showShuffle = true
+                                        }) else null,
+                                        shuffleEnabled = shuffleSettings.enabled,
+                                        onPrimaryPlayClick = onPrimaryPlayClick,
+                                        onPrimaryPlayLongClick = onPrimaryPlayLongClick,
+                                        onSaveClick = toggleSaved,
+                                        onSaveLongClick = openLibraryListPicker,
+                                        onWatchedClick = toggleWatched,
+                                        showManualPlayOption = showManualPlayOption,
+                                        preferredEpisodeSeasonNumber = seriesAction?.seasonNumber,
+                                        preferredEpisodeNumber = seriesAction?.episodeNumber,
+                                        hasProductionSection = hasProductionSection,
+                                        hasTrailersSection = hasTrailersSection,
+                                        hasEpisodes = hasEpisodes,
+                                        hasAdditionalInfoSection = hasAdditionalInfoSection,
+                                        hasCollectionSection = hasCollectionSection,
+                                        hasMoreLikeThisSection = hasMoreLikeThisSection,
+                                        shouldShowComments = shouldShowComments,
+                                        comments = comments,
+                                        isCommentsLoading = isCommentsLoading,
+                                        isCommentsLoadingMore = isCommentsLoadingMore,
+                                        commentsCurrentPage = commentsCurrentPage,
+                                        commentsPageCount = commentsPageCount,
+                                        commentsError = commentsError,
+                                        episodeImdbRatings = episodeImdbRatings,
+                                        episodeListGroupedEpisodes = episodeListGroupedEpisodes,
+                                        episodeListSeasons = episodeListSeasons,
+                                        episodeListCurrentSeason = currentEpisodeListSeason,
+                                        onEpisodeListSeasonSelect = { selectedEpisodeListSeason = it },
+                                        onRetryComments = {
+                                            detailsScope.launch {
+                                                isCommentsLoading = true
+                                                commentsError = null
+                                                try {
+                                                    val result = TraktCommentsRepository.getCommentsPage(meta, page = 1, forceRefresh = true)
+                                                    comments = result.items
+                                                    commentsCurrentPage = result.currentPage
+                                                    commentsPageCount = result.pageCount
+                                                } catch (e: Exception) {
+                                                    commentsError = e.message ?: getString(Res.string.details_comments_load_failed)
+                                                }
+                                                isCommentsLoading = false
+                                            }
+                                        },
+                                        onLoadMoreComments = {
+                                            detailsScope.launch {
+                                                isCommentsLoadingMore = true
+                                                try {
+                                                    val nextPage = commentsCurrentPage + 1
+                                                    val result = TraktCommentsRepository.getCommentsPage(meta, page = nextPage)
+                                                    val existingIds = comments.map { it.id }.toSet()
+                                                    val newComments = result.items.filter { it.id !in existingIds }
+                                                    comments = comments + newComments
+                                                    commentsCurrentPage = result.currentPage
+                                                    commentsPageCount = result.pageCount
+                                                } catch (_: Exception) { }
+                                                isCommentsLoadingMore = false
+                                            }
+                                        },
+                                        onCommentClick = { review -> selectedComment = review },
+                                        onTrailerClick = resolveTrailer,
+                                        progressByVideoId = progressByVideoId,
+                                        watchedKeys = watchedUiState.watchedKeys,
+                                        blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,
+                                        onEpisodeClick = onEpisodePlayClick,
+                                        onEpisodeLongPress = { video -> selectedEpisodeForActions = video },
+                                        onSeasonLongPress = { season -> selectedSeasonForActions = season },
+                                        onOpenMeta = onOpenMeta,
+                                        onCastClick = onCastClick,
+                                        onCompanyClick = onCompanyClick,
+                                        sharedTransitionScope = sharedTransitionScope,
+                                        animatedVisibilityScope = animatedVisibilityScope,
                                     )
                                 }
-                            } else {
-                                null
-                            },
-                            onBack = onBackFromDetails,
-                            onToggleSaved = toggleSaved,
+
+                                item(
+                                    key = "detail-bottom-spacer",
+                                    contentType = "detail-spacer",
+                                ) {
+                                    Spacer(modifier = Modifier.height(nuvioSafeBottomPadding(32.dp)))
+                                }
+                            }
+                        }
+                        NuvioDesktopVerticalScrollbar(
+                            state = listState,
+                            backgroundColor = extractedDominantColor.takeIf { adaptiveScrollbarColorEnabled },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 8.dp, horizontal = 4.dp)
+                                .zIndex(2f),
                         )
+
+                        if (!useDesktopDetailLayout && !useTabletLayout && dominantColorEnabled && heroHeightPx.intValue > 0) {
+                            val blendColor = dominantBackdropColor.takeIf { dominantColorEnabled }
+                                ?: colorScheme.background
+                            Box(
+                                modifier = Modifier
+                                    .zIndex(0.5f)
+                                    .fillMaxWidth()
+                                    .height(132.dp)
+                                    .graphicsLayer {
+                                        translationY = heroHeightPx.intValue.toFloat() - detailScrollOffsetPx()
+                                    }
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                blendColor.copy(alpha = 0.98f),
+                                                blendColor.copy(alpha = 0.84f),
+                                                blendColor.copy(alpha = 0.52f),
+                                                Color.Transparent,
+                                            ),
+                                        ),
+                                    ),
+                            )
+                        }
+
+                        if (!isDesktop && !useDesktopDetailLayout && showHeroBackButton) {
+                            NuvioBackButton(
+                                onClick = onBackFromDetails,
+                                modifier = Modifier.padding(
+                                    start = 12.dp,
+                                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
+                                ).zIndex(2f),
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+
+                        if (isDesktop) {
+                            NuvioBackButton(
+                                onClick = onBackFromDetails,
+                                modifier = Modifier
+                                    .statusBarsPadding()
+                                    .padding(start = desktopPageHorizontalPadding, top = 32.dp)
+                                    .zIndex(2f),
+                                containerColor = Color.Black.copy(alpha = 0.34f),
+                                showContainerOnDesktop = true,
+                                contentColor = MaterialTheme.colorScheme.onBackground,
+                                buttonSize = 48.dp,
+                                iconSize = 24.dp,
+                            )
+                        }
+
+                        if (!isDesktop) {
+                            DetailFloatingHeader(
+                                meta = meta,
+                                isSaved = isSaved,
+                                progressProvider = headerProgressProvider,
+                                interactive = headerInteractive,
+                                backgroundColor = dominantBackdropColor.takeIf { dominantColorEnabled },
+                                background = if (cinematicBackground) {
+                                    {
+                                        CinematicHeaderBackdrop(
+                                            image = cinematicBackdrop,
+                                            screenHeight = screenHeight,
+                                            alignment = if (useTabletLayout) {
+                                                TabletArtworkBackdropAlignment
+                                            } else {
+                                                Alignment.Center
+                                            },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                                onBack = onBackFromDetails,
+                                onToggleSaved = toggleSaved,
+                                modifier = Modifier.zIndex(2f),
+                            )
+                        }
 
                         selectedEpisodeForActions
                             ?.takeIf { selectedEpisodeZoomAnchor == null }
@@ -1452,7 +1774,7 @@ fun MetaDetailsScreen(
                                         areCurrentlyWatched = isSeasonWatched,
                                     )
                                 },
-                                showPlayManually = showManualPlayOption && playbackAvailability.canStream(meta.type, selectedEpisode.id),
+                                showPlayManually = showManualPlayOption,
                                 onPlayManually = {
                                     onEpisodeManualPlayClick(selectedEpisode)
                                 },
@@ -1650,15 +1972,30 @@ fun MetaDetailsScreen(
         }
 
         if (displayedMeta == null) {
-            NuvioBackButton(
-                onClick = onBack,
-                modifier = Modifier.padding(
-                    start = 12.dp,
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                ),
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onBackground,
-            )
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val loadingBackButtonStartPadding = if (isDesktop) {
+                    desktopPageHorizontalPaddingForWidth(maxWidth.value)
+                } else {
+                    12.dp
+                }
+                val loadingBackButtonTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + if (isDesktop) {
+                    32.dp
+                } else {
+                    8.dp
+                }
+                NuvioBackButton(
+                    onClick = onBack,
+                    modifier = Modifier.padding(
+                        start = loadingBackButtonStartPadding,
+                        top = loadingBackButtonTopPadding,
+                    ),
+                    containerColor = if (isDesktop) Color.Black.copy(alpha = 0.34f) else Color.Transparent,
+                    showContainerOnDesktop = isDesktop,
+                    contentColor = MaterialTheme.colorScheme.onBackground,
+                    buttonSize = if (isDesktop) 48.dp else 40.dp,
+                    iconSize = 24.dp,
+                )
+            }
         }
         }
 
@@ -1771,25 +2108,7 @@ fun MetaDetailsScreen(
                             },
                         ),
                     )
-                    if (episodeRating.isAvailable) {
-                        val rated = episodeRating.rating
-                        add(
-                            PosterZoomOverlayAction(
-                                icon = if (rated != null) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                                label = if (rated != null) {
-                                    stringResource(Res.string.rating_rated, formatRating(rated))
-                                } else {
-                                    stringResource(Res.string.rating_rate_episode)
-                                },
-                                onSelected = { episodeToRate = selectedEpisode },
-                            ),
-                        )
-                    }
-                    if (
-                        onPlayManually != null &&
-                        StreamAutoPlayPolicy.isEffectivelyEnabled(playerSettingsUiState) &&
-                        playbackAvailability.canStream(meta.type, selectedEpisode.id)
-                    ) {
+                    if (onPlayManually != null && StreamAutoPlayPolicy.isEffectivelyEnabled(playerSettingsUiState)) {
                         add(
                             PosterZoomOverlayAction(
                                 icon = Icons.Default.PlayArrow,
@@ -1852,55 +2171,6 @@ private fun MetaDetails.isSeriesLikeForEpisodeRatings(): Boolean {
     val normalizedType = type.trim().lowercase()
     val hasNumberedEpisodes = videos.any { it.season != null && it.episode != null }
     return hasNumberedEpisodes && normalizedType in setOf("series", "show", "tv", "tvshow")
-}
-
-@Composable
-private fun DetailHeaderOverlay(
-    meta: MetaDetails,
-    isSaved: Boolean,
-    isHeroCollapsed: State<Boolean>,
-    backgroundColor: Color?,
-    headerBackground: (@Composable () -> Unit)?,
-    onBack: () -> Unit,
-    onToggleSaved: () -> Unit,
-) {
-    val headerTarget = if (isHeroCollapsed.value) 1f else 0f
-    val headerProgress by animateFloatAsState(
-        targetValue = headerTarget,
-        animationSpec = tween(
-            durationMillis = if (headerTarget > 0f) 150 else 100,
-            easing = LinearOutSlowInEasing,
-        ),
-        label = "detail_floating_header_progress",
-    )
-
-    if (headerProgress <= 0.05f) {
-        NuvioBackButton(
-            onClick = onBack,
-            modifier = Modifier
-                .padding(LocalVerticalBarPadding.current)
-                .padding(
-                    start = 12.dp,
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp,
-                )
-                .zIndex(2f),
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-        )
-    }
-
-    if (verticalBarWidth() == 0.dp) {
-        DetailFloatingHeader(
-            meta = meta,
-            isSaved = isSaved,
-            progress = headerProgress,
-            backgroundColor = backgroundColor,
-            background = headerBackground,
-            onBack = onBack,
-            onToggleSaved = onToggleSaved,
-            modifier = Modifier.zIndex(2f),
-        )
-    }
 }
 
 @Composable
@@ -2131,7 +2401,7 @@ private fun LazyListScope.configuredMetaSectionItems(
             DetailSectionContainer(
                 horizontalPadding = contentHorizontalPadding,
                 contentMaxWidth = contentMaxWidth,
-                bottomPadding = 12.dp,
+                bottomPadding = if (isDesktop) 8.dp else 12.dp,
             ) {
                 DetailSeriesListHeader(
                     meta = meta,

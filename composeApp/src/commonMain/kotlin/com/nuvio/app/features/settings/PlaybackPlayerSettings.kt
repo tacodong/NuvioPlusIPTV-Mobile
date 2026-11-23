@@ -22,6 +22,7 @@ import com.nuvio.app.features.player.ExternalPlayerApp
 import com.nuvio.app.features.player.ExternalPlayerPlatform
 import com.nuvio.app.features.player.streamAutoPlayFallbackActive
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -88,7 +89,7 @@ internal fun PlaybackPlayerSettings(
             }
         }
 
-        if (!isIos) {
+        if (!isIos && !isDesktop) {
             SettingsSection(
                 title = stringResource(Res.string.settings_playback_section_decoder),
                 isTablet = isTablet,

@@ -14,6 +14,7 @@ import kotlin.coroutines.resume
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual object AppIconPlatform {
+    actual val isSupported: Boolean = true
     actual val requiresCloseConfirmation: Boolean = false
 
     private const val selectedIconKey = "selected_app_icon"

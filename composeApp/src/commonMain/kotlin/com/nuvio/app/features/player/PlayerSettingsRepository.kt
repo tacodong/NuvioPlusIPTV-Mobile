@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player
 
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.player.skip.AutoSkipSegmentType
 import com.nuvio.app.features.player.skip.NextEpisodeThresholdMode
 import com.nuvio.app.features.streams.StreamAutoPlayMode
@@ -61,7 +62,7 @@ data class PlayerSettingsUiState(
     val androidLibmpvVideoOutput: AndroidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext,
     val androidLibmpvHardwareDecodingEnabled: Boolean = true,
     val androidLibmpvYuv420pEnabled: Boolean = false,
-    val androidExoChaptersEnabled: Boolean = false,
+    val androidExoChaptersEnabled: Boolean = isDesktop,
     val chapterTitleEnabled: Boolean = true,
     val rememberAudioDelayPerDevice: Boolean = true,
     val persistAudioAmplification: Boolean = false,
@@ -123,6 +124,8 @@ data class PlayerSettingsUiState(
     val iosContrast: Int = 0,
     val iosSaturation: Int = 0,
     val iosGamma: Int = 0,
+    val nvidiaRtxSuperResolutionEnabled: Boolean = false,
+    val nvidiaRtxHdrEnabled: Boolean = false,
 )
 
 /** How many further sources falling back may try after the auto-selected one fails, by default and at most. */
@@ -176,7 +179,7 @@ object PlayerSettingsRepository {
     private var androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
     private var androidLibmpvHardwareDecodingEnabled = true
     private var androidLibmpvYuv420pEnabled = false
-    private var androidExoChaptersEnabled = false
+    private var androidExoChaptersEnabled = isDesktop
     private var chapterTitleEnabled = true
     private var rememberAudioDelayPerDevice = true
     private var persistAudioAmplification = false
@@ -238,6 +241,8 @@ object PlayerSettingsRepository {
     private var iosContrast = 0
     private var iosSaturation = 0
     private var iosGamma = 0
+    private var nvidiaRtxSuperResolutionEnabled = false
+    private var nvidiaRtxHdrEnabled = false
 
     fun ensureLoaded() {
         if (hasLoaded) return
@@ -278,7 +283,7 @@ object PlayerSettingsRepository {
         androidLibmpvVideoOutput = AndroidLibmpvVideoOutput.GpuNext
         androidLibmpvHardwareDecodingEnabled = true
         androidLibmpvYuv420pEnabled = false
-        androidExoChaptersEnabled = false
+        androidExoChaptersEnabled = isDesktop
         chapterTitleEnabled = true
         rememberAudioDelayPerDevice = true
         persistAudioAmplification = false
@@ -341,6 +346,8 @@ object PlayerSettingsRepository {
         iosContrast = 0
         iosSaturation = 0
         iosGamma = 0
+        nvidiaRtxSuperResolutionEnabled = false
+        nvidiaRtxHdrEnabled = false
         publish()
     }
 
@@ -357,8 +364,16 @@ object PlayerSettingsRepository {
         holdToSpeedEnabled = PlayerSettingsStorage.loadHoldToSpeedEnabled() ?: true
         holdToSpeedValue = PlayerSettingsStorage.loadHoldToSpeedValue() ?: 2f
         touchGesturesEnabled = PlayerSettingsStorage.loadTouchGesturesEnabled() ?: true
-        externalPlayerEnabled = PlayerSettingsStorage.loadExternalPlayerEnabled() ?: false
-        externalPlayerForwardSubtitles = PlayerSettingsStorage.loadExternalPlayerForwardSubtitles() ?: false
+        externalPlayerEnabled = if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.loadExternalPlayerEnabled() ?: false
+        } else {
+            false
+        }
+        externalPlayerForwardSubtitles = if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.loadExternalPlayerForwardSubtitles() ?: false
+        } else {
+            false
+        }
         externalPlayerSendSkipSegments = PlayerSettingsStorage.loadExternalPlayerSendSkipSegments() ?: false
         externalPlayerId = PlayerSettingsStorage.loadExternalPlayerId()
             ?: ExternalPlayerPlatform.defaultPlayerId()
@@ -415,7 +430,7 @@ object PlayerSettingsRepository {
             ?: AndroidLibmpvVideoOutput.GpuNext
         androidLibmpvHardwareDecodingEnabled = PlayerSettingsStorage.loadAndroidLibmpvHardwareDecodingEnabled() ?: true
         androidLibmpvYuv420pEnabled = PlayerSettingsStorage.loadAndroidLibmpvYuv420pEnabled() ?: false
-        androidExoChaptersEnabled = PlayerSettingsStorage.loadAndroidExoChaptersEnabled() ?: false
+        androidExoChaptersEnabled = PlayerSettingsStorage.loadAndroidExoChaptersEnabled() ?: isDesktop
         chapterTitleEnabled = PlayerSettingsStorage.loadChapterTitleEnabled() ?: true
         rememberAudioDelayPerDevice = PlayerSettingsStorage.loadRememberAudioDelayPerDevice() ?: true
         persistAudioAmplification = PlayerSettingsStorage.loadPersistAudioAmplification() ?: false
@@ -527,6 +542,8 @@ object PlayerSettingsRepository {
         iosContrast = PlayerSettingsStorage.loadIosContrast() ?: 0
         iosSaturation = PlayerSettingsStorage.loadIosSaturation() ?: 0
         iosGamma = PlayerSettingsStorage.loadIosGamma() ?: 0
+        nvidiaRtxSuperResolutionEnabled = PlayerSettingsStorage.loadNvidiaRtxSuperResolutionEnabled() ?: false
+        nvidiaRtxHdrEnabled = PlayerSettingsStorage.loadNvidiaRtxHdrEnabled() ?: false
         publish()
     }
 
@@ -605,18 +622,21 @@ object PlayerSettingsRepository {
 
     fun setExternalPlayerEnabled(enabled: Boolean) {
         ensureLoaded()
-        if (enabled && externalPlayerId.isNullOrBlank()) {
+        val normalizedEnabled = enabled && AppFeaturePolicy.externalPlayerSupported
+        if (normalizedEnabled && externalPlayerId.isNullOrBlank()) {
             externalPlayerId = ExternalPlayerPlatform.defaultPlayerId()
                 ?: ExternalPlayerPlatform.availablePlayers().firstOrNull()?.id
             PlayerSettingsStorage.saveExternalPlayerId(externalPlayerId)
         }
-        if (externalPlayerEnabled == enabled) {
+        if (externalPlayerEnabled == normalizedEnabled) {
             publish()
             return
         }
-        externalPlayerEnabled = enabled
+        externalPlayerEnabled = normalizedEnabled
         publish()
-        PlayerSettingsStorage.saveExternalPlayerEnabled(enabled)
+        if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.saveExternalPlayerEnabled(normalizedEnabled)
+        }
     }
 
     fun setExternalPlayerId(playerId: String?) {
@@ -630,10 +650,13 @@ object PlayerSettingsRepository {
 
     fun setExternalPlayerForwardSubtitles(enabled: Boolean) {
         ensureLoaded()
-        if (externalPlayerForwardSubtitles == enabled) return
-        externalPlayerForwardSubtitles = enabled
+        val normalizedEnabled = enabled && AppFeaturePolicy.externalPlayerSupported
+        if (externalPlayerForwardSubtitles == normalizedEnabled) return
+        externalPlayerForwardSubtitles = normalizedEnabled
         publish()
-        PlayerSettingsStorage.saveExternalPlayerForwardSubtitles(enabled)
+        if (AppFeaturePolicy.externalPlayerSupported) {
+            PlayerSettingsStorage.saveExternalPlayerForwardSubtitles(normalizedEnabled)
+        }
     }
 
     fun setExternalPlayerSendSkipSegments(enabled: Boolean) {
@@ -1179,6 +1202,22 @@ object PlayerSettingsRepository {
         PlayerSettingsStorage.saveUseLibass(enabled)
     }
 
+    fun setNvidiaRtxSuperResolutionEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (nvidiaRtxSuperResolutionEnabled == enabled) return
+        nvidiaRtxSuperResolutionEnabled = enabled
+        publish()
+        PlayerSettingsStorage.saveNvidiaRtxSuperResolutionEnabled(enabled)
+    }
+
+    fun setNvidiaRtxHdrEnabled(enabled: Boolean) {
+        ensureLoaded()
+        if (nvidiaRtxHdrEnabled == enabled) return
+        nvidiaRtxHdrEnabled = enabled
+        publish()
+        PlayerSettingsStorage.saveNvidiaRtxHdrEnabled(enabled)
+    }
+
     fun setLibassRenderType(renderType: String) {
         ensureLoaded()
         if (libassRenderType == renderType) return
@@ -1379,8 +1418,8 @@ object PlayerSettingsRepository {
             holdToSpeedEnabled = holdToSpeedEnabled,
             holdToSpeedValue = holdToSpeedValue,
             touchGesturesEnabled = touchGesturesEnabled,
-            externalPlayerEnabled = externalPlayerEnabled,
-            externalPlayerForwardSubtitles = externalPlayerForwardSubtitles,
+            externalPlayerEnabled = externalPlayerEnabled && AppFeaturePolicy.externalPlayerSupported,
+            externalPlayerForwardSubtitles = externalPlayerForwardSubtitles && AppFeaturePolicy.externalPlayerSupported,
             externalPlayerSendSkipSegments = externalPlayerSendSkipSegments,
             externalPlayerId = externalPlayerId,
             preferredAudioLanguage = preferredAudioLanguage,
@@ -1460,6 +1499,8 @@ object PlayerSettingsRepository {
             iosContrast = iosContrast,
             iosSaturation = iosSaturation,
             iosGamma = iosGamma,
+            nvidiaRtxSuperResolutionEnabled = nvidiaRtxSuperResolutionEnabled,
+            nvidiaRtxHdrEnabled = nvidiaRtxHdrEnabled,
         )
     }
 

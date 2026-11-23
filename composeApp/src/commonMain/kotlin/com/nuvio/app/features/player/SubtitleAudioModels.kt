@@ -2,6 +2,7 @@ package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_track_number
@@ -34,7 +35,14 @@ data class AddonSubtitle(
     val addonName: String? = null,
     val isSelected: Boolean = false,
     val label: String? = null,
+    val title: String? = null,
 )
+
+internal enum class SubtitleTab {
+    BuiltIn,
+    Addons,
+    Style,
+}
 
 const val SUBTITLE_DELAY_MIN_MS = -60_000
 const val SUBTITLE_DELAY_MAX_MS = 60_000
@@ -87,7 +95,7 @@ internal const val SUBTITLE_OUTLINE_WIDTH_DEFAULT = 2
 internal val subtitleOutlineWidthRange: IntRange = 1..5
 
 internal val subtitleFontSizeRangeSp: IntRange
-    get() = if (isIos) 6..40 else 12..40
+    get() = if (isDesktop || isIos) 6..40 else 12..40
 
 data class SubtitleStyleState(
     val textColor: Color = Color.White,

@@ -21,6 +21,7 @@ import com.nuvio.app.navigation.*
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import com.nuvio.app.core.build.AppFeaturePolicy
 
 internal val navigationSavedStateConfiguration = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -92,6 +93,8 @@ internal fun disposeRouteResources(route: AppRoute) {
         else -> Unit
     }
 }
+
+internal val externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported
 
 internal data class PosterActionTarget(
     val preview: MetaPreview,

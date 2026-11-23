@@ -2,6 +2,7 @@ package com.nuvio.app.features.plugins
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.network.SupabaseProvider
+import com.nuvio.app.features.addons.encodeUnsafeHttpUrlCharacters
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.tmdb.TmdbService
@@ -473,11 +474,11 @@ actual object PluginRepository {
     }
 
     private fun PluginManifestScraper.isSupportedOnCurrentPlatform(): Boolean {
-        val platform = currentPluginPlatform().lowercase()
+        val platformTags = currentPluginPlatformTags().map { it.lowercase() }.toSet()
         val supported = supportedPlatforms?.map { it.lowercase() }?.toSet().orEmpty()
         val disabled = disabledPlatforms?.map { it.lowercase() }?.toSet().orEmpty()
-        if (supported.isNotEmpty() && platform !in supported) return false
-        if (platform in disabled) return false
+        if (supported.isNotEmpty() && platformTags.none { it in supported }) return false
+        if (platformTags.any { it in disabled }) return false
         return true
     }
 
@@ -641,7 +642,8 @@ actual object PluginRepository {
         val path = url.substringBefore("?").trimEnd('/')
         val query = url.substringAfter("?", "")
         val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
-        return if (query.isEmpty()) withSuffix else "$withSuffix?$query"
+        val manifestUrl = if (query.isEmpty()) withSuffix else "$withSuffix?$query"
+        return manifestUrl.encodeUnsafeHttpUrlCharacters()
     }
 
     private fun normalizeManifestUrl(rawUrl: String): String {
@@ -657,7 +659,8 @@ actual object PluginRepository {
         val query = withoutFragment.substringAfter("?", "")
         val path = withoutFragment.substringBefore("?").trimEnd('/')
         val manifestPath = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
-        return if (query.isEmpty()) manifestPath else "$manifestPath?$query"
+        val manifestUrl = if (query.isEmpty()) manifestPath else "$manifestPath?$query"
+        return manifestUrl.encodeUnsafeHttpUrlCharacters()
     }
 
     private fun resolveEffectiveProfileId(profileId: Int): Int {

@@ -48,6 +48,32 @@ internal data class TestBuildApkDto(
 
 internal class NoChannelReleaseException : IllegalStateException()
 
+internal data class AppUpdateAssetCandidate(
+    val name: String,
+    val downloadUrl: String,
+    val size: Long? = null,
+    val contentType: String? = null,
+)
+
+internal fun selectBestUpdateAsset(
+    assets: List<AppUpdateAssetCandidate>,
+    selector: AppUpdateAssetSelector,
+): AppUpdateAssetCandidate? {
+    val updateAssets = assets.filter { asset ->
+        selector.fileExtensions.any { extension -> asset.name.endsWith(extension, ignoreCase = true) } ||
+            selector.contentTypes.any { it.equals(asset.contentType, ignoreCase = true) }
+    }
+    if (updateAssets.isEmpty()) return null
+    if (updateAssets.size == 1) return updateAssets.first()
+
+    for (fragment in selector.preferredNameFragments) {
+        updateAssets.firstOrNull { it.name.contains(fragment, ignoreCase = true) }?.let { return it }
+    }
+    return updateAssets.firstOrNull { asset ->
+        selector.fallbackNameFragments.any { asset.name.contains(it, ignoreCase = true) }
+    } ?: updateAssets.first()
+}
+
 internal object AppUpdaterRepository {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -98,12 +124,13 @@ internal object AppUpdaterRepository {
     }
 
     private suspend fun getLatestGitHubUpdate(channel: UpdateChannel): Result<AppUpdate> = runCatching {
+        val source = AppUpdaterPlatform.releaseSource
         val response = httpRequestRaw(
             method = "GET",
-            url = "https://api.github.com/repos/homelessbrian/NuvioPlusIPTV-Mobile/${releasePath(channel)}",
+            url = "https://api.github.com/repos/${source.owner}/${source.repo}/${releasePath(channel)}",
             headers = mapOf(
                 "Accept" to "application/vnd.github+json",
-                "User-Agent" to "NuvioMobile",
+                "User-Agent" to source.userAgent,
             ),
             body = "",
         )
@@ -112,55 +139,73 @@ internal object AppUpdaterRepository {
         if (response.status !in 200..299) {
             error(getString(Res.string.updates_github_api_error, response.status))
         }
-        selectUpdate(response.body, channel, AppUpdaterPlatform.getSupportedAbis())
+        selectUpdate(
+            responseBody = response.body,
+            channel = channel,
+            supportedAbis = AppUpdaterPlatform.getSupportedAbis(),
+            selector = AppUpdaterPlatform.assetSelector,
+        )
             ?: throw NoChannelReleaseException()
     }
 
     internal fun releasePath(channel: UpdateChannel): String = when (channel) {
         UpdateChannel.STABLE -> "releases/latest"
         UpdateChannel.BETA -> "releases?per_page=100"
+        UpdateChannel.ALL_RELEASES -> "releases?per_page=20"
     }
 
     internal fun selectUpdate(
         responseBody: String,
         channel: UpdateChannel,
         supportedAbis: List<String>,
+        selector: AppUpdateAssetSelector = AppUpdateAssetSelector(
+            fileExtensions = listOf(".apk"),
+            contentTypes = listOf("application/vnd.android.package-archive"),
+            preferredNameFragments = supportedAbis,
+            fallbackNameFragments = listOf("universal", "all"),
+        ),
     ): AppUpdate? {
         val releases = when (channel) {
             UpdateChannel.STABLE -> listOf(json.decodeFromString<GitHubReleaseDto>(responseBody))
-            UpdateChannel.BETA -> json.decodeFromString<List<GitHubReleaseDto>>(responseBody)
+            UpdateChannel.BETA, UpdateChannel.ALL_RELEASES ->
+                json.decodeFromString<List<GitHubReleaseDto>>(responseBody)
         }
-        return ReleaseSelector.eligibleReleases(releases, channel).firstNotNullOfOrNull { release ->
-            val asset = chooseBestApkAsset(release.assets, supportedAbis) ?: return@firstNotNullOfOrNull null
-            val tag = release.tagName?.takeIf { VersionUtils.parse(it) != null }
-                ?: release.name.orEmpty()
+        val eligibleReleases = ReleaseSelector.eligibleReleases(releases, channel)
+        val releasesToCheck = if (channel == UpdateChannel.ALL_RELEASES) {
+            eligibleReleases.take(1)
+        } else {
+            eligibleReleases
+        }
+        return releasesToCheck.firstNotNullOfOrNull { release ->
+            val asset = selectBestUpdateAsset(
+                assets = release.assets.map { candidate ->
+                    AppUpdateAssetCandidate(
+                        name = candidate.name,
+                        downloadUrl = candidate.browserDownloadUrl,
+                        size = candidate.size,
+                        contentType = candidate.contentType,
+                    )
+                },
+                selector = selector,
+            ) ?: return@firstNotNullOfOrNull null
+            val tag = if (channel == UpdateChannel.ALL_RELEASES) {
+                release.tagName?.takeIf(String::isNotBlank)
+                    ?: release.name?.takeIf(String::isNotBlank)
+                    ?: return@firstNotNullOfOrNull null
+            } else {
+                release.tagName?.takeIf { VersionUtils.parse(it) != null }
+                    ?: release.name.orEmpty()
+            }
             AppUpdate(
                 tag = tag,
                 title = release.name?.takeIf { it.isNotBlank() } ?: tag,
                 notes = release.body.orEmpty(),
                 releaseUrl = release.htmlUrl,
                 assetName = asset.name,
-                assetUrl = asset.browserDownloadUrl,
+                assetUrl = asset.downloadUrl,
                 assetSizeBytes = asset.size,
                 sha256 = UpdateChecksum.fromDigest(asset.digest),
             )
         }
-    }
-
-    private fun chooseBestApkAsset(
-        assets: List<GitHubAssetDto>,
-        supportedAbis: List<String>,
-    ): GitHubAssetDto? {
-        val apkAssets = assets.filter { asset ->
-            asset.name.endsWith(".apk", ignoreCase = true) ||
-                asset.contentType == "application/vnd.android.package-archive"
-        }
-        for (abi in supportedAbis) {
-            apkAssets.firstOrNull { it.name.contains(abi, ignoreCase = true) }?.let { return it }
-        }
-        return apkAssets.firstOrNull { asset ->
-            val name = asset.name.lowercase()
-            name.contains("universal") || name.contains("all")
-        } ?: apkAssets.firstOrNull()
     }
 }

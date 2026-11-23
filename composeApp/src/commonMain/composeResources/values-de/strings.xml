@@ -300,6 +300,7 @@
     <string name="compose_nav_library">Bibliothek</string>
     <string name="compose_nav_profile">Profil</string>
     <string name="compose_nav_search">Suche</string>
+    <string name="compose_nav_settings">Einstellungen</string>
     <string name="compose_player_audio_tracks">Tonspuren</string>
     <string name="compose_player_audio">Audio</string>
     <string name="compose_player_built_in">Integriert</string>
@@ -1214,6 +1215,7 @@
     <string name="cw_airs_date">Ausstrahlung am %1$s</string>
     <string name="cw_airs_today">Ausstrahlung heute</string>
     <string name="cw_airs_tomorrow">Ausstrahlung morgen</string>
+    <string name="cw_airs_in_days_format">Ausstrahlung in %1$d Tagen</string>
     <plurals name="cw_airs_in_days">
         <item quantity="one">Ausstrahlung in %1$d Tag</item>
         <item quantity="other">Ausstrahlung in %1$d Tagen</item>
@@ -1221,6 +1223,7 @@
     <string name="cw_airs_date_short">%1$s</string>
     <string name="cw_airs_today_short">Heute</string>
     <string name="cw_airs_tomorrow_short">Morgen</string>
+    <string name="cw_airs_in_days_short_format">In %1$d Tagen</string>
     <plurals name="cw_airs_in_days_short">
         <item quantity="one">In %1$d Tag</item>
         <item quantity="other">In %1$d Tagen</item>

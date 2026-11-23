@@ -36,6 +36,7 @@ import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.player.PlayerSettingsRepository
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import com.nuvio.app.supportsPosterNavigationMotion
 import nuvio.composeapp.generated.resources.*
@@ -80,6 +81,8 @@ internal data class SettingsSearchEntry(
 internal fun settingsSearchEntries(
     isTablet: Boolean,
     pluginsEnabled: Boolean,
+    notificationsEnabled: Boolean,
+    externalPlayerSupported: Boolean,
     supportersContributorsPageEnabled: Boolean,
     accountDeletionEnabled: Boolean,
     personalMediaAddonCopyEnabled: Boolean,
@@ -108,6 +111,7 @@ internal fun settingsSearchEntries(
     val detailPage = stringResource(Res.string.compose_settings_page_meta_screen)
     val continueWatchingPage = stringResource(Res.string.compose_settings_page_continue_watching)
     val posterStylePage = stringResource(Res.string.compose_settings_page_poster_customization)
+    val hoverPreviewPage = stringResource(Res.string.compose_settings_page_hover_preview)
     val addonsPage = stringResource(Res.string.compose_settings_page_addons)
     val pluginsPage = stringResource(Res.string.compose_settings_page_plugins)
     val collectionsPage = stringResource(Res.string.collections_header)
@@ -274,12 +278,14 @@ internal fun settingsSearchEntries(
         title = integrationsPage,
         description = stringResource(Res.string.compose_settings_root_integrations_description),
     )
-    addPage(
-        page = SettingsPage.Notifications,
-        key = "notifications",
-        title = notificationsPage,
-        description = stringResource(Res.string.compose_settings_root_notifications_description),
-    )
+    if (notificationsEnabled) {
+        addPage(
+            page = SettingsPage.Notifications,
+            key = "notifications",
+            title = notificationsPage,
+            description = stringResource(Res.string.compose_settings_root_notifications_description),
+        )
+    }
     if (supportersContributorsPageEnabled) {
         addPage(
             page = SettingsPage.SupportersContributors,
@@ -427,6 +433,17 @@ internal fun settingsSearchEntries(
         section = stringResource(Res.string.settings_advanced_section_startup),
         category = advancedCategory,
     )
+    if (DesktopRendererSettings.isSupported) {
+        addRow(
+            page = SettingsPage.Advanced,
+            key = "desktop-opengl-renderer",
+            title = stringResource(Res.string.settings_advanced_opengl_renderer),
+            description = stringResource(Res.string.settings_advanced_opengl_renderer_description),
+            pageLabel = advancedPage,
+            section = stringResource(Res.string.settings_advanced_section_windows_graphics),
+            category = advancedCategory,
+        )
+    }
     if (SentrySettingsRepository.isSupported) {
         addRow(
             page = SettingsPage.Advanced,
@@ -459,6 +476,14 @@ internal fun settingsSearchEntries(
         title = posterStylePage,
         description = stringResource(Res.string.settings_appearance_poster_customization_description),
     )
+    if (isDesktop) {
+        addPage(
+            page = SettingsPage.HoverPreview,
+            key = "hover-preview",
+            title = hoverPreviewPage,
+            description = stringResource(Res.string.settings_appearance_hover_preview_description),
+        )
+    }
 
     addPage(
         page = SettingsPage.Addons,
@@ -564,11 +589,11 @@ internal fun settingsSearchEntries(
         section = playbackPlayer,
         page = SettingsPage.PlaybackInterface,
         rows = listOfNotNull(
-            PlaybackSearchRow(
+            if (!isDesktop) PlaybackSearchRow(
                 "legacy-player-layout",
                 stringResource(Res.string.settings_playback_legacy_layout),
                 stringResource(Res.string.settings_playback_legacy_layout_description),
-            ),
+            ) else null,
             PlaybackSearchRow(
                 "loading-overlay",
                 stringResource(Res.string.settings_playback_show_loading_overlay),
@@ -579,29 +604,29 @@ internal fun settingsSearchEntries(
                 stringResource(Res.string.settings_playback_pause_overlay),
                 stringResource(Res.string.settings_playback_pause_overlay_description),
             ),
-            PlaybackSearchRow(
+            if (externalPlayerSupported) PlaybackSearchRow(
                 "external-player",
                 stringResource(Res.string.settings_playback_external_player),
                 stringResource(Res.string.settings_playback_external_player_description_android),
                 page = SettingsPage.PlaybackPlayer,
-            ),
-            if (isIos) PlaybackSearchRow(
+            ) else null,
+            if (externalPlayerSupported && isIos) PlaybackSearchRow(
                 "external-player-app",
                 stringResource(Res.string.settings_playback_external_player_app),
                 page = SettingsPage.PlaybackPlayer,
             ) else null,
-            PlaybackSearchRow(
+            if (!isDesktop) PlaybackSearchRow(
                 "hold-to-speed",
                 stringResource(Res.string.settings_playback_hold_to_speed),
                 stringResource(Res.string.settings_playback_hold_to_speed_description),
-            ),
-            PlaybackSearchRow(
+            ) else null,
+            if (!isDesktop) PlaybackSearchRow(
                 "touch-gestures",
                 stringResource(Res.string.settings_playback_touch_gestures),
                 stringResource(Res.string.settings_playback_touch_gestures_description),
-            ),
-            PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)),
-            PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(Res.string.settings_playback_exo_chapters_description)),
+            ) else null,
+            if (!isDesktop) PlaybackSearchRow("hold-speed", stringResource(Res.string.settings_playback_hold_speed)) else null,
+            PlaybackSearchRow("exo-chapters", stringResource(Res.string.settings_playback_exo_chapters), stringResource(if (isDesktop) Res.string.settings_playback_chapters_description else Res.string.settings_playback_exo_chapters_description)),
             PlaybackSearchRow("chapter-title", stringResource(Res.string.settings_playback_chapter_title), stringResource(Res.string.settings_playback_chapter_title_description)),
         ),
     )
@@ -655,28 +680,34 @@ internal fun settingsSearchEntries(
             pageLabel = playbackPage,
             section = playbackDecoder,
             page = SettingsPage.PlaybackVideo,
-            rows = listOf(
-                PlaybackSearchRow("auto-switch-engine", stringResource(Res.string.settings_playback_auto_switch_engine_on_error), stringResource(Res.string.settings_playback_auto_switch_engine_on_error_description), page = SettingsPage.PlaybackPlayer),
-                PlaybackSearchRow("decoder-priority", stringResource(Res.string.settings_playback_decoder_priority)),
-                PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)),
-                PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)),
-                PlaybackSearchRow("exo-native-memory", stringResource(Res.string.settings_playback_exo_native_memory), stringResource(Res.string.settings_playback_exo_native_memory_description), page = SettingsPage.PlaybackBuffer),
-                PlaybackSearchRow("custom-buffers", stringResource(Res.string.settings_playback_buffer_custom), stringResource(Res.string.settings_playback_buffer_custom_description), page = SettingsPage.PlaybackBuffer),
-                PlaybackSearchRow("vod-cache", stringResource(Res.string.settings_playback_vod_cache), stringResource(Res.string.settings_playback_vod_cache_description), page = SettingsPage.PlaybackBuffer),
-                PlaybackSearchRow("remember-audio-delay", stringResource(Res.string.settings_playback_remember_audio_delay), stringResource(Res.string.settings_playback_remember_audio_delay_description), page = SettingsPage.PlaybackAudio),
-                PlaybackSearchRow("downmix", stringResource(Res.string.settings_playback_downmix), stringResource(Res.string.settings_playback_downmix_description), page = SettingsPage.PlaybackAudio),
-            ),
+            rows = buildList {
+                if (!isDesktop) {
+                    add(PlaybackSearchRow("auto-switch-engine", stringResource(Res.string.settings_playback_auto_switch_engine_on_error), stringResource(Res.string.settings_playback_auto_switch_engine_on_error_description), page = SettingsPage.PlaybackPlayer))
+                }
+                add(PlaybackSearchRow("decoder-priority", stringResource(Res.string.settings_playback_decoder_priority)))
+                if (!isDesktop) {
+                    add(PlaybackSearchRow("dv7-hevc", stringResource(Res.string.settings_playback_map_dv7_to_hevc), stringResource(Res.string.settings_playback_map_dv7_to_hevc_description)))
+                    add(PlaybackSearchRow("tunneled-playback", stringResource(Res.string.settings_playback_tunneled_playback), stringResource(Res.string.settings_playback_tunneled_playback_description)))
+                    add(PlaybackSearchRow("exo-native-memory", stringResource(Res.string.settings_playback_exo_native_memory), stringResource(Res.string.settings_playback_exo_native_memory_description), page = SettingsPage.PlaybackBuffer))
+                    add(PlaybackSearchRow("custom-buffers", stringResource(Res.string.settings_playback_buffer_custom), stringResource(Res.string.settings_playback_buffer_custom_description), page = SettingsPage.PlaybackBuffer))
+                    add(PlaybackSearchRow("vod-cache", stringResource(Res.string.settings_playback_vod_cache), stringResource(Res.string.settings_playback_vod_cache_description), page = SettingsPage.PlaybackBuffer))
+                }
+                add(PlaybackSearchRow("remember-audio-delay", stringResource(Res.string.settings_playback_remember_audio_delay), stringResource(Res.string.settings_playback_remember_audio_delay_description), page = SettingsPage.PlaybackAudio))
+                add(PlaybackSearchRow("downmix", stringResource(Res.string.settings_playback_downmix), stringResource(Res.string.settings_playback_downmix_description), page = SettingsPage.PlaybackAudio))
+            },
         )
         addPlaybackRows(
             addRow = ::addRow,
             pageLabel = playbackPage,
             section = playbackSubtitleRendering,
             page = SettingsPage.PlaybackSubtitles,
-            rows = listOf(
-                PlaybackSearchRow("libass", stringResource(Res.string.settings_playback_enable_libass), stringResource(Res.string.settings_playback_enable_libass_description)),
-                PlaybackSearchRow("libass-render-mode", stringResource(Res.string.settings_playback_render_mode), stringResource(Res.string.settings_playback_render_mode_description)),
-                PlaybackSearchRow("libass-render", stringResource(Res.string.settings_playback_render_scale)),
-            ),
+            rows = buildList {
+                if (!isDesktop) {
+                    add(PlaybackSearchRow("libass", stringResource(Res.string.settings_playback_enable_libass), stringResource(Res.string.settings_playback_enable_libass_description)))
+                    add(PlaybackSearchRow("libass-render-mode", stringResource(Res.string.settings_playback_render_mode), stringResource(Res.string.settings_playback_render_mode_description)))
+                    add(PlaybackSearchRow("libass-render", stringResource(Res.string.settings_playback_render_scale)))
+                }
+            },
         )
     }
     addPlaybackRows(
@@ -917,22 +948,24 @@ internal fun settingsSearchEntries(
         )
     }
 
-    val notificationsAlerts = stringResource(Res.string.settings_notifications_section_alerts)
-    addRow(
-        page = SettingsPage.Notifications,
-        key = "episode-release-alerts",
-        title = stringResource(Res.string.settings_notifications_episode_release_alerts),
-        description = stringResource(Res.string.settings_notifications_episode_release_alerts_description),
-        pageLabel = notificationsPage,
-        section = notificationsAlerts,
-    )
-    addRow(
-        page = SettingsPage.Notifications,
-        key = "notification-test",
-        title = stringResource(Res.string.settings_notifications_test_title),
-        pageLabel = notificationsPage,
-        section = stringResource(Res.string.settings_notifications_section_test),
-    )
+    if (notificationsEnabled) {
+        val notificationsAlerts = stringResource(Res.string.settings_notifications_section_alerts)
+        addRow(
+            page = SettingsPage.Notifications,
+            key = "episode-release-alerts",
+            title = stringResource(Res.string.settings_notifications_episode_release_alerts),
+            description = stringResource(Res.string.settings_notifications_episode_release_alerts_description),
+            pageLabel = notificationsPage,
+            section = notificationsAlerts,
+        )
+        addRow(
+            page = SettingsPage.Notifications,
+            key = "notification-test",
+            title = stringResource(Res.string.settings_notifications_test_title),
+            pageLabel = notificationsPage,
+            section = stringResource(Res.string.settings_notifications_section_test),
+        )
+    }
 
     addRow(
         page = SettingsPage.TraktAuthentication,

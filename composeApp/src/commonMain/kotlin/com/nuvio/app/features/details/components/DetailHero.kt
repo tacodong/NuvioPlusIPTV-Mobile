@@ -1,5 +1,6 @@
 package com.nuvio.app.features.details.components
 
+import com.nuvio.app.core.ui.NuvioDesktopAnimation
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,14 +49,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
-import coil3.compose.AsyncImage
-import com.nuvio.app.core.ui.focusedAlignment
-import com.nuvio.app.core.ui.rememberBackdropFocusState
-import com.nuvio.app.core.ui.revealAlpha
+import com.nuvio.app.core.ui.NuvioDesktopImageScaling
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
 import com.nuvio.app.core.ui.featherArtwork
 import com.nuvio.app.core.ui.heroStretchHeight
 import com.nuvio.app.core.ui.heroStretchZoom
 import com.nuvio.app.features.details.MetaDetails
+import com.nuvio.app.features.tmdb.originalTmdbImageUrl
+import com.nuvio.app.isDesktop
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
@@ -68,6 +70,7 @@ fun DetailHero(
     scrollOffset: () -> Int = { 0 },
     stretchPx: () -> Float = { 0f },
     contentMaxWidth: Dp = 560.dp,
+    viewportHeight: Dp = 0.dp,
     onHeightChanged: (Int) -> Unit = {},
     heroTrailerSourceUrl: String? = null,
     heroTrailerSourceAudioUrl: String? = null,
@@ -86,7 +89,14 @@ fun DetailHero(
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth(),
     ) {
-        val heroHeight = detailHeroHeight(maxWidth - verticalBarWidth(), isTablet)
+        val heroHeight = detailHeroHeight(maxWidth - verticalBarWidth(), viewportHeight, isTablet)
+        val foregroundHorizontalPadding = if (isDesktop) {
+            desktopPageHorizontalPaddingForWidth(maxWidth.value)
+        } else if (isTablet) {
+            32.dp
+        } else {
+            18.dp
+        }
         val trailerAlpha by animateFloatAsState(
             targetValue = if (heroTrailerReady) 1f else 0f,
             animationSpec = tween(durationMillis = 300),
@@ -124,34 +134,31 @@ fun DetailHero(
                         .then(if (cinematicBackground) Modifier.featherArtwork() else Modifier),
                 ) {
                     val imageUrl = meta.background ?: meta.poster
+                    val backdropScale = if (isTablet) 1f else 1.08f
                     if (imageUrl != null) {
-                        val backdropFocus = rememberBackdropFocusState(imageUrl)
                         AsyncImage(
-                            model = imageUrl,
+                            model = if (isDesktop) originalTmdbImageUrl(imageUrl) else imageUrl,
                             contentDescription = meta.name,
+                            desktopAnimation = NuvioDesktopAnimation.Always,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
                                 .height(heroHeight)
                                 .heroStretchZoom(stretchPx)
                                 .graphicsLayer {
-                                    alpha = backdropFocus.revealAlpha
                                     translationY = scrollOffset() * 0.5f
-                                    scaleX = 1.08f
-                                    scaleY = 1.08f
+                                    scaleX = backdropScale
+                                    scaleY = backdropScale
                                 },
-                            alignment = backdropFocus.focusedAlignment(
-                                if (isTablet) Alignment.TopCenter else Alignment.Center,
-                            ),
+                            alignment = if (isTablet) Alignment.TopCenter else Alignment.Center,
                             contentScale = ContentScale.Crop,
+                            desktopImageScaling = NuvioDesktopImageScaling.Disabled,
                             onSuccess = { state ->
-                                backdropFocus.onImageLoaded(state.result.image)
                                 onBackdropLoaded(
                                     state.painter,
                                     loadedBackdropImageBitmap(state.result),
                                 )
                             },
-                            onError = { backdropFocus.onImageFailed() },
                         )
                     } else {
                         Box(
@@ -174,8 +181,8 @@ fun DetailHero(
                                 .graphicsLayer {
                                     alpha = trailerAlpha
                                     translationY = scrollOffset() * 0.5f
-                                    scaleX = 1.08f
-                                    scaleY = 1.08f
+                                    scaleX = backdropScale
+                                    scaleY = backdropScale
                                 },
                             onReady = onHeroTrailerReady,
                             onEnded = onHeroTrailerEnded,
@@ -201,7 +208,7 @@ fun DetailHero(
                             .padding(LocalVerticalBarPadding.current)
                             .padding(
                                 top = heroChromeTopPadding,
-                                end = if (isTablet) 32.dp else 22.dp,
+                                end = if (isDesktop) foregroundHorizontalPadding else if (isTablet) 32.dp else 22.dp,
                             )
                             .graphicsLayer {
                                 alpha = trailerAlpha * 0.72f
@@ -251,7 +258,7 @@ fun DetailHero(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = if (isTablet) 32.dp else 18.dp)
+                        .padding(horizontal = foregroundHorizontalPadding)
                         .padding(bottom = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -291,9 +298,13 @@ fun DetailHero(
     }
 }
 
-private fun detailHeroHeight(maxWidth: Dp, isTablet: Boolean): Dp =
+private fun detailHeroHeight(maxWidth: Dp, viewportHeight: Dp, isTablet: Boolean): Dp =
     if (!isTablet) {
         (maxWidth * 1.33f).coerceIn(420.dp, 760.dp)
     } else {
-        (maxWidth * 0.42f).coerceIn(300.dp, 420.dp)
+        val viewportLimit = viewportHeight
+            .takeIf { it > 0.dp }
+            ?.let { it * 0.72f }
+            ?: 1080.dp
+        minOf(maxWidth * 9f / 16f, viewportLimit).coerceIn(420.dp, 1080.dp)
     }

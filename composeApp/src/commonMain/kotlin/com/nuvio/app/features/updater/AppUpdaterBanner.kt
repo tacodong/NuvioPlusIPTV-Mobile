@@ -148,7 +148,7 @@ fun AppUpdaterHost(
         )
     }
 
-    if (state.showUnknownSourcesDialog) {
+    if (state.showInstallPermissionDialog) {
         UnknownSourcesDialog(
             onContinue = controller::resumeInstallation,
             onDismiss = controller::dismissDialog,
@@ -190,7 +190,7 @@ private fun AppUpdateBanner(
         )
         state.isDownloading -> stringResource(Res.string.updates_preparing_download)
         debugTestComplete -> stringResource(Res.string.updates_debug_test_complete)
-        state.downloadedApkPath != null -> stringResource(Res.string.updates_message_ready)
+        state.downloadedUpdatePath != null -> stringResource(Res.string.updates_message_ready)
         else -> stringResource(Res.string.updates_title_available)
     }
     val updateLabel = listOfNotNull(
@@ -272,13 +272,13 @@ private fun AppUpdateBanner(
 
             if (!state.isDownloading && !debugTestComplete) {
                 Button(
-                    onClick = if (state.downloadedApkPath != null) onInstall else onDownload,
-                    enabled = state.downloadedApkPath != null || state.isUpdateAvailable,
+                    onClick = if (state.downloadedUpdatePath != null) onInstall else onDownload,
+                    enabled = state.downloadedUpdatePath != null || state.isUpdateAvailable,
                     modifier = Modifier.heightIn(min = 40.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 ) {
                     Text(
-                        if (state.downloadedApkPath != null) {
+                        if (state.downloadedUpdatePath != null) {
                             stringResource(Res.string.action_install)
                         } else if (state.errorMessage != null) {
                             stringResource(Res.string.action_retry)

@@ -418,6 +418,7 @@
     <string name="compose_nav_library">Biblioteca</string>
     <string name="compose_nav_profile">Perfil</string>
     <string name="compose_nav_search">Busca</string>
+    <string name="compose_nav_settings">Configurações</string>
     <string name="compose_player_audio_tracks">Faixas de áudio</string>
     <string name="compose_player_audio_delay">Atraso do áudio</string>
     <string name="compose_player_audio_amplification">Amplificação</string>
@@ -2428,6 +2429,8 @@
         <item quantity="one">%d título</item>
         <item quantity="other">%d títulos</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d título</string>
+    <string name="entity_browse_title_count_other">%1$d títulos</string>
     <string name="settings_playback_auto_switch_engine_on_error">Trocar de motor automaticamente em erro de reprodução</string>
     <string name="settings_playback_auto_switch_engine_on_error_description">Troca para o outro motor de reprodução quando a reprodução falha, independentemente do motor selecionado.</string>
     <string name="settings_playback_auto_switch_engine_blocked_by_fallback">Desative a alternativa para a próxima fonte correspondente para usar esta opção.</string>

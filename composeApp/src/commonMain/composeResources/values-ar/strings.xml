@@ -419,6 +419,7 @@
     <string name="compose_nav_library">المكتبة</string>
     <string name="compose_nav_profile">الملف الشخصي</string>
     <string name="compose_nav_search">بحث</string>
+    <string name="compose_nav_settings">الإعدادات</string>
     <string name="compose_player_audio_tracks">المسارات الصوتية</string>
     <string name="compose_player_audio">الصوت</string>
     <string name="compose_player_auto_sync">مزامنة تلقائية</string>
@@ -2383,6 +2384,8 @@
         <item quantity="many">%d عنوانًا</item>
         <item quantity="other">%d عنوان</item>
     </plurals>
+    <string name="entity_browse_title_count_one">%1$d عنوان</string>
+    <string name="entity_browse_title_count_other">%1$d عنوان</string>
     <string name="settings_playback_auto_skip_segments">التخطي التلقائي</string>
     <string name="settings_playback_auto_skip_none">بلا</string>
     <string name="settings_playback_auto_skip_intro">المقدمة / الافتتاحية</string>

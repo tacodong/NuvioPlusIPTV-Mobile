@@ -1,8 +1,10 @@
 package com.nuvio.app.features.settings
 
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.isDesktop
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,7 +37,12 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -46,10 +54,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.core.ui.ContentEntry
 import com.nuvio.app.core.ui.LocalScreenActive
 import com.nuvio.app.core.ui.ScreenActivityEffect
+import com.nuvio.app.core.ui.nuvioContentEntry
 import com.nuvio.app.core.ui.AppTheme
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
+import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.PlatformBackHandler
@@ -115,7 +126,8 @@ private fun SettingsPage.isEnabledByPolicy(): Boolean =
     when (this) {
         SettingsPage.SupportersContributors -> AppFeaturePolicy.supportersContributorsPageEnabled
         SettingsPage.PlaybackP2p -> P2pSettingsRepository.isVisible
-        SettingsPage.PlaybackBuffer -> !isIos
+        SettingsPage.PlaybackBuffer -> !isIos && !isDesktop
+        SettingsPage.Notifications -> AppFeaturePolicy.notificationsEnabled
         else -> true
     }
 
@@ -131,6 +143,7 @@ private fun settingsPageTitles(): Map<SettingsPage, String> {
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    topChromePadding: Dp? = null,
     rootActionRequests: Flow<Unit> = emptyFlow(),
     initialPageName: String = SettingsPage.Root.name,
     requestedPageName: String? = null,
@@ -380,9 +393,10 @@ fun SettingsScreen(
 
         if (isSelectedTab || page == SettingsPage.Root) {
             pageStateHolder.SaveableStateProvider("content") {
-                if (maxWidth >= 768.dp) {
+                if (maxWidth >= 960.dp) {
                     TabletSettingsScreen(
                         page = page,
+                        topChromePadding = topChromePadding,
                         scrollToTopRequests = scrollToTopRequests,
                         onPageChange = ::openPage,
                         onNavigateBack = ::navigateBack,
@@ -427,6 +441,8 @@ fun SettingsScreen(
                 } else {
                     MobileSettingsScreen(
                         page = page,
+                        isTabletLayout = maxWidth >= 768.dp,
+                        topChromePadding = topChromePadding,
                         scrollToTopRequests = scrollToTopRequests,
                         onPageChange = ::openPage,
                         onNavigateBack = ::navigateBack,
@@ -483,6 +499,8 @@ fun SettingsScreen(
 @Composable
 private fun MobileSettingsScreen(
     page: SettingsPage,
+    isTabletLayout: Boolean = false,
+    topChromePadding: Dp? = null,
     scrollToTopRequests: Flow<Unit>,
     onPageChange: (SettingsPage) -> Unit,
     onNavigateBack: () -> Unit,
@@ -597,6 +615,7 @@ private fun MobileSettingsScreen(
         val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
         NuvioScreen(
             modifier = Modifier.nestedScroll(rootSearchRevealConnection),
+            topPadding = if (topChromePadding != null) 0.dp else null,
             listState = listState,
         ) {
             if (showInternalHeader) {
@@ -604,6 +623,7 @@ private fun MobileSettingsScreen(
                     val previousPage = page.previousPage()
                     NuvioScreenHeader(
                         title = stringResource(page.titleRes),
+                        topPadding = topChromePadding,
                         onBack = previousPage?.let { { onNavigateBack() } },
                     )
                 }
@@ -619,6 +639,8 @@ private fun MobileSettingsScreen(
                             settingsSearchEntries(
                                 isTablet = false,
                                 pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
+                                notificationsEnabled = AppFeaturePolicy.notificationsEnabled,
+                                externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
                                 supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
                                 accountDeletionEnabled = AppFeaturePolicy.accountDeletionEnabled,
                                 personalMediaAddonCopyEnabled = AppFeaturePolicy.personalMediaAddonCopyEnabled,
@@ -639,6 +661,7 @@ private fun MobileSettingsScreen(
                             onPageClick = { openSearchTarget(SettingsSearchTarget.Page(it)) },
                             onSwitchProfileClick = onSwitchProfile,
                             onWatchPartyClick = watchPartyRowClick,
+                            showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
                         )
                     }
                 }
@@ -672,7 +695,7 @@ private fun MobileSettingsScreen(
                     isTablet = false,
                 )
                 SettingsPage.Appearance -> appearanceSettingsContent(
-                    isTablet = false,
+                    isTablet = isTabletLayout,
                     selectedTheme = selectedTheme,
                     onThemeSelected = onThemeSelected,
                     amoledEnabled = amoledEnabled,
@@ -684,7 +707,7 @@ private fun MobileSettingsScreen(
                     onAppLanguageSelected = onAppLanguageSelected,
                 )
                 SettingsPage.Layout -> layoutSettingsContent(
-                    isTablet = false,
+                    isTablet = isTabletLayout,
                     liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
                     onHomescreenClick = onHomescreenClick,
                     onMetaScreenClick = onMetaScreenClick,
@@ -692,6 +715,11 @@ private fun MobileSettingsScreen(
                     onCollectionsClick = onCollectionsClick,
                     onContinueWatchingClick = onContinueWatchingClick,
                     onPosterCustomizationClick = { onPageChange(SettingsPage.PosterCustomization) },
+                    onHoverPreviewClick = { onPageChange(SettingsPage.HoverPreview) },
+                )
+                SettingsPage.HoverPreview -> hoverPreviewSettingsContent(
+                    isTablet = isTabletLayout,
+                    uiState = posterCardStyleUiState,
                 )
                 SettingsPage.About -> aboutSettingsContent(
                     isTablet = false,
@@ -833,6 +861,7 @@ private fun rememberSettingsRootSearchRevealConnection(
 @Composable
 private fun TabletSettingsScreen(
     page: SettingsPage,
+    topChromePadding: Dp? = null,
     scrollToTopRequests: Flow<Unit>,
     onPageChange: (SettingsPage) -> Unit,
     onNavigateBack: () -> Unit,
@@ -877,7 +906,7 @@ private fun TabletSettingsScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(SettingsCategory.Look.name) }
     val activeCategory = settingsCategoryForName(selectedCategory)
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val topOffset = max(statusBarPadding + 24.dp, 48.dp) + 64.dp
+    val topOffset = topChromePadding ?: (max(statusBarPadding + 24.dp, 48.dp) + 64.dp)
 
     LaunchedEffect(page) {
         if (page.opensInlineOnTablet) {
@@ -891,6 +920,7 @@ private fun TabletSettingsScreen(
     }
 
     val saveableStateHolder = rememberSaveableStateHolder()
+    val categoryEntryRequester = remember { FocusRequester() }
 
     Row(modifier = Modifier.fillMaxSize()) {
         Surface(
@@ -928,6 +958,23 @@ private fun TabletSettingsScreen(
                                 onPageChange(SettingsPage.Root)
                             }
                         },
+                        modifier = Modifier
+                            .focusProperties {
+                                if (category == SettingsCategory.entries.first()) {
+                                    up = FocusRequester.Cancel
+                                }
+                                if (category == SettingsCategory.entries.last()) {
+                                    down = FocusRequester.Cancel
+                                }
+                                right = ContentEntry.requester
+                            }
+                            .then(
+                                if (category == activeCategory) {
+                                    Modifier.focusRequester(categoryEntryRequester)
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     )
                 }
             }
@@ -982,208 +1029,227 @@ private fun TabletSettingsScreen(
                 }
             }
             val watchPartyRowClick = watchPartyRow(onWatchPartyClick)
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(rootSearchRevealConnection),
-                contentPadding = PaddingValues(
-                    start = 40.dp,
-                    top = topOffset,
-                    end = 40.dp,
-                    bottom = 40.dp + bottomOverlayPadding,
-                ),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                if (showInternalHeader) {
-                    item {
-                        val previousPage = page.previousPage()
-                        TabletPageHeader(
-                            title = if (page == SettingsPage.Root) {
-                                if (settingsSearchQuery.isBlank()) {
-                                    stringResource(activeCategory.labelRes)
+            Box(modifier = Modifier.fillMaxSize().nuvioContentEntry()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(rootSearchRevealConnection),
+                    contentPadding = PaddingValues(
+                        start = 40.dp,
+                        top = topOffset,
+                        end = 40.dp,
+                        bottom = 40.dp + bottomOverlayPadding,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    if (showInternalHeader) {
+                        item {
+                            val previousPage = page.previousPage()
+                            TabletPageHeader(
+                                title = if (page == SettingsPage.Root) {
+                                    if (settingsSearchQuery.isBlank()) {
+                                        stringResource(activeCategory.labelRes)
+                                    } else {
+                                        stringResource(Res.string.compose_settings_page_root)
+                                    }
                                 } else {
-                                    stringResource(Res.string.compose_settings_page_root)
-                                }
-                            } else {
-                                stringResource(page.titleRes)
-                            },
-                            showBack = previousPage != null,
-                            onBack = onNavigateBack,
-                        )
-                    }
-                }
-                when (page) {
-                    SettingsPage.Root -> {
-                        settingsSearchRootContent(
-                            query = settingsSearchQuery,
-                            entries = {
-                                settingsSearchEntries(
-                                    isTablet = true,
-                                    pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
-                                    supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
-                                    accountDeletionEnabled = AppFeaturePolicy.accountDeletionEnabled,
-                                    personalMediaAddonCopyEnabled = AppFeaturePolicy.personalMediaAddonCopyEnabled,
-                                    liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
-                                    switchProfileAvailable = onSwitchProfile != null,
-                                    checkForUpdatesAvailable = onCheckForUpdatesClick != null,
-                                )
-                            },
-                            isTablet = true,
-                            showSearchField = rootSearchVisible,
-                            animateSearchField = rootSearchRevealAnimating,
-                            onQueryChange = { settingsSearchQuery = it },
-                            onTargetClick = { openSearchTarget(it) },
-                        )
-                        if (settingsSearchQuery.isBlank()) {
-                            settingsRootContent(
-                                isTablet = true,
-                                onPageClick = ::openInlinePage,
-                                onSwitchProfileClick = onSwitchProfile,
-                                onWatchPartyClick = watchPartyRowClick,
-                                category = activeCategory,
+                                    stringResource(page.titleRes)
+                                },
+                                showBack = previousPage != null,
+                                onBack = onNavigateBack,
                             )
                         }
                     }
-                    SettingsPage.Account -> accountSettingsContent(
-                        isTablet = true,
-                    )
-                    SettingsPage.SupportersContributors -> {
-                        if (AppFeaturePolicy.supportersContributorsPageEnabled) {
-                            supportersContributorsContent(isTablet = true)
+                    when (page) {
+                        SettingsPage.Root -> {
+                            settingsSearchRootContent(
+                                query = settingsSearchQuery,
+                                entries = {
+                                    settingsSearchEntries(
+                                        isTablet = true,
+                                        pluginsEnabled = AppFeaturePolicy.pluginsEnabled,
+                                        notificationsEnabled = AppFeaturePolicy.notificationsEnabled,
+                                        externalPlayerSupported = AppFeaturePolicy.externalPlayerSupported,
+                                        supportersContributorsPageEnabled = AppFeaturePolicy.supportersContributorsPageEnabled,
+                                        accountDeletionEnabled = AppFeaturePolicy.accountDeletionEnabled,
+                                        personalMediaAddonCopyEnabled = AppFeaturePolicy.personalMediaAddonCopyEnabled,
+                                        liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
+                                        switchProfileAvailable = onSwitchProfile != null,
+                                        checkForUpdatesAvailable = onCheckForUpdatesClick != null,
+                                    )
+                                },
+                                isTablet = true,
+                                showSearchField = rootSearchVisible,
+                                animateSearchField = rootSearchRevealAnimating,
+                                onQueryChange = { settingsSearchQuery = it },
+                                onTargetClick = { openSearchTarget(it) },
+                            )
+                            if (settingsSearchQuery.isBlank()) {
+                                settingsRootContent(
+                                    isTablet = true,
+                                    onPageClick = ::openInlinePage,
+                                    onSwitchProfileClick = onSwitchProfile,
+                                    onWatchPartyClick = watchPartyRowClick,
+                                    showNotificationsEntry = AppFeaturePolicy.notificationsEnabled,
+                                    category = activeCategory,
+                                )
+                            }
                         }
+                        SettingsPage.Account -> accountSettingsContent(
+                            isTablet = true,
+                        )
+                        SettingsPage.SupportersContributors -> {
+                            if (AppFeaturePolicy.supportersContributorsPageEnabled) {
+                                supportersContributorsContent(isTablet = true)
+                            }
+                        }
+                        SettingsPage.LicensesAttributions -> licensesAttributionsContent(
+                            isTablet = true,
+                        )
+                        SettingsPage.Playback,
+                        SettingsPage.PlaybackPlayer,
+                        SettingsPage.PlaybackStreamSelection,
+                        SettingsPage.PlaybackUpNext,
+                        SettingsPage.PlaybackSkipSegments,
+                        SettingsPage.PlaybackInterface,
+                        SettingsPage.PlaybackAudio,
+                        SettingsPage.PlaybackSubtitles,
+                        SettingsPage.PlaybackVideo,
+                        SettingsPage.PlaybackBuffer,
+                        SettingsPage.PlaybackP2p -> playbackSettingsContent(
+                            isTablet = true,
+                            page = page,
+                            onPageChange = ::openInlinePage,
+                        )
+                        SettingsPage.Streams -> streamsSettingsContent(
+                            isTablet = true,
+                        )
+                        SettingsPage.Appearance -> appearanceSettingsContent(
+                            isTablet = true,
+                            selectedTheme = selectedTheme,
+                            onThemeSelected = onThemeSelected,
+                            amoledEnabled = amoledEnabled,
+                            onAmoledToggle = onAmoledToggle,
+                            appIconState = appIconState,
+                            onAppIconSelected = onAppIconSelected,
+                            onAppIconFailureDismissed = onAppIconFailureDismissed,
+                            selectedAppLanguage = selectedAppLanguage,
+                            onAppLanguageSelected = onAppLanguageSelected,
+                        )
+                        SettingsPage.Layout -> layoutSettingsContent(
+                            isTablet = true,
+                            liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
+                            onHomescreenClick = { openInlinePage(SettingsPage.Homescreen) },
+                            onMetaScreenClick = { openInlinePage(SettingsPage.MetaScreen) },
+                            onStreamsClick = { openInlinePage(SettingsPage.Streams) },
+                            onCollectionsClick = onCollectionsClick,
+                            onContinueWatchingClick = { openInlinePage(SettingsPage.ContinueWatching) },
+                            onPosterCustomizationClick = { openInlinePage(SettingsPage.PosterCustomization) },
+                            onHoverPreviewClick = { openInlinePage(SettingsPage.HoverPreview) },
+                        )
+                        SettingsPage.HoverPreview -> hoverPreviewSettingsContent(
+                            isTablet = true,
+                            uiState = posterCardStyleUiState,
+                        )
+                        SettingsPage.About -> aboutSettingsContent(
+                            isTablet = true,
+                            onSupportersContributorsClick = { openInlinePage(SettingsPage.SupportersContributors) },
+                            onLicensesAttributionsClick = { openInlinePage(SettingsPage.LicensesAttributions) },
+                            onCheckForUpdatesClick = onCheckForUpdatesClick,
+                            onTestUpdateBannerClick = onTestUpdateBannerClick,
+                            showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
+                        )
+                        SettingsPage.Advanced -> advancedSettingsContent(
+                            isTablet = true,
+                            rememberLastProfileEnabled = rememberLastProfileEnabled,
+                        )
+                        SettingsPage.Notifications -> notificationsSettingsContent(
+                            isTablet = true,
+                            uiState = episodeReleaseNotificationsUiState,
+                        )
+                        SettingsPage.ContinueWatching -> continueWatchingSettingsContent(
+                            isTablet = true,
+                            isVisible = continueWatchingPreferencesUiState.isVisible,
+                            style = continueWatchingPreferencesUiState.style,
+                            upNextFromFurthestEpisode = continueWatchingPreferencesUiState.upNextFromFurthestEpisode,
+                            useEpisodeThumbnails = continueWatchingPreferencesUiState.useEpisodeThumbnails,
+                            showUnairedNextUp = continueWatchingPreferencesUiState.showUnairedNextUp,
+                            blurNextUp = continueWatchingPreferencesUiState.blurNextUp,
+                            showResumePromptOnLaunch = continueWatchingPreferencesUiState.showResumePromptOnLaunch,
+                            sortMode = continueWatchingPreferencesUiState.sortMode,
+                            clickAction = continueWatchingPreferencesUiState.clickAction,
+                        )
+                        SettingsPage.PosterCustomization -> posterCustomizationSettingsContent(
+                            isTablet = true,
+                            uiState = posterCardStyleUiState,
+                        )
+                        SettingsPage.ContentDiscovery -> contentDiscoveryContent(
+                            isTablet = true,
+                            showPluginsEntry = AppFeaturePolicy.pluginsEnabled,
+                            onAddonsClick = { openInlinePage(SettingsPage.Addons) },
+                            onPluginsClick = { openInlinePage(SettingsPage.Plugins) },
+                            onMediaServersClick = { openInlinePage(SettingsPage.MediaServers) },
+                        )
+                        SettingsPage.Addons -> addonsSettingsContent()
+                        SettingsPage.MediaServers -> mediaServersSettingsContent(
+                            isTablet = true,
+                            onServerClick = { openInlinePage(SettingsPage.MediaServer) },
+                        )
+                        SettingsPage.MediaServer -> mediaServerSettingsContent(
+                            isTablet = true,
+                            onBack = onNavigateBack,
+                        )
+                        SettingsPage.Plugins -> if (AppFeaturePolicy.pluginsEnabled) pluginsSettingsContent() else addonsSettingsContent()
+                        SettingsPage.Homescreen -> homescreenSettingsContent(
+                            isTablet = true,
+                            heroEnabled = homescreenHeroEnabled,
+                            showCatalogType = homescreenShowCatalogType,
+                            hideUnreleasedContent = homescreenHideUnreleasedContent,
+                            items = homescreenItems,
+                            isCatalogLoading = homescreenCatalogLoading,
+                            catalogErrorMessage = homescreenCatalogErrorMessage,
+                        )
+                        SettingsPage.MetaScreen -> metaScreenSettingsContent(
+                            isTablet = true,
+                            uiState = metaScreenSettingsUiState,
+                        )
+                        SettingsPage.Integrations -> integrationsContent(
+                            isTablet = true,
+                            onTmdbClick = { onPageChange(SettingsPage.TmdbEnrichment) },
+                            onMdbListClick = { onPageChange(SettingsPage.MdbListRatings) },
+                            onDebridClick = { onPageChange(SettingsPage.Debrid) },
+                        )
+                        SettingsPage.TmdbEnrichment -> tmdbSettingsContent(
+                            isTablet = true,
+                            settings = tmdbSettings,
+                        )
+                        SettingsPage.MdbListRatings -> mdbListSettingsContent(
+                            isTablet = true,
+                            settings = mdbListSettings,
+                        )
+                        SettingsPage.Debrid -> debridSettingsContent(
+                            isTablet = true,
+                            settings = debridSettings,
+                        )
+                        SettingsPage.TraktAuthentication -> trackingSettingsContent(
+                            isTablet = true,
+                            traktUiState = traktAuthUiState,
+                            simklUiState = simklAuthUiState,
+                            settingsUiState = trackingSettingsUiState,
+                            commentsEnabled = traktCommentsEnabled,
+                            mdbListConnected = mdbListConnected,
+                            onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
+                        )
                     }
-                    SettingsPage.LicensesAttributions -> licensesAttributionsContent(
-                        isTablet = true,
-                    )
-                    SettingsPage.Playback,
-                    SettingsPage.PlaybackPlayer,
-                    SettingsPage.PlaybackStreamSelection,
-                    SettingsPage.PlaybackUpNext,
-                    SettingsPage.PlaybackSkipSegments,
-                    SettingsPage.PlaybackInterface,
-                    SettingsPage.PlaybackAudio,
-                    SettingsPage.PlaybackSubtitles,
-                    SettingsPage.PlaybackVideo,
-                    SettingsPage.PlaybackBuffer,
-                    SettingsPage.PlaybackP2p -> playbackSettingsContent(
-                        isTablet = true,
-                        page = page,
-                        onPageChange = ::openInlinePage,
-                    )
-                    SettingsPage.Streams -> streamsSettingsContent(
-                        isTablet = true,
-                    )
-                    SettingsPage.Appearance -> appearanceSettingsContent(
-                        isTablet = true,
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = onThemeSelected,
-                        amoledEnabled = amoledEnabled,
-                        onAmoledToggle = onAmoledToggle,
-                        appIconState = appIconState,
-                        onAppIconSelected = onAppIconSelected,
-                        onAppIconFailureDismissed = onAppIconFailureDismissed,
-                        selectedAppLanguage = selectedAppLanguage,
-                        onAppLanguageSelected = onAppLanguageSelected,
-                    )
-                    SettingsPage.Layout -> layoutSettingsContent(
-                        isTablet = true,
-                        liquidGlassNativeTabBarSupported = liquidGlassNativeTabBarSupported,
-                        onHomescreenClick = { openInlinePage(SettingsPage.Homescreen) },
-                        onMetaScreenClick = { openInlinePage(SettingsPage.MetaScreen) },
-                        onStreamsClick = { openInlinePage(SettingsPage.Streams) },
-                        onCollectionsClick = onCollectionsClick,
-                        onContinueWatchingClick = { openInlinePage(SettingsPage.ContinueWatching) },
-                        onPosterCustomizationClick = { openInlinePage(SettingsPage.PosterCustomization) },
-                    )
-                    SettingsPage.About -> aboutSettingsContent(
-                        isTablet = true,
-                        onSupportersContributorsClick = { openInlinePage(SettingsPage.SupportersContributors) },
-                        onLicensesAttributionsClick = { openInlinePage(SettingsPage.LicensesAttributions) },
-                        onCheckForUpdatesClick = onCheckForUpdatesClick,
-                        onTestUpdateBannerClick = onTestUpdateBannerClick,
-                        showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
-                    )
-                    SettingsPage.Advanced -> advancedSettingsContent(
-                        isTablet = true,
-                        rememberLastProfileEnabled = rememberLastProfileEnabled,
-                    )
-                    SettingsPage.Notifications -> notificationsSettingsContent(
-                        isTablet = true,
-                        uiState = episodeReleaseNotificationsUiState,
-                    )
-                    SettingsPage.ContinueWatching -> continueWatchingSettingsContent(
-                        isTablet = true,
-                        isVisible = continueWatchingPreferencesUiState.isVisible,
-                        style = continueWatchingPreferencesUiState.style,
-                        upNextFromFurthestEpisode = continueWatchingPreferencesUiState.upNextFromFurthestEpisode,
-                        useEpisodeThumbnails = continueWatchingPreferencesUiState.useEpisodeThumbnails,
-                        showUnairedNextUp = continueWatchingPreferencesUiState.showUnairedNextUp,
-                        blurNextUp = continueWatchingPreferencesUiState.blurNextUp,
-                        showResumePromptOnLaunch = continueWatchingPreferencesUiState.showResumePromptOnLaunch,
-                        sortMode = continueWatchingPreferencesUiState.sortMode,
-                        clickAction = continueWatchingPreferencesUiState.clickAction,
-                    )
-                    SettingsPage.PosterCustomization -> posterCustomizationSettingsContent(
-                        isTablet = true,
-                        uiState = posterCardStyleUiState,
-                    )
-                    SettingsPage.ContentDiscovery -> contentDiscoveryContent(
-                        isTablet = true,
-                        showPluginsEntry = AppFeaturePolicy.pluginsEnabled,
-                        onAddonsClick = { openInlinePage(SettingsPage.Addons) },
-                        onPluginsClick = { openInlinePage(SettingsPage.Plugins) },
-                        onMediaServersClick = { openInlinePage(SettingsPage.MediaServers) },
-                    )
-                    SettingsPage.Addons -> addonsSettingsContent()
-                    SettingsPage.MediaServers -> mediaServersSettingsContent(
-                        isTablet = true,
-                        onServerClick = { openInlinePage(SettingsPage.MediaServer) },
-                    )
-                    SettingsPage.MediaServer -> mediaServerSettingsContent(
-                        isTablet = true,
-                        onBack = onNavigateBack,
-                    )
-                    SettingsPage.Plugins -> if (AppFeaturePolicy.pluginsEnabled) pluginsSettingsContent() else addonsSettingsContent()
-                    SettingsPage.Homescreen -> homescreenSettingsContent(
-                        isTablet = true,
-                        heroEnabled = homescreenHeroEnabled,
-                        showCatalogType = homescreenShowCatalogType,
-                        hideUnreleasedContent = homescreenHideUnreleasedContent,
-                        items = homescreenItems,
-                        isCatalogLoading = homescreenCatalogLoading,
-                        catalogErrorMessage = homescreenCatalogErrorMessage,
-                    )
-                    SettingsPage.MetaScreen -> metaScreenSettingsContent(
-                        isTablet = true,
-                        uiState = metaScreenSettingsUiState,
-                    )
-                    SettingsPage.Integrations -> integrationsContent(
-                        isTablet = true,
-                        onTmdbClick = { onPageChange(SettingsPage.TmdbEnrichment) },
-                        onMdbListClick = { onPageChange(SettingsPage.MdbListRatings) },
-                        onDebridClick = { onPageChange(SettingsPage.Debrid) },
-                    )
-                    SettingsPage.TmdbEnrichment -> tmdbSettingsContent(
-                        isTablet = true,
-                        settings = tmdbSettings,
-                    )
-                    SettingsPage.MdbListRatings -> mdbListSettingsContent(
-                        isTablet = true,
-                        settings = mdbListSettings,
-                    )
-                    SettingsPage.Debrid -> debridSettingsContent(
-                        isTablet = true,
-                        settings = debridSettings,
-                    )
-                    SettingsPage.TraktAuthentication -> trackingSettingsContent(
-                        isTablet = true,
-                        traktUiState = traktAuthUiState,
-                        simklUiState = simklAuthUiState,
-                        settingsUiState = trackingSettingsUiState,
-                        commentsEnabled = traktCommentsEnabled,
-                        mdbListConnected = mdbListConnected,
-                        onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
+                }
+                if (isDesktop) {
+                    NuvioDesktopVerticalScrollbar(
+                        state = listState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(top = topOffset, bottom = 8.dp, end = 4.dp),
                     )
                     SettingsPage.LiveTv -> liveTvSettingsContent(isTablet = true)
                 }

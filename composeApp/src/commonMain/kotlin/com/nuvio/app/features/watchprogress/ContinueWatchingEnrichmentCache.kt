@@ -79,8 +79,15 @@ internal object ContinueWatchingEnrichmentCache {
     private const val storageKey = "cw_enrichment_cache"
     private val cacheLock = SynchronizedObject()
     private val cachedPayloads = mutableMapOf<CacheScope, CachedEnrichmentPayload?>()
+    private val migratedLegacyProfileIds = mutableSetOf<Int>()
     private val _generation = MutableStateFlow(0)
     val generation: StateFlow<Int> = _generation.asStateFlow()
+
+    fun warm(profileId: Int) {
+        WatchProgressSource.entries.forEach { source ->
+            loadPayload(profileId = profileId, source = source)
+        }
+    }
 
     fun getNextUpSnapshot(
         profileId: Int,
@@ -120,7 +127,7 @@ internal object ContinueWatchingEnrichmentCache {
             return@synchronized true
         }
 
-        removeLegacyPayload(profileId)
+        removeLegacyPayloadOnce(profileId)
         val encoded = runCatching {
             json.encodeToString(payload)
         }.getOrNull() ?: return@synchronized false
@@ -139,7 +146,7 @@ internal object ContinueWatchingEnrichmentCache {
         ContinueWatchingEnrichmentStorage.removePayload(
             continueWatchingEnrichmentStorageKey(profileId = profileId, source = source),
         )
-        removeLegacyPayload(profileId)
+        removeLegacyPayloadOnce(profileId)
         cachedPayloads.remove(CacheScope(profileId = profileId, source = source))
         advanceGeneration()
     }
@@ -151,17 +158,19 @@ internal object ContinueWatchingEnrichmentCache {
             )
             cachedPayloads.remove(CacheScope(profileId = profileId, source = source))
         }
-        removeLegacyPayload(profileId)
+        removeLegacyPayloadOnce(profileId)
         advanceGeneration()
     }
 
     fun clearLocalState() = synchronized(cacheLock) {
         cachedPayloads.clear()
+        migratedLegacyProfileIds.clear()
         advanceGeneration()
     }
 
     fun onProfileChanged() = synchronized(cacheLock) {
         cachedPayloads.clear()
+        migratedLegacyProfileIds.clear()
         advanceGeneration()
     }
 
@@ -171,7 +180,7 @@ internal object ContinueWatchingEnrichmentCache {
     ): CachedEnrichmentPayload? = synchronized(cacheLock) {
         val scope = CacheScope(profileId = profileId, source = source)
         if (cachedPayloads.containsKey(scope)) return@synchronized cachedPayloads[scope]
-        removeLegacyPayload(profileId)
+        removeLegacyPayloadOnce(profileId)
         val raw = ContinueWatchingEnrichmentStorage.loadPayload(
             continueWatchingEnrichmentStorageKey(profileId = profileId, source = source),
         ) ?: run {
@@ -191,7 +200,8 @@ internal object ContinueWatchingEnrichmentCache {
         }
     }
 
-    private fun removeLegacyPayload(profileId: Int) {
+    private fun removeLegacyPayloadOnce(profileId: Int) {
+        if (!migratedLegacyProfileIds.add(profileId)) return
         ContinueWatchingEnrichmentStorage.removePayload(legacyStorageKey(profileId))
     }
 

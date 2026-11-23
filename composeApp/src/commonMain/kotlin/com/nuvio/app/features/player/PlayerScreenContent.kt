@@ -9,12 +9,18 @@ import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -22,7 +28,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.LocalFold
+import com.nuvio.app.controller.ControllerDirection
+import com.nuvio.app.controller.ControllerEvent
+import com.nuvio.app.controller.ControllerFocusEngine
+import com.nuvio.app.controller.XboxButton
+import com.nuvio.app.controller.audio.ControllerSoundPlayer
 import com.nuvio.app.features.addons.AddonRepository
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.MetaScreenSettingsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
@@ -34,6 +46,7 @@ import nuvio.composeapp.generated.resources.compose_player_airs_prefix
 import nuvio.composeapp.generated.resources.compose_player_downloaded
 import nuvio.composeapp.generated.resources.compose_player_resize_fill
 import nuvio.composeapp.generated.resources.compose_player_resize_fit
+import nuvio.composeapp.generated.resources.compose_player_resize_stretch
 import nuvio.composeapp.generated.resources.compose_player_resize_zoom
 import nuvio.composeapp.generated.resources.generic_unknown
 import nuvio.composeapp.generated.resources.parental_alcohol
@@ -47,6 +60,7 @@ import nuvio.composeapp.generated.resources.parental_violence
 import nuvio.composeapp.generated.resources.compose_player_tba
 import org.jetbrains.compose.resources.stringResource
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     val playerSettingsUiState by remember {
@@ -79,6 +93,45 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
 
     val runtime = remember { PlayerScreenRuntime(args) }
     runtime.args = args
+    val controllerScope = rememberCoroutineScope()
+
+    // While the player is on screen, keyboard arrows and the gamepad drive playback (seek, volume,
+    // play/pause, modals) instead of moving focus around the hidden app shell behind it.
+    DisposableEffect(runtime, controllerScope) {
+        PlayerControllerBridge.register(controllerScope) { command ->
+            runtime.handlePlayerControllerCommand(command)
+        }
+        ControllerFocusEngine.setPlayerEventHandler { event ->
+            when (event) {
+                is ControllerEvent.Navigate -> {
+                    val handled = when (event.direction) {
+                        ControllerDirection.Left -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                        ControllerDirection.Right -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                        ControllerDirection.Up -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeUp)
+                        ControllerDirection.Down -> PlayerControllerBridge.dispatch(PlayerCommand.VolumeDown)
+                    }
+                    if (handled) ControllerSoundPlayer.playNavigate()
+                    handled
+                }
+                is ControllerEvent.ButtonPressed -> when (event.button) {
+                    XboxButton.A -> PlayerControllerBridge.dispatch(PlayerCommand.TogglePlayback)
+                    XboxButton.B -> PlayerControllerBridge.dispatch(PlayerCommand.Back)
+                    XboxButton.X -> PlayerControllerBridge.dispatch(PlayerCommand.Audio)
+                    XboxButton.Y -> PlayerControllerBridge.dispatch(PlayerCommand.Subtitles)
+                    XboxButton.LB, XboxButton.LT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekBack)
+                    XboxButton.RB, XboxButton.RT -> PlayerControllerBridge.dispatch(PlayerCommand.SeekForward)
+                    XboxButton.Menu -> PlayerControllerBridge.dispatch(PlayerCommand.Episodes)
+                    XboxButton.View -> PlayerControllerBridge.dispatch(PlayerCommand.Sources)
+                    else -> false
+                }
+                else -> false
+            }
+        }
+        onDispose {
+            ControllerFocusEngine.setPlayerEventHandler(null)
+            PlayerControllerBridge.register(null, null)
+        }
+    }
 
     // The engine publishes a playback snapshot every 250ms. Reading the raw snapshot from this
     // scope would recompose the whole player subtree four times per second, so the values
@@ -102,7 +155,21 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     BoxWithConstraints(
         modifier = args.modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.type == PointerEventType.Press) {
+                            if (event.button == PointerButton.Back) {
+                                event.changes.forEach { it.consume() }
+                            } else if (event.button == PointerButton.Forward) {
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
+            },
     ) {
         val density = LocalDensity.current
         val horizontalSafePadding = playerHorizontalSafePadding()
@@ -114,7 +181,7 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
             animationSpec = tween(if (runtime.showPartyPanel) 250 else 200),
             label = "partyPanelInset",
         )
-        val partyPanelInset = if (dockPartyPanel) animatedPartyPanelInset else 0.dp
+        val partyPanelInset = if (dockPartyPanel && !isDesktop) animatedPartyPanelInset else 0.dp
         val playerWidth = maxWidth - partyPanelInset
         val metrics = remember(playerWidth) { PlayerLayoutMetrics.fromWidth(playerWidth) }
 
@@ -138,7 +205,7 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
         runtime.horizontalSafePadding = horizontalSafePadding
         runtime.metrics = metrics
         runtime.sliderEdgePadding = horizontalSafePadding + metrics.horizontalPadding
-        runtime.overlayBottomPadding = if (playerSettingsUiState.useLegacyPlayerLayout) {
+        runtime.overlayBottomPadding = if (isDesktop || playerSettingsUiState.useLegacyPlayerLayout) {
             sliderOverlayBottomPadding(metrics)
         } else {
             playerTimelineBottomInsets(metrics).asPaddingValues().calculateBottomPadding() +
@@ -159,6 +226,7 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
         runtime.resizeModeFitLabel = stringResource(Res.string.compose_player_resize_fit)
         runtime.resizeModeFillLabel = stringResource(Res.string.compose_player_resize_fill)
         runtime.resizeModeZoomLabel = stringResource(Res.string.compose_player_resize_zoom)
+        runtime.resizeModeStretchLabel = stringResource(Res.string.compose_player_resize_stretch)
         runtime.downloadedLabel = stringResource(Res.string.compose_player_downloaded)
         runtime.airsPrefix = stringResource(Res.string.compose_player_airs_prefix)
         runtime.tbaLabel = stringResource(Res.string.compose_player_tba)
@@ -179,9 +247,10 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
                 args.parentMetaId,
             )?.videos ?: emptyList()
         }
-        if (runtime.lastSyncedSettingsResizeMode != playerSettingsUiState.resizeMode) {
-            runtime.resizeMode = playerSettingsUiState.resizeMode
-            runtime.lastSyncedSettingsResizeMode = playerSettingsUiState.resizeMode
+        val settingsResizeMode = playerSettingsUiState.resizeMode.supportedOnCurrentPlatform()
+        if (runtime.lastSyncedSettingsResizeMode != settingsResizeMode) {
+            runtime.resizeMode = settingsResizeMode
+            runtime.lastSyncedSettingsResizeMode = settingsResizeMode
         }
         runtime.resetIdentityStateIfNeeded()
 

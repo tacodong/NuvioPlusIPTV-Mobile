@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -185,7 +184,6 @@ fun SubtitleModal(
                 )
 
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
@@ -422,7 +420,7 @@ private fun SubtitleOptionRow(
 
         is SubtitleSelectionOption.Addon -> {
             sourceLabel = option.subtitle.addonName ?: stringResource(Res.string.addon_title)
-            title = languageLabelForCode(option.subtitle.language)
+            title = option.subtitle.title ?: languageLabelForCode(option.subtitle.language)
             metadata = (option.subtitle.label ?: option.subtitle.display).takeIf { it.isNotBlank() && it != title }
         }
     }

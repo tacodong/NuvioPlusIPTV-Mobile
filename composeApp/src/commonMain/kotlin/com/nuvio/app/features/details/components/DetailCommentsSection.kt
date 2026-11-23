@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.SkeletonBlock
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
@@ -78,10 +79,13 @@ fun DetailCommentsSection(
 
         when {
             isLoading -> {
+                val loadingListState = rememberLazyListState()
                 LazyRow(
+                    state = loadingListState,
                     modifier = Modifier
                         .nuvioHorizontalScrollBleed(horizontalScrollPadding)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .nuvioDesktopDragScroll(loadingListState),
                     contentPadding = PaddingValues(horizontal = horizontalScrollPadding),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -120,10 +124,11 @@ fun DetailCommentsSection(
 
             else -> {
                 LazyRow(
+                    state = listState,
                     modifier = Modifier
                         .nuvioHorizontalScrollBleed(horizontalScrollPadding)
-                        .fillMaxWidth(),
-                    state = listState,
+                        .fillMaxWidth()
+                        .nuvioDesktopDragScroll(listState),
                     contentPadding = PaddingValues(horizontal = horizontalScrollPadding),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {

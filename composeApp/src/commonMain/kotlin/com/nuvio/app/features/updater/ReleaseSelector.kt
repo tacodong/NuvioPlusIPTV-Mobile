@@ -9,21 +9,27 @@ internal object ReleaseSelector {
     fun eligibleReleases(
         releases: List<GitHubReleaseDto>,
         channel: UpdateChannel
-    ): List<GitHubReleaseDto> = releases
-        .asSequence()
-        .filterNot(GitHubReleaseDto::draft)
-        .mapNotNull { release ->
-            val version = releaseVersion(release) ?: return@mapNotNull null
-            ReleaseCandidate(
-                release = release,
-                version = version,
-                prerelease = isPrerelease(release, version)
-            )
+    ): List<GitHubReleaseDto> {
+        if (channel == UpdateChannel.ALL_RELEASES) {
+            return releases.filterNot(GitHubReleaseDto::draft)
         }
-        .filter { candidate -> channel == UpdateChannel.BETA || !candidate.prerelease }
-        .sortedByDescending(ReleaseCandidate::version)
-        .map(ReleaseCandidate::release)
-        .toList()
+
+        return releases
+            .asSequence()
+            .filterNot(GitHubReleaseDto::draft)
+            .mapNotNull { release ->
+                val version = releaseVersion(release) ?: return@mapNotNull null
+                ReleaseCandidate(
+                    release = release,
+                    version = version,
+                    prerelease = isPrerelease(release, version)
+                )
+            }
+            .filter { candidate -> channel == UpdateChannel.BETA || !candidate.prerelease }
+            .sortedByDescending(ReleaseCandidate::version)
+            .map(ReleaseCandidate::release)
+            .toList()
+    }
 
     private fun releaseVersion(release: GitHubReleaseDto): SemanticVersion? =
         VersionUtils.parse(release.tagName) ?: VersionUtils.parse(release.name)

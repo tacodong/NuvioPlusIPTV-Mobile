@@ -22,8 +22,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.ui.SkeletonBlock
 import com.nuvio.app.core.ui.SkeletonPosterRow
+import com.nuvio.app.core.ui.desktopCatalogShelfPosterBaseWidthDp
 import com.nuvio.app.core.ui.landscapePosterHeightForWidth
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
@@ -34,6 +36,7 @@ fun HomeSkeletonHero(
     modifier: Modifier = Modifier,
     viewportHeight: Dp? = null,
     mobileBelowSectionHeightHint: Dp? = null,
+    sectionPadding: Dp? = null,
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -44,8 +47,10 @@ fun HomeSkeletonHero(
             maxWidthDp = maxWidth.value,
             viewportHeightDp = viewportHeight?.value,
             mobileBelowSectionHeightHintDp = mobileBelowSectionHeightHint?.value,
+            preferDesktopLayout = isDesktop,
         )
         val containerWidth = maxWidth
+        val contentHorizontalPadding = sectionPadding ?: layout.contentHorizontalPadding
 
         Box(
             modifier = Modifier
@@ -86,9 +91,17 @@ fun HomeSkeletonHero(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
+                    .then(
+                        if (isDesktop) {
+                            Modifier
+                                .widthIn(max = layout.contentContainerMaxWidth)
+                                .fillMaxWidth()
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
+                    )
                     .padding(
-                        horizontal = layout.contentHorizontalPadding,
+                        horizontal = contentHorizontalPadding,
                         vertical = layout.contentVerticalPadding,
                     ),
                 horizontalAlignment = if (layout.isTablet) Alignment.Start else Alignment.CenterHorizontally,
@@ -135,15 +148,24 @@ fun HomeSkeletonRow(
     horizontalPadding: Dp? = null,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
-    val skeletonWidth = if (posterCardStyle.catalogLandscapeModeEnabled) {
-        landscapePosterWidth(posterCardStyle.widthDp)
+    val basePosterWidthDp = if (isDesktop) {
+        desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp)
     } else {
-        posterCardStyle.widthDp.dp
+        posterCardStyle.widthDp
+    }
+    val skeletonWidth = if (posterCardStyle.catalogLandscapeModeEnabled) {
+        landscapePosterWidth(basePosterWidthDp)
+    } else {
+        basePosterWidthDp.dp
     }
     val skeletonHeight = if (posterCardStyle.catalogLandscapeModeEnabled) {
         landscapePosterHeightForWidth(skeletonWidth)
     } else {
-        posterCardStyle.heightDp.dp
+        if (isDesktop) {
+            ((posterCardStyle.heightDp * basePosterWidthDp.toFloat()) / posterCardStyle.widthDp).toInt().dp
+        } else {
+            posterCardStyle.heightDp.dp
+        }
     }
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {

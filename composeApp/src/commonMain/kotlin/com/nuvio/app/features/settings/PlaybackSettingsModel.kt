@@ -1,5 +1,6 @@
 package com.nuvio.app.features.settings
 
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.player.AndroidPlaybackEngine
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
@@ -26,7 +27,7 @@ internal fun visiblePlaybackSections(
     p2pVisible: Boolean,
 ): List<PlaybackSection> = PlaybackSection.entries.filter { section ->
     when (section) {
-        PlaybackSection.Buffer -> !ios && engine != AndroidPlaybackEngine.Libmpv
+        PlaybackSection.Buffer -> !ios && !isDesktop && engine != AndroidPlaybackEngine.Libmpv
         PlaybackSection.P2p -> p2pVisible
         else -> true
     }

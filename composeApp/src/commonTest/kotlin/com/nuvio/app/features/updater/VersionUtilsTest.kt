@@ -36,6 +36,13 @@ class VersionUtilsTest {
     }
 
     @Test
+    fun `legacy comparison accepts changed release labels`() {
+        assertTrue(VersionUtils.isRemoteNewerLegacy("desktop-preview", "desktop-alpha"))
+        assertFalse(VersionUtils.isRemoteNewerLegacy("desktop-preview", "desktop-preview"))
+        assertFalse(VersionUtils.isRemoteNewerLegacy("", "desktop-preview"))
+    }
+
+    @Test
     fun `current beta naming is recognized as prerelease`() {
         assertTrue(VersionUtils.isPrerelease("0.8.12-beta"))
     }

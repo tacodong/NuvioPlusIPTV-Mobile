@@ -78,6 +78,8 @@ actual fun ManagePlayerPictureInPicture(
     videoSize: IntSize,
 ) = Unit
 
+actual fun togglePlayerPictureInPicture() = Unit
+
 @Composable
 actual fun rememberIsInPictureInPicture(): Boolean = false
 

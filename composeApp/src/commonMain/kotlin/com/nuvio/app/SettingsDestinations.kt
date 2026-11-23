@@ -49,12 +49,9 @@ internal fun SettingsRootDestination(
     SettingsScreen(
         modifier = Modifier.fillMaxSize(),
         initialPageName = route.pageName,
+        requestedPageName = route.pageName,
+        onRequestedPageConsumed = {},
         rootActionsEnabled = false,
-        onNavigatePage = { pageName, title ->
-            navController.navigate(SettingsPageRoute(pageName, title))
-        },
-        onExternalBack = onBack,
-        showInternalHeader = !useNativeNavigation,
         onCollectionsClick = {
             navController.navigate(CollectionsRoute(collectionsTitle))
         },

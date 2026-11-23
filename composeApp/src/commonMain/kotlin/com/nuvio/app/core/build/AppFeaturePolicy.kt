@@ -7,12 +7,15 @@ enum class TrailerPlaybackMode {
 
 expect object AppFeaturePolicy {
     val pluginsEnabled: Boolean
+    val downloadsEnabled: Boolean
+    val notificationsEnabled: Boolean
     val supportersContributorsPageEnabled: Boolean
     val donationActionsEnabled: Boolean
     val donationProgressEnabled: Boolean
     val accountDeletionEnabled: Boolean
     val personalMediaAddonCopyEnabled: Boolean
     val p2pEnabled: Boolean
+    val externalPlayerSupported: Boolean
     val trailerPlaybackMode: TrailerPlaybackMode
     val heroTrailerPlaybackSupported: Boolean
     val inAppUpdaterEnabled: Boolean

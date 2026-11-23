@@ -16,6 +16,8 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
 object DownloadsRepository {
+    private const val MaxDownloadAttempts = 3
+
     private val _uiState = MutableStateFlow(DownloadsUiState())
     val uiState: StateFlow<DownloadsUiState> = _uiState.asStateFlow()
 
@@ -319,7 +321,7 @@ object DownloadsRepository {
             .forEach(::startDownload)
     }
 
-    private fun startDownload(item: DownloadItem) {
+    private fun startDownload(item: DownloadItem, attempt: Int = 1) {
         val request = DownloadPlatformRequest(item)
 
         val handle = DownloadsPlatformDownloader.start(
@@ -356,8 +358,13 @@ object DownloadsRepository {
                     )
                 }
             },
-            onFailure = { message ->
+            onFailure = onFailure@ { message ->
                 activeHandles.remove(item.id)
+                val current = _uiState.value.items.firstOrNull { it.id == item.id }
+                if (current?.status == DownloadStatus.Downloading && attempt < MaxDownloadAttempts) {
+                    startDownload(current, attempt + 1)
+                    return@onFailure
+                }
                 mutateItem(item.id) { current ->
                     if (current.status != DownloadStatus.Downloading) {
                         current

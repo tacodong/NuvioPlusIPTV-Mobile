@@ -16,17 +16,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nuvio.app.AppScreenTab
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
 import com.nuvio.app.core.ui.LocalNuvioBottomNavigationOverlayPadding
+import com.nuvio.app.core.ui.LocalNuvioNavBarScrollState
 import com.nuvio.app.core.ui.LocalVerticalBarPadding
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
 import com.nuvio.app.core.ui.ScreenActivityEffect
@@ -58,7 +62,6 @@ import com.nuvio.app.features.home.components.HomeHeroReservedSpace
 import com.nuvio.app.features.home.components.HomeHeroSection
 import com.nuvio.app.features.home.components.HomeSkeletonHero
 import com.nuvio.app.features.home.components.HomeSkeletonRow
-import com.nuvio.app.features.home.components.HomeContinueWatchingSectionBottomPadding
 import com.nuvio.app.features.home.components.ContinueWatchingLayout
 import com.nuvio.app.features.tracking.TrackingSettingsRepository
 import com.nuvio.app.features.tracking.WatchProgressSource
@@ -114,6 +117,7 @@ import kotlinx.coroutines.yield
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
 import com.nuvio.app.features.home.components.continueWatchingHeroViewportReserveHeight
+import com.nuvio.app.features.home.components.homeCatalogPreviewLimitForWidth
 import com.nuvio.app.features.home.components.homeSectionHorizontalPaddingForWidth
 import com.nuvio.app.features.home.components.rememberContinueWatchingLayout
 import kotlinx.coroutines.CancellationException
@@ -123,6 +127,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
+    topChromePadding: Dp? = null,
     animateCollectionGifs: Boolean = true,
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
@@ -135,11 +140,14 @@ fun HomeScreen(
     onFirstCatalogRendered: (() -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) {
-        AddonRepository.initialize()
-        CollectionRepository.initialize()
-        ContinueWatchingPreferencesRepository.ensureLoaded()
-        WatchedRepository.ensureLoaded()
-        WatchProgressRepository.ensureLoaded()
+        withContext(Dispatchers.Default) {
+            AddonRepository.initialize()
+            CollectionRepository.initialize()
+            ContinueWatchingPreferencesRepository.ensureLoaded()
+            HomeCatalogSettingsRepository.snapshot()
+            WatchedRepository.ensureLoaded()
+            WatchProgressRepository.ensureLoaded()
+        }
         val authState = AuthRepository.state.value
         if (authState !is AuthState.Authenticated || authState.isAnonymous) {
             WatchProgressSourceCoordinator.ensureStarted()
@@ -155,7 +163,7 @@ fun HomeScreen(
         HomeCatalogSettingsRepository.snapshot()
         HomeCatalogSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
-    val homeListState = rememberLazyListState()
+    val homeListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val continueWatchingListState = rememberLazyListState()
     val upcomingListState = rememberLazyListState()
     ScreenActivityEffect(homeListState, continueWatchingListState, upcomingListState) { active ->
@@ -177,12 +185,22 @@ fun HomeScreen(
         TrackingSettingsRepository.ensureLoaded()
         TrackingSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val navBarScrollState = LocalNuvioNavBarScrollState.current
     var observedOfflineState by remember { mutableStateOf(false) }
 
     ScreenActivityEffect(scrollToTopRequests) { active ->
         if (!active) return@ScreenActivityEffect
         scrollToTopRequests.collect {
             homeListState.animateScrollToItem(0)
+            navBarScrollState?.expand()
+        }
+    }
+
+    LaunchedEffect(homeListState, navBarScrollState) {
+        snapshotFlow {
+            (homeListState.firstVisibleItemIndex * 80f) + homeListState.firstVisibleItemScrollOffset.toFloat()
+        }.collect { calculatedOffset ->
+            navBarScrollState?.updateScrollOffset(AppScreenTab.Home, calculatedOffset)
         }
     }
 
@@ -589,39 +607,11 @@ fun HomeScreen(
     }
     val hasContinueWatchingRows = continueWatchingItems.isNotEmpty() || upcomingItems.isNotEmpty()
 
-    ScreenActivityEffect(activeProfileId, continueWatchingItems.isNotEmpty(), hasUserScrolledContinueWatching) { active ->
-        if (!active) return@ScreenActivityEffect
-        if (!hasUserScrolledContinueWatching && continueWatchingItems.isNotEmpty()) {
-            snapshotFlow {
-                continueWatchingListState.firstVisibleItemIndex to
-                    continueWatchingListState.firstVisibleItemScrollOffset
-            }.collect { (index, offset) ->
-                if (
-                    !hasUserScrolledContinueWatching &&
-                    !continueWatchingListState.isScrollInProgress &&
-                    (index != 0 || offset != 0)
-                ) {
-                    continueWatchingListState.scrollToItem(0)
-                }
-            }
-        }
-    }
-    ScreenActivityEffect(activeProfileId, upcomingItems.isNotEmpty(), hasUserScrolledUpcoming) { active ->
-        if (!active) return@ScreenActivityEffect
-        if (!hasUserScrolledUpcoming && upcomingItems.isNotEmpty()) {
-            snapshotFlow {
-                upcomingListState.firstVisibleItemIndex to
-                    upcomingListState.firstVisibleItemScrollOffset
-            }.collect { (index, offset) ->
-                if (
-                    !hasUserScrolledUpcoming &&
-                    !upcomingListState.isScrollInProgress &&
-                    (index != 0 || offset != 0)
-                ) {
-                    upcomingListState.scrollToItem(0)
-                }
-            }
-        }
+    LaunchedEffect(activeProfileId) {
+        hasUserScrolledContinueWatching = false
+        hasUserScrolledUpcoming = false
+        continueWatchingListState.scrollToItem(0)
+        upcomingListState.scrollToItem(0)
     }
     val metaProviderKey = addonSignals.metaProviderKey
     val metaProviderReadinessKey = addonSignals.metaProviderReadinessKey
@@ -990,6 +980,16 @@ fun HomeScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val homeSectionPadding = homeSectionHorizontalPaddingForWidth(maxWidth.value)
         val posterCardStyle = rememberPosterCardStyleUiState()
+        val homeCatalogPreviewLimit = if (isDesktop) {
+            homeCatalogPreviewLimitForWidth(
+                maxWidthDp = maxWidth.value,
+                sectionPadding = homeSectionPadding,
+                basePosterWidthDp = posterCardStyle.widthDp,
+                useLandscapeMode = posterCardStyle.catalogLandscapeModeEnabled,
+            )
+        } else {
+            HOME_CATALOG_PREVIEW_LIMIT
+        }
         val continueWatchingLayout = rememberContinueWatchingLayout(maxWidth.value, posterCardStyle)
         val nativeBottomNavigationOverlayHeight =
             if (LocalNuvioBottomNavigationOverlayPadding.current > 0.dp) {
@@ -1028,10 +1028,16 @@ fun HomeScreen(
             Modifier
         }
 
+        val effectiveTopPadding = if (showHeroSlot) {
+            0.dp
+        } else {
+            topChromePadding
+        }
+
         NuvioScreen(
             modifier = Modifier.fillMaxSize().then(heroStretchModifier),
             horizontalPadding = 0.dp,
-            topPadding = if (showHeroSlot) 0.dp else null,
+            topPadding = effectiveTopPadding,
             listState = homeListState,
         ) {
             if (showHeroSlot) {
@@ -1048,6 +1054,7 @@ fun HomeScreen(
                                 modifier = Modifier,
                                 viewportHeight = maxHeight,
                                 mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
+                                sectionPadding = if (isDesktop) homeSectionPadding else null,
                             )
 
                             homeUiState.heroItems.isNotEmpty() -> HomeHeroSection(
@@ -1055,6 +1062,7 @@ fun HomeScreen(
                                 modifier = Modifier,
                                 viewportHeight = maxHeight,
                                 mobileBelowSectionHeightHint = mobileHeroBelowSectionHeightHint,
+                                sectionPadding = if (isDesktop) homeSectionPadding else null,
                                 listState = homeListState,
                                 stretchPx = { heroStretchState.stretchPx },
                                 showImdbRating = homeHeroState.showImdbRating,
@@ -1093,7 +1101,7 @@ fun HomeScreen(
                         contentType = { "skeleton" },
                     ) {
                         HomeSkeletonRow(
-                            horizontalPadding = homeSectionPadding,
+                            horizontalPadding = if (isDesktop) homeSectionPadding else 16.dp,
                         )
                     }
                 }
@@ -1117,7 +1125,9 @@ fun HomeScreen(
                             networkStatusUiState.isOfflineLike && addonManifestErrorMessage != null -> {
                                 NuvioNetworkOfflineCard(
                                     condition = networkStatusUiState.condition,
-                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = if (isDesktop) homeSectionPadding else 16.dp,
+                                    ),
                                     onRetry = {
                                         NetworkStatusRepository.requestRefresh(force = true)
                                         AddonRepository.refreshAll()
@@ -1127,7 +1137,9 @@ fun HomeScreen(
 
                             addonManifestErrorMessage != null -> {
                                 HomeEmptyStateCard(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = if (isDesktop) homeSectionPadding else 16.dp,
+                                    ),
                                     title = stringResource(Res.string.home_load_failed_title),
                                     message = addonManifestErrorMessage,
                                     actionLabel = stringResource(Res.string.action_retry),
@@ -1140,7 +1152,9 @@ fun HomeScreen(
 
                             else -> {
                                 HomeEmptyStateCard(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    modifier = Modifier.padding(
+                                        horizontal = if (isDesktop) homeSectionPadding else 16.dp,
+                                    ),
                                     title = stringResource(Res.string.home_empty_no_sources_title),
                                     message = stringResource(Res.string.home_empty_no_sources_message),
                                 )
@@ -1157,7 +1171,9 @@ fun HomeScreen(
                         if (networkStatusUiState.isOfflineLike && loadFailed) {
                             NuvioNetworkOfflineCard(
                                 condition = networkStatusUiState.condition,
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                                modifier = Modifier.padding(
+                                    horizontal = if (isDesktop) homeSectionPadding else 16.dp,
+                                ),
                                 onRetry = {
                                     NetworkStatusRepository.requestRefresh(force = true)
                                     HomeRepository.refresh(AddonRepository.uiState.value.addons.enabledAddons(), force = true)
@@ -1165,7 +1181,9 @@ fun HomeScreen(
                             )
                         } else {
                             HomeEmptyStateCard(
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                                modifier = Modifier.padding(
+                                    horizontal = if (isDesktop) homeSectionPadding else 16.dp,
+                                ),
                                 title = stringResource(
                                     if (loadFailed) {
                                         Res.string.home_load_failed_title
@@ -1235,10 +1253,16 @@ fun HomeScreen(
                                 item(key = keyedSettingsItem.lazyKey, contentType = "catalog") {
                                     HomeCatalogRowSection(
                                         section = section,
-                                        entries = section.items.take(HOME_CATALOG_PREVIEW_LIMIT),
+                                        entries = if (isDesktop) {
+                                            // The row is lazy, so desktop can expose the fetched catalog without
+                                            // composing every poster up front. Mobile keeps its compact preview.
+                                            section.items
+                                        } else {
+                                            section.items.take(homeCatalogPreviewLimit)
+                                        },
                                         modifier = Modifier.padding(bottom = 12.dp),
                                         sectionPadding = homeSectionPadding,
-                                        onViewAllClick = if (section.canOpenCatalog(HOME_CATALOG_PREVIEW_LIMIT)) {
+                                        onViewAllClick = if (section.canOpenCatalog(homeCatalogPreviewLimit)) {
                                             onCatalogClick?.let { { it(section) } }
                                         } else {
                                             null
@@ -1281,7 +1305,7 @@ private fun LazyListScope.homeContinueWatchingSections(
                 style = preferences.style,
                 useEpisodeThumbnails = preferences.useEpisodeThumbnails,
                 blurNextUp = preferences.blurNextUp,
-                modifier = Modifier.padding(bottom = HomeContinueWatchingSectionBottomPadding),
+                modifier = Modifier.padding(bottom = 12.dp),
                 sectionPadding = sectionPadding,
                 layout = layout,
                 listState = continueWatchingListState,
@@ -1300,7 +1324,7 @@ private fun LazyListScope.homeContinueWatchingSections(
                 style = preferences.style,
                 useEpisodeThumbnails = preferences.useEpisodeThumbnails,
                 blurNextUp = preferences.blurNextUp,
-                modifier = Modifier.padding(bottom = HomeContinueWatchingSectionBottomPadding),
+                modifier = Modifier.padding(bottom = 12.dp),
                 title = stringResource(Res.string.upcoming_section_title),
                 sectionPadding = sectionPadding,
                 layout = layout,
@@ -1322,9 +1346,6 @@ private const val NEXT_UP_RESOLUTION_CONCURRENCY = 4
 private val NEXT_UP_PUBLISH_INTERVAL = 400.milliseconds
 private const val MAX_NEXT_UP_RESOLUTION_RETRIES = 3
 private const val NEXT_UP_RESOLUTION_RETRY_BASE_DELAY_MS = 1_500L
-
-private fun String.isHomeSeriesLikeType(): Boolean =
-    trim().lowercase() in setOf("series", "show", "tv", "tvshow")
 
 internal data class HomeNextUpResolutionPlan(
     val initialCandidates: List<CompletedSeriesCandidate>,

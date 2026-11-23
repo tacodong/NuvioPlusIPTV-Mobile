@@ -1,5 +1,7 @@
 package com.nuvio.app.features.catalog
 
+import com.nuvio.app.core.ui.rememberAnimatedArtworkAnimation
+import com.nuvio.app.controller.RegisterControllerVerticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,28 +43,40 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.network.NetworkCondition
 import com.nuvio.app.core.network.NetworkStatusRepository
-import com.nuvio.app.core.ui.NuvioCardDepthSurface
-import coil3.compose.AsyncImage
-import com.nuvio.app.core.format.formatReleaseDateForDisplay
-import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import com.nuvio.app.core.ui.NuvioNetworkOfflineCard
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
+import com.nuvio.app.core.format.formatReleaseDateForDisplay
+import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
+import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.NuvioPosterWatchedOverlay
-import com.nuvio.app.core.ui.SkeletonPoster
+import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
+import com.nuvio.app.core.ui.catalogPosterBaseWidthDp
+import com.nuvio.app.core.ui.desktopPageHorizontalPaddingForWidth
+import com.nuvio.app.core.ui.landscapePosterWidth
+import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
+import com.nuvio.app.core.ui.desktopPosterHoverScale
 import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.posterCardClickable
+import com.nuvio.app.core.ui.posterGridColumnCountForViewport
+import com.nuvio.app.core.ui.NuvioLoadingIndicator
+import com.nuvio.app.core.ui.SkeletonPoster
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.core.ui.withDuplicateSafeLazyKeys
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.home.HomeCatalogSettingsRepository
 import com.nuvio.app.features.home.PosterShape
 import com.nuvio.app.features.home.components.HomeEmptyStateCard
+import com.nuvio.app.features.home.components.HomePosterHoverPreview
+import com.nuvio.app.features.home.components.HomePosterCard
 import com.nuvio.app.features.home.stableKey
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watching.application.WatchingState
@@ -103,6 +118,9 @@ fun CatalogScreen(
         initialFirstVisibleItemIndex = initialScrollPosition.firstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = initialScrollPosition.firstVisibleItemScrollOffset,
     )
+
+    // Lets the controller spatial engine scroll this grid when focus reaches the bottom edge.
+    val scrollViewportModifier = RegisterControllerVerticalScroll(lazyGridState = gridState)
     var headerHeightPx by remember { mutableIntStateOf(0) }
     var observedOfflineState by remember { mutableStateOf(false) }
 
@@ -165,17 +183,40 @@ fun CatalogScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        val columns = remember(maxWidth) { catalogGridColumnsForWidth(maxWidth) }
+        val pageHorizontalPadding = if (isDesktop) {
+            desktopPageHorizontalPaddingForWidth(maxWidth.value)
+        } else {
+            16.dp
+        }
+        val columns = remember(maxWidth, maxHeight, posterCardStyle.widthDp, isDesktop) {
+            if (isDesktop) {
+                posterGridColumnCountForViewport(maxWidth, maxHeight, posterCardStyle.widthDp)
+            } else {
+                catalogGridColumnsForWidth(maxWidth)
+            }
+        }
+        val basePosterWidthDp = catalogPosterBaseWidthDp(posterCardStyle.widthDp)
+        val gridCells = if (isDesktop) {
+            GridCells.FixedSize(
+                if (posterCardStyle.catalogLandscapeModeEnabled) {
+                    landscapePosterWidth(basePosterWidthDp)
+                } else {
+                    basePosterWidthDp.dp
+                },
+            )
+        } else {
+            GridCells.Fixed(columns)
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
+                columns = gridCells,
                 state = gridState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().then(scrollViewportModifier),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
+                    start = pageHorizontalPadding,
                     top = with(androidx.compose.ui.platform.LocalDensity.current) { headerHeightPx.toDp() } + 12.dp,
-                    end = 16.dp,
+                    end = pageHorizontalPadding,
                     bottom = nuvioSafeBottomPadding(28.dp),
                 ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -183,11 +224,22 @@ fun CatalogScreen(
             ) {
                 if (uiState.items.isEmpty() && uiState.isLoading) {
                     items(columns * 3) {
-                        SkeletonPoster(
-                            modifier = Modifier.fillMaxWidth(),
-                            cornerRadius = posterCardStyle.cornerRadiusDp.dp,
-                            showLabels = !posterCardStyle.hideLabelsEnabled,
-                        )
+                        if (isDesktop) {
+                            CatalogSkeletonTile(
+                                cornerRadiusDp = posterCardStyle.cornerRadiusDp,
+                                aspectRatio = if (posterCardStyle.catalogLandscapeModeEnabled) {
+                                    PosterLandscapeAspectRatio
+                                } else {
+                                    0.68f
+                                },
+                            )
+                        } else {
+                            SkeletonPoster(
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = posterCardStyle.cornerRadiusDp.dp,
+                                showLabels = !posterCardStyle.hideLabelsEnabled,
+                            )
+                        }
                     }
                 } else if (uiState.items.isEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -209,18 +261,29 @@ fun CatalogScreen(
                         key = { item -> item.lazyKey },
                     ) { keyedItem ->
                         val item = keyedItem.value
-                        CatalogPosterTile(
+                        val isWatched = WatchingState.isPosterWatched(
+                            watchedKeys = watchedUiState.watchedKeys,
                             item = item,
-                            cornerRadiusDp = posterCardStyle.cornerRadiusDp,
-                            hideLabels = posterCardStyle.hideLabelsEnabled,
-                            isWatched = WatchingState.isPosterWatched(
-                                watchedKeys = watchedUiState.watchedKeys,
-                                item = item,
-                                fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
-                            ),
-                            onClick = onPosterClick?.let { { it(item) } },
-                            onLongClick = onPosterLongClick?.let { { it(item) } },
+                            fullyWatchedSeriesKeys = fullyWatchedSeriesKeys,
                         )
+                        if (isDesktop) {
+                            HomePosterCard(
+                                item = item,
+                                useLandscapeBackdropMode = posterCardStyle.catalogLandscapeModeEnabled,
+                                isWatched = isWatched,
+                                onClick = onPosterClick?.let { { it(item) } },
+                                onLongClick = onPosterLongClick?.let { { it(item) } },
+                            )
+                        } else {
+                            CatalogPosterTile(
+                                item = item,
+                                cornerRadiusDp = posterCardStyle.cornerRadiusDp,
+                                hideLabels = posterCardStyle.hideLabelsEnabled,
+                                isWatched = isWatched,
+                                onClick = onPosterClick?.let { { it(item) } },
+                                onLongClick = onPosterLongClick?.let { { it(item) } },
+                            )
+                        }
                     }
                     if (uiState.isLoading) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -229,10 +292,18 @@ fun CatalogScreen(
                     }
                 }
             }
+            NuvioDesktopVerticalScrollbar(
+                state = gridState,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+            )
 
             CatalogHeader(
                 title = title,
                 subtitle = subtitle,
+                pageHorizontalPadding = pageHorizontalPadding,
                 modifier = Modifier.onSizeChanged { headerHeightPx = it.height },
                 onBack = onBack,
             )
@@ -244,6 +315,7 @@ fun CatalogScreen(
 private fun CatalogHeader(
     title: String,
     subtitle: String,
+    pageHorizontalPadding: Dp,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -261,13 +333,13 @@ private fun CatalogHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp)
-            .padding(top = 52.dp, bottom = 12.dp),
+            .then(if (isDesktop) Modifier.windowInsetsPadding(WindowInsets.statusBars) else Modifier)
+            .padding(horizontal = pageHorizontalPadding)
+            .padding(top = if (isDesktop) 32.dp else 52.dp, bottom = 12.dp),
     ) {
         NuvioBackButton(
             onClick = onBack,
-            modifier = Modifier
-                .size(40.dp),
+            modifier = Modifier.size(if (isDesktop) 48.dp else 40.dp),
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
             iconSize = 24.dp,
@@ -303,73 +375,121 @@ private fun CatalogPosterTile(
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    HomePosterHoverPreview(
+        item = item,
+        isWatched = isWatched,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(item.posterShape.catalogAspectRatio())
-                .clip(RoundedCornerShape(cornerRadiusDp.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .nuvioCardDepth(
-                    shape = RoundedCornerShape(cornerRadiusDp.dp),
-                    surface = NuvioCardDepthSurface.Posters,
-                )
-                .posterCardClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick,
-                    zoomImageUrl = item.poster,
-                    zoomCornerRadius = cornerRadiusDp.dp,
-                ),
+                .desktopPosterHoverScale()
+                .then(it),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (item.poster != null) {
-                val platformContext = coil3.compose.LocalPlatformContext.current
-                val hasFallback = !item.rawPosterUrl.isNullOrBlank() && item.rawPosterUrl != item.poster
-                val imageModel = remember(item.poster, item.rawPosterUrl, platformContext) {
-                    if (hasFallback) {
-                        coil3.request.ImageRequest.Builder(platformContext)
-                            .data(item.poster)
-                            .memoryCacheKeyExtras(
-                                mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to item.rawPosterUrl!!)
-                            )
-                            .build()
-                    } else {
-                        item.poster
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(item.posterShape.catalogAspectRatio())
+                    .clip(RoundedCornerShape(cornerRadiusDp.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .nuvioCardDepth(
+                        shape = RoundedCornerShape(cornerRadiusDp.dp),
+                        surface = NuvioCardDepthSurface.Posters,
+                    )
+                    .posterCardClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                        zoomImageUrl = item.poster,
+                        zoomCornerRadius = cornerRadiusDp.dp,
+                        hoverScaleEnabled = false,
+                    ),
+            ) {
+                if (item.poster != null) {
+                    val platformContext = coil3.compose.LocalPlatformContext.current
+                    val hasFallback = !item.rawPosterUrl.isNullOrBlank() && item.rawPosterUrl != item.poster
+                    val imageModel = remember(item.poster, item.rawPosterUrl, platformContext) {
+                        if (hasFallback) {
+                            coil3.request.ImageRequest.Builder(platformContext)
+                                .data(item.poster)
+                                .memoryCacheKeyExtras(
+                                    mapOf(com.nuvio.app.core.poster.CustomPosterFallbackInterceptor.FALLBACK_URL_KEY to item.rawPosterUrl!!)
+                                )
+                                .build()
+                        } else {
+                            item.poster
+                        }
                     }
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = item.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        desktopAnimation = rememberAnimatedArtworkAnimation(),
+                    )
                 }
-                AsyncImage(
-                    model = imageModel,
-                    contentDescription = item.name,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
+                NuvioPosterWatchedOverlay(isWatched = isWatched)
             }
-            NuvioPosterWatchedOverlay(isWatched = isWatched)
-        }
-        if (!hideLabels) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val detail = item.releaseInfo?.let { formatReleaseDateForDisplay(it) }
-            if (detail != null) {
+            if (!hideLabels) {
                 Text(
-                    text = detail,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    text = item.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-            } else {
-                Spacer(modifier = Modifier.height(8.dp))
+                val detail = item.releaseInfo?.let { formatReleaseDateForDisplay(it) }
+                if (detail != null) {
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
     }
 }
+
+@Composable
+private fun CatalogSkeletonTile(cornerRadiusDp: Int) {
+    CatalogSkeletonTile(cornerRadiusDp = cornerRadiusDp, aspectRatio = 0.68f)
+}
+
+@Composable
+private fun CatalogSkeletonTile(
+    cornerRadiusDp: Int,
+    aspectRatio: Float,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(aspectRatio)
+            .clip(RoundedCornerShape(cornerRadiusDp.dp))
+            .background(MaterialTheme.colorScheme.surface),
+    )
+}
+
+private fun PosterShape.catalogAspectRatio(): Float =
+    when (this) {
+        PosterShape.Poster -> 0.68f
+        PosterShape.Square -> 1f
+        PosterShape.Landscape -> 1.78f
+    }
+
+private fun catalogGridColumnsForWidth(screenWidth: Dp): Int =
+    when {
+        screenWidth >= 1400.dp -> 7
+        screenWidth >= 1200.dp -> 6
+        screenWidth >= 1000.dp -> 5
+        screenWidth >= 840.dp -> 4
+        else -> 3
+    }
 
 @Composable
 private fun CatalogEmptyState(
@@ -412,19 +532,3 @@ private fun CatalogLoadingFooter() {
         )
     }
 }
-
-private fun PosterShape.catalogAspectRatio(): Float =
-    when (this) {
-        PosterShape.Poster -> 0.68f
-        PosterShape.Square -> 1f
-        PosterShape.Landscape -> 1.78f
-    }
-
-private fun catalogGridColumnsForWidth(screenWidth: Dp): Int =
-    when {
-        screenWidth >= 1400.dp -> 7
-        screenWidth >= 1200.dp -> 6
-        screenWidth >= 1000.dp -> 5
-        screenWidth >= 840.dp -> 4
-        else -> 3
-    }

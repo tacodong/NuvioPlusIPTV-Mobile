@@ -14,6 +14,7 @@ internal fun LazyListScope.settingsRootContent(
     onPageClick: (SettingsPage) -> Unit,
     onSwitchProfileClick: (() -> Unit)? = null,
     onWatchPartyClick: (() -> Unit)? = null,
+    showNotificationsEntry: Boolean = true,
     category: SettingsCategory? = null,
 ) {
     SettingsCategory.entries.filter { category == null || it == category }.forEach { group ->
@@ -101,13 +102,15 @@ internal fun LazyListScope.settingsRootContent(
                         )
                     }
                     SettingsCategory.System -> {
-                        SettingsPageRow(
-                            page = SettingsPage.Notifications,
-                            description = Res.string.compose_settings_root_notifications_description,
-                            isTablet = isTablet,
-                            onPageClick = onPageClick,
-                        )
-                        SettingsGroupDivider(isTablet = isTablet)
+                        if (showNotificationsEntry) {
+                            SettingsPageRow(
+                                page = SettingsPage.Notifications,
+                                description = Res.string.compose_settings_root_notifications_description,
+                                isTablet = isTablet,
+                                onPageClick = onPageClick,
+                            )
+                            SettingsGroupDivider(isTablet = isTablet)
+                        }
                         SettingsPageRow(
                             page = SettingsPage.Advanced,
                             description = Res.string.compose_settings_root_advanced_description,

@@ -28,12 +28,13 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioScreen
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.features.cloud.PremiumizeCloudLibraryPosterUrl
 import com.nuvio.app.features.cloud.TorboxCloudLibraryPosterUrl
 import com.nuvio.app.features.cloud.cloudLibraryDisplayArtworkUrl
+import com.nuvio.app.isDesktop
 import com.nuvio.app.isIos
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
@@ -48,6 +49,8 @@ private const val TorboxUrl = "https://torbox.app"
 private const val MdbListUrl = "https://mdblist.com"
 private const val IntroDbUrl = "https://introdb.app/"
 private const val NuvioRepositoryUrl = "https://github.com/homelessbrian/NuvioPlusIPTV-Mobile"
+private const val DesktopRepositoryUrl = "https://github.com/NuvioMedia/NuvioDesktop"
+private const val MpvUrl = "https://github.com/mpv-player/mpv"
 private const val MpvKitUrl = "https://github.com/mpvkit/MPVKit"
 private const val ApacheLicenseUrl = "https://www.apache.org/licenses/LICENSE-2.0"
 private const val HazeLicenseUrl = "https://github.com/chrisbanes/haze/blob/1.7.2/LICENSE"
@@ -60,7 +63,7 @@ private data class AttributionItem(
     val link: String,
 )
 
-private data class LicenseItem(
+internal data class LicenseItem(
     val titleRes: StringResource,
     val bodyRes: StringResource,
     val licenseRes: StringResource,
@@ -387,24 +390,29 @@ private fun attributionItems(): List<AttributionItem> = listOf(
     ),
 )
 
-private fun appLicenseItem(): LicenseItem =
+internal fun appLicenseItem(): LicenseItem =
     LicenseItem(
-        titleRes = Res.string.settings_licenses_attributions_nuvio_title,
+        titleRes = if (isDesktop) Res.string.app_brand_name else Res.string.settings_licenses_attributions_nuvio_title,
         bodyRes = Res.string.settings_licenses_attributions_nuvio_body,
         licenseRes = Res.string.settings_licenses_attributions_nuvio_license,
-        link = NuvioRepositoryUrl,
+        link = if (isDesktop) DesktopRepositoryUrl else NuvioRepositoryUrl,
     )
 
-private fun platformLicenseItem(): LicenseItem =
-    if (isIos) {
-        LicenseItem(
+internal fun platformLicenseItem(): LicenseItem =
+    when {
+        isDesktop -> LicenseItem(
+            titleRes = Res.string.settings_licenses_attributions_mpv_title,
+            bodyRes = Res.string.settings_licenses_attributions_mpv_body,
+            licenseRes = Res.string.settings_licenses_attributions_mpv_license,
+            link = MpvUrl,
+        )
+        isIos -> LicenseItem(
             titleRes = Res.string.settings_licenses_attributions_mpvkit_title,
             bodyRes = Res.string.settings_licenses_attributions_mpvkit_body,
             licenseRes = Res.string.settings_licenses_attributions_mpvkit_license,
             link = MpvKitUrl,
         )
-    } else {
-        LicenseItem(
+        else -> LicenseItem(
             titleRes = Res.string.settings_licenses_attributions_exoplayer_title,
             bodyRes = Res.string.settings_licenses_attributions_exoplayer_body,
             licenseRes = Res.string.settings_licenses_attributions_exoplayer_license,

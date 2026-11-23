@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.core.ui.nuvioDesktopDragScroll
 import com.nuvio.app.core.ui.nuvioHorizontalScrollBleed
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.MetaExternalRating
 import com.nuvio.app.features.details.formatRuntimeForDisplay
@@ -193,12 +195,15 @@ internal fun DetailRatingsRow(
     modifier: Modifier = Modifier,
     horizontalScrollPadding: Dp = 0.dp,
 ) {
+    val scrollState = rememberScrollState()
+
     RatingsRow(
         ratings = ratings,
         modifier = modifier
             .nuvioHorizontalScrollBleed(horizontalScrollPadding)
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            .nuvioDesktopDragScroll(scrollState)
+            .horizontalScroll(scrollState)
             .padding(horizontal = horizontalScrollPadding),
     )
 }
@@ -256,7 +261,10 @@ internal fun RatingsRow(
 }
 
 @Composable
-internal fun ImdbRatingSourceLabel(storeTextStyle: TextStyle) {
+internal fun ImdbRatingSourceLabel(
+    storeTextStyle: TextStyle,
+    storeTextColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     if (AppFeaturePolicy.imdbRatingLogoEnabled) {
         Image(
             painter = painterResource(Res.drawable.rating_imdb),
@@ -267,7 +275,7 @@ internal fun ImdbRatingSourceLabel(storeTextStyle: TextStyle) {
         Text(
             text = stringResource(Res.string.source_imdb),
             style = storeTextStyle,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = storeTextColor,
             maxLines = 1,
         )
     }

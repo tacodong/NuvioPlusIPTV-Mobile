@@ -25,9 +25,14 @@ import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamRequest
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.p2p.P2pStreamingState
+import com.nuvio.app.features.player.skip.AutoSkipSegmentType
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
 import com.nuvio.app.features.player.skip.SkipIntroRepository
+import com.nuvio.app.features.player.skip.SkipIntervalLookup
+import com.nuvio.app.features.player.skip.autoSkipKey
+import com.nuvio.app.features.player.skip.autoSkipKeysCompletedBy
+import com.nuvio.app.features.player.skip.resolveSkipIntervalLookup
 import com.nuvio.app.features.player.skip.segmentCategory
 import com.nuvio.app.features.player.skip.shouldAutoSkip
 import com.nuvio.app.features.player.skip.internalSkipAction
@@ -43,6 +48,7 @@ import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.hasLikelyExpiringPlaybackCredentials
 import com.nuvio.app.features.tracking.TrackingScrobbleAction
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.isDesktop
 import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
 import kotlinx.coroutines.CancellationException
@@ -257,8 +263,8 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
         subtitleAutoSyncState = SubtitleAutoSyncUiState()
     }
 
-    LaunchedEffect(playerController, subtitleStyle) {
-        playerController?.applySubtitleStyle(subtitleStyle)
+    LaunchedEffect(playerController, subtitleStyle, playerSettingsUiState.useLibass) {
+        playerController?.applySubtitleStyle(subtitleStyle, playerSettingsUiState.useLibass)
     }
 
     val subtitlePreferenceKey = listOf(
@@ -425,6 +431,10 @@ internal fun PlayerScreenRuntime.BindPlayerRuntimeEffects() {
             else -> 0L
         }
         if (targetPositionMs <= 0L) {
+            initialSeekApplied = true
+            return@LaunchedEffect
+        }
+        if (isDesktop && activeInitialPositionMs > 0L) {
             initialSeekApplied = true
             return@LaunchedEffect
         }
@@ -641,8 +651,14 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
     }
 
     LaunchedEffect(
-        activeVideoId, parentMetaId, parentMetaType, contentType, activeSeasonNumber, activeEpisodeNumber,
-        playerSettingsUiState.skipIntroEnabled, networkCondition,
+        activeVideoId,
+        activeSeasonNumber,
+        activeEpisodeNumber,
+        parentMetaId,
+        parentMetaType,
+        contentType,
+        playerSettingsUiState.skipIntroEnabled,
+        networkCondition,
     ) {
         skipIntervals = emptyList()
         apiSkipIntervals = emptyList()
@@ -651,45 +667,54 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         lastManualSkipSeekPositions = null
         activeSkipInterval = null
         skipIntervalDismissed = false
+        autoSkippedIntervalKeys.clear()
+        playerNotificationMessage = ""
         showNextEpisodeCard = false
         nextEpisodeCardDismissed = false
         cancelNextEpisodeAutoPlay()
 
-        val season = activeSeasonNumber
-        val episode = activeEpisodeNumber
-        val vid = activeVideoId
         if (!playerSettingsUiState.skipIntroEnabled) return@LaunchedEffect
+
         if ((contentType ?: parentMetaType).equals("movie", ignoreCase = true)) {
-            val api = SkipIntroRepository.getMovieSkipIntervals(parentMetaId, vid)
+            val api = SkipIntroRepository.getMovieSkipIntervals(parentMetaId, activeVideoId)
             apiSkipIntervals = api
             recomputeMergedSkipIntervals()
             return@LaunchedEffect
         }
-        if (season == null || episode == null || vid == null) return@LaunchedEffect
-        // Skip intervals come from remote providers: pointless to look them up without a network.
+
+        val lookup = resolveSkipIntervalLookup(
+            videoId = activeVideoId,
+            season = activeSeasonNumber,
+            episode = activeEpisodeNumber,
+        ) ?: return@LaunchedEffect
         if (isNetworkOffline()) return@LaunchedEffect
 
         launch {
-            // Bounded so a slow provider never stalls the player.
             val intervals = withTimeoutOrNull(SKIP_INTERVAL_RESOLVE_TIMEOUT_MS) {
                 val imdbFromContent = parentMetaId.takeIf { it.startsWith("tt") }
                     ?: (metaUiState.meta ?: playerMeta)
                         ?.takeIf { it.id == parentMetaId }
                         ?.imdbId
                         ?.takeIf { it.startsWith("tt") }
-                when {
-                    vid.startsWith("mal:") -> {
-                        val malId = vid.removePrefix("mal:").substringBefore(':')
-                        SkipIntroRepository.getSkipIntervalsForMal(malId = malId, episode = episode, imdbId = imdbFromContent, imdbSeason = season, imdbEpisode = episode)
-                    }
-                    vid.startsWith("kitsu:") -> {
-                        val kitsuId = vid.removePrefix("kitsu:").substringBefore(':')
-                        SkipIntroRepository.getSkipIntervalsForKitsu(kitsuId = kitsuId, episode = episode, imdbId = imdbFromContent, imdbSeason = season, imdbEpisode = episode)
-                    }
-                    else -> SkipIntroRepository.getSkipIntervals(
-                        imdbId = vid.substringBefore(':').takeIf { it.startsWith("tt") },
-                        season = season,
-                        episode = episode,
+                when (lookup) {
+                    is SkipIntervalLookup.Imdb -> SkipIntroRepository.getSkipIntervals(
+                        imdbId = lookup.imdbId,
+                        season = lookup.season,
+                        episode = lookup.episode,
+                    )
+                    is SkipIntervalLookup.Mal -> SkipIntroRepository.getSkipIntervalsForMal(
+                        malId = lookup.malId,
+                        episode = lookup.episode,
+                        imdbId = imdbFromContent,
+                        imdbSeason = activeSeasonNumber,
+                        imdbEpisode = activeEpisodeNumber ?: lookup.episode,
+                    )
+                    is SkipIntervalLookup.Kitsu -> SkipIntroRepository.getSkipIntervalsForKitsu(
+                        kitsuId = lookup.kitsuId,
+                        episode = lookup.episode,
+                        imdbId = imdbFromContent,
+                        imdbSeason = activeSeasonNumber,
+                        imdbEpisode = activeEpisodeNumber ?: lookup.episode,
                     )
                 }
             }
@@ -699,16 +724,38 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
     }
 
     LaunchedEffect(
-        playbackSnapshot.positionMs, playbackSnapshot.durationMs, playbackSnapshot.isPlaying, skipIntervals,
+        playbackSnapshot.positionMs,
+        playbackSnapshot.isLoading,
+        skipIntervals,
         playerSettingsUiState.autoSkipSegmentTypes,
-        playerSettingsUiState.skipIntroEnabled, isScrubbingTimeline, initialSeekApplied,
+        playerController,
+        initialLoadCompleted,
+        activeInitialPositionMs,
+        activeInitialProgressFraction,
+        playbackSnapshot.durationMs,
+        playbackSnapshot.isPlaying,
+        playerSettingsUiState.skipIntroEnabled,
+        isScrubbingTimeline,
+        initialSeekApplied,
         lastManualSkipSeekPositions,
+        playerControllerSourceUrl,
+        activeSourceUrl,
     ) {
         recomputeChapterSkipIntervalsIfNeeded()
         if (skipIntervals.isEmpty()) {
             activeSkipInterval = null
             return@LaunchedEffect
         }
+        val initialProgressFraction = activeInitialProgressFraction
+        val initialPlaybackPositionMs = when {
+            activeInitialPositionMs > 0L -> activeInitialPositionMs
+            initialProgressFraction != null && playbackSnapshot.durationMs > 0L -> {
+                val fraction = initialProgressFraction.coerceIn(0f, 1f)
+                (playbackSnapshot.durationMs.toDouble() * fraction.toDouble()).toLong()
+            }
+            else -> 0L
+        }
+        autoSkippedIntervalKeys += skipIntervals.autoSkipKeysCompletedBy(initialPlaybackPositionMs)
         val positionSec = playbackSnapshot.positionMs / 1000.0
         lastManualSkipSeekPositions?.let { (fromMs, toMs) ->
             autoSkippedIntervals += skipIntervals.intervalsAtSeekPositions(fromMs, toMs)
@@ -741,24 +788,43 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
                 }
             }
         }
-        val controller = playerController
-        if (current != null && controller != null &&
-            playerControllerSourceUrl == activeSourceUrl &&
-            playerSettingsUiState.skipIntroEnabled && playbackSnapshot.isPlaying &&
-            !isScrubbingTimeline && initialSeekApplied && !isPartyControlLocked &&
-            current.shouldAutoSkip(playerSettingsUiState.autoSkipSegmentTypes) &&
-            current !in autoSkippedIntervals
-        ) {
-            val durationMs = playbackSnapshot.durationMs
-            val rawMs = current.internalSkipAction(skipIntervals, durationMs)?.targetMs ?: return@LaunchedEffect
-            val seekPositionMs = if (durationMs > 0L) rawMs.coerceAtMost(durationMs - 1) else rawMs
-            val notification = current.autoSkipNotificationMessage(seekPositionMs)
-            autoSkippedIntervals.add(current)
-            controller.seekTo(seekPositionMs)
-            scheduleProgressSyncAfterSeek()
-            publishPartyPlayback(positionMs = seekPositionMs)
-            skipIntervalDismissed = true
-            notification?.let { NuvioToastController.show(it, AUTO_SKIP_NOTIFICATION_DURATION_MS) }
+        if (current != null) {
+            val segmentType = AutoSkipSegmentType.fromSkipIntervalType(current.type)
+            val intervalKey = current.autoSkipKey()
+            val controller = playerController
+            if (
+                playerControllerSourceUrl == activeSourceUrl &&
+                playerSettingsUiState.skipIntroEnabled &&
+                playbackSnapshot.isPlaying &&
+                !isScrubbingTimeline && initialSeekApplied && !isPartyControlLocked &&
+                current.shouldAutoSkip(playerSettingsUiState.autoSkipSegmentTypes) &&
+                current !in autoSkippedIntervals &&
+                initialLoadCompleted &&
+                !playbackSnapshot.isLoading &&
+                controller != null &&
+                segmentType != null &&
+                segmentType in playerSettingsUiState.autoSkipSegmentTypes &&
+                intervalKey !in autoSkippedIntervalKeys
+            ) {
+                val durationMs = playbackSnapshot.durationMs
+                val rawMs = current.internalSkipAction(skipIntervals, durationMs)?.targetMs ?: return@LaunchedEffect
+                val seekPositionMs = if (durationMs > 0L) rawMs.coerceAtMost(durationMs - 1) else rawMs
+                val notification = current.autoSkipNotificationMessage(seekPositionMs)
+                if (!controller.trySeekTo(seekPositionMs)) return@LaunchedEffect
+                autoSkippedIntervalKeys.add(intervalKey)
+                autoSkippedIntervals.add(current)
+                scheduleProgressSyncAfterSeek()
+                publishPartyPlayback(positionMs = seekPositionMs)
+                skipIntervalDismissed = true
+                notification?.let {
+                    if (isDesktop) {
+                        playerNotificationMessage = it
+                        playerNotificationToken += 1L
+                    } else {
+                        NuvioToastController.show(it, AUTO_SKIP_NOTIFICATION_DURATION_MS)
+                    }
+                }
+            }
         }
     }
 

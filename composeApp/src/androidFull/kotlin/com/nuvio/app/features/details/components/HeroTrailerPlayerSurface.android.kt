@@ -45,6 +45,8 @@ actual fun HeroTrailerPlayerSurface(
     sourceAudioUrl: String?,
     playWhenReady: Boolean,
     muted: Boolean,
+    startPositionMillis: Long,
+    fillFrame: Boolean,
     modifier: Modifier,
     onReady: () -> Unit,
     onEnded: () -> Unit,
@@ -56,7 +58,9 @@ actual fun HeroTrailerPlayerSurface(
     val latestOnReady = rememberUpdatedState(onReady)
     val latestOnEnded = rememberUpdatedState(onEnded)
     val latestOnError = rememberUpdatedState(onError)
-    var playerContainer by remember { mutableStateOf<HeroTrailerTextureContainer?>(null) }
+    var playerContainer by remember(fillFrame) {
+        mutableStateOf<HeroTrailerTextureContainer?>(null)
+    }
 
     val dataSourceFactory = remember(context) {
         PlatformPlaybackDataSourceFactory.create(
@@ -66,7 +70,7 @@ actual fun HeroTrailerPlayerSurface(
             useYoutubeChunkedPlayback = true,
         )
     }
-    val exoPlayer = remember(sourceUrl, sourceAudioUrl, dataSourceFactory) {
+    val exoPlayer = remember(sourceUrl, sourceAudioUrl, startPositionMillis, dataSourceFactory) {
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -84,6 +88,9 @@ actual fun HeroTrailerPlayerSurface(
                 }
                 repeatMode = Player.REPEAT_MODE_OFF
                 volume = if (muted) 0f else 1f
+                if (startPositionMillis > 0L) {
+                    seekTo(startPositionMillis)
+                }
                 prepare()
             }
     }
@@ -210,7 +217,7 @@ actual fun HeroTrailerPlayerSurface(
                 scaleY = letterboxZoomState.value
             },
         factory = { viewContext ->
-            HeroTrailerTextureContainer(viewContext).apply {
+            HeroTrailerTextureContainer(viewContext, fillFrame).apply {
                 layoutParams = android.view.ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
                 attachPlayer(exoPlayer)
                 playerContainer = this
@@ -227,6 +234,7 @@ actual fun HeroTrailerPlayerSurface(
 
 private class HeroTrailerTextureContainer(
     context: Context,
+    private val fillFrame: Boolean,
 ) : FrameLayout(context) {
     val textureView = TextureView(context)
     private val textureTransform = Matrix()
@@ -277,7 +285,10 @@ private class HeroTrailerTextureContainer(
 
         val viewAspectRatio = viewWidth / viewHeight
         textureTransform.reset()
-        if (viewAspectRatio > videoAspectRatio) {
+        if (fillFrame) {
+            textureView.setTransform(textureTransform)
+            return
+        } else if (viewAspectRatio > videoAspectRatio) {
             val scaleY = viewAspectRatio / videoAspectRatio
             textureTransform.setScale(1f, scaleY, viewWidth / 2f, viewHeight / 2f)
         } else {

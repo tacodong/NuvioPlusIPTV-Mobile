@@ -75,4 +75,35 @@ internal object VersionUtils {
         val localVersion = parse(local) ?: return false
         return remoteVersion > localVersion
     }
+
+    // Desktop historically compares numeric version components and falls back to
+    // treating a changed, non-empty release label as a new release.
+    fun isRemoteNewerLegacy(remote: String?, local: String?): Boolean {
+        val remoteParts = parseLegacyVersionParts(remote)
+        val localParts = parseLegacyVersionParts(local)
+
+        if (remoteParts == null || localParts == null) {
+            val remoteValue = normalize(remote)
+            val localValue = normalize(local)
+            return remoteValue.isNotBlank() && localValue.isNotBlank() && remoteValue != localValue
+        }
+
+        val maxSize = maxOf(remoteParts.size, localParts.size)
+        for (index in 0 until maxSize) {
+            val remoteValue = remoteParts.getOrElse(index) { 0 }
+            val localValue = localParts.getOrElse(index) { 0 }
+            if (remoteValue != localValue) return remoteValue > localValue
+        }
+        return false
+    }
+
+    private fun parseLegacyVersionParts(raw: String?): List<Int>? {
+        val normalized = normalize(raw)
+        if (normalized.isBlank()) return null
+
+        val parts = normalized.split('.', '-', '_')
+            .filter { it.isNotBlank() }
+            .mapNotNull { token -> token.takeWhile(Char::isDigit).toIntOrNull() }
+        return parts.takeIf { it.isNotEmpty() }
+    }
 }

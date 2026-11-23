@@ -1,6 +1,7 @@
 package com.nuvio.app.core.sync
 
 import co.touchlab.kermit.Logger
+import com.nuvio.app.isDesktop
 import com.nuvio.app.core.auth.AuthRepository
 import com.nuvio.app.core.auth.AuthState
 import com.nuvio.app.core.network.SupabaseProvider
@@ -61,7 +62,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
-private const val PUSH_DEBOUNCE_MS = 1500L
+private const val PUSH_DEBOUNCE_MS = 500L
 
 object ProfileSettingsSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -82,6 +83,9 @@ object ProfileSettingsSync {
     private var skipNextPushSignature: String? = null
 
     private var observeJob: Job? = null
+
+    private val profileSettingsPlatform: String
+        get() = if (isDesktop) DESKTOP_SYNC_PLATFORM else MOBILE_SYNC_PLATFORM
 
     fun startObserving() {
         if (observeJob?.isActive == true) return
@@ -120,7 +124,7 @@ object ProfileSettingsSync {
 
                 val params = buildJsonObject {
                     put("p_profile_id", profileId)
-                    put("p_platform", MOBILE_SYNC_PLATFORM)
+                    put("p_platform", profileSettingsPlatform)
                 }
                 val result = SupabaseProvider.client.postgrest.rpc("sync_pull_profile_settings_blob", params)
                 if (ProfileRepository.activeProfileId != profileId) return@withLock false
@@ -186,6 +190,7 @@ object ProfileSettingsSync {
             ThemeSettingsRepository.customThemePreference.map { "custom_theme_colors" },
             ThemeSettingsRepository.amoledEnabled.map { "amoled" },
             ThemeSettingsRepository.liquidGlassNativeTabBarEnabled.map { "liquid_glass_tab_bar" },
+            ThemeSettingsRepository.desktopNavigationLayout.map { "desktop_navigation_layout" },
             ThemeSettingsRepository.navBarGlowEnabled.map { "nav_bar_glow_enabled" },
             ThemeSettingsRepository.navBarStyle.map { "nav_bar_style" },
             PosterCardStyleRepository.uiState.map { "poster_card_style" },
@@ -227,7 +232,7 @@ object ProfileSettingsSync {
     private suspend fun pushToRemoteLocked(profileId: Int, blob: MobileProfileSettingsBlob) {
         val params = buildJsonObject {
             put("p_profile_id", profileId)
-            put("p_platform", MOBILE_SYNC_PLATFORM)
+            put("p_platform", profileSettingsPlatform)
             put("p_settings_json", json.encodeToJsonElement(MobileProfileSettingsBlob.serializer(), blob))
             putSyncOriginClientId()
         }
@@ -375,7 +380,29 @@ object ProfileSettingsSync {
     private fun buildSignature(blob: MobileProfileSettingsBlob): String =
         json.encodeToString(MobileProfileSettingsBlob.serializer(), blob)
 
-    private fun currentObservedStateSignature(): String = buildSignature(exportSettingsBlob())
+    private fun currentObservedStateSignature(): String = listOf(
+        "theme=${ThemeSettingsRepository.selectedThemePreference.value?.name}",
+        "custom_theme_colors=${ThemeSettingsRepository.customThemePreference.value}",
+        "amoled=${ThemeSettingsRepository.amoledEnabled.value}",
+        "liquid_glass_tab_bar=${ThemeSettingsRepository.liquidGlassNativeTabBarEnabled.value}",
+        "desktop_navigation_layout=${ThemeSettingsRepository.desktopNavigationLayout.value.name}",
+        "nav_bar_glow_enabled=${ThemeSettingsRepository.navBarGlowEnabled.value}",
+        "nav_bar_style=${ThemeSettingsRepository.navBarStyle.value.key}",
+        "poster_card_style=${PosterCardStyleRepository.uiState.value}",
+        "custom_poster_url=${CustomPosterUrlRepository.pattern.value}",
+        "card_depth_style=${CardDepthStyleRepository.uiState.value}",
+        "player=${PlayerSettingsRepository.uiState.value}",
+        "stream_badges=${StreamBadgeSettingsRepository.uiState.value}",
+        "debrid=${DebridSettingsRepository.uiState.value}",
+        "tmdb=${TmdbSettingsRepository.uiState.value}",
+        "mdblist=${MdbListSettingsRepository.uiState.value}",
+        "meta=${MetaScreenSettingsRepository.uiState.value}",
+        "collection_mobile_settings=${CollectionMobileSettingsRepository.uiState.value}",
+        "continue=${ContinueWatchingPreferencesRepository.uiState.value}",
+        "trakt_settings=${TrackingSettingsRepository.uiState.value}",
+        "trakt_comments=${TraktCommentsSettings.enabled.value}",
+        "episode_release_alerts=${EpisodeReleaseNotificationsRepository.uiState.value.isEnabled}",
+    ).joinToString(separator = "||")
 
 }
 

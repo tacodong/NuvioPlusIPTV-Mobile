@@ -27,8 +27,10 @@ import com.nuvio.app.core.ui.NuvioCardDepthSurface
 import com.nuvio.app.core.ui.LocalScreenActive
 import com.nuvio.app.core.ui.NuvioShelfSection
 import com.nuvio.app.core.ui.PosterLandscapeAspectRatio
+import com.nuvio.app.core.ui.desktopCatalogShelfPosterBaseWidthDp
 import com.nuvio.app.core.ui.landscapePosterWidth
 import com.nuvio.app.core.ui.nuvioCardDepth
+import com.nuvio.app.core.ui.nuvioFocusBorder
 import com.nuvio.app.core.ui.posterCardClickable
 import com.nuvio.app.core.ui.rememberPosterCardStyleUiState
 import com.nuvio.app.features.collection.Collection
@@ -98,6 +100,7 @@ private fun CollectionFolderCard(
     onClick: (() -> Unit)? = null,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
+    val basePosterWidthDp = desktopCatalogShelfPosterBaseWidthDp(posterCardStyle.widthDp)
     val isLandscapeMode = posterCardStyle.catalogLandscapeModeEnabled
     val shape = if (isLandscapeMode) PosterShape.Landscape else folder.posterShape
     val cardWidth: Dp
@@ -105,24 +108,28 @@ private fun CollectionFolderCard(
 
     when (shape) {
         PosterShape.Poster -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = basePosterWidthDp.dp
             aspectRatio = 0.675f
         }
         PosterShape.Landscape -> {
-            cardWidth = landscapePosterWidth(posterCardStyle.widthDp)
+            cardWidth = landscapePosterWidth(basePosterWidthDp)
             aspectRatio = PosterLandscapeAspectRatio
         }
         PosterShape.Square -> {
-            cardWidth = posterCardStyle.widthDp.dp
+            cardWidth = basePosterWidthDp.dp
             aspectRatio = 1f
         }
     }
 
+    val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
     Column(
-        modifier = modifier.width(cardWidth),
+        modifier = Modifier
+            .nuvioFocusBorder(shapeCorner)
+            .posterCardClickable(onClick = onClick, onLongClick = null)
+            .then(modifier)
+            .width(cardWidth),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val shapeCorner = RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
         val imageUrl = collectionFolderCardImageUrl(folder)
         Card(
             modifier = Modifier
@@ -148,6 +155,7 @@ private fun CollectionFolderCard(
                     !imageUrl.isNullOrBlank() -> {
                         CollectionCardRemoteImage(
                             imageUrl = imageUrl,
+                            staticImageUrl = firstNonBlank(folder.coverImageUrl),
                             contentDescription = folder.title,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
@@ -172,13 +180,6 @@ private fun CollectionFolderCard(
                     }
                 }
 
-                if (onClick != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .posterCardClickable(onClick = onClick, onLongClick = null),
-                    )
-                }
             }
         }
 
