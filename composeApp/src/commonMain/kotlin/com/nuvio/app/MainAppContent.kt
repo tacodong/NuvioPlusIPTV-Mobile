@@ -38,6 +38,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.nuvio.app.core.ui.onDesktopMouseBack
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -230,9 +231,6 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.input.pointer.PointerButton
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import com.nuvio.app.core.ui.AppPresenceState
 import com.nuvio.app.core.ui.PresenceSnapshot
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -1564,25 +1562,7 @@ internal fun MainAppContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.nuvio.colors.background)
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.type == PointerEventType.Press) {
-                                    if (!event.changes.any { it.isConsumed }) {
-                                        if (event.button == PointerButton.Back) {
-                                            event.changes.forEach { it.consume() }
-                                            if (isDesktop) {
-                                                mouseBackInput.backCompleted()
-                                            } else {
-                                                navController.popBackStack()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    .onDesktopMouseBack { mouseBackInput.backCompleted() },
             ) {
             Box(
                 modifier = Modifier

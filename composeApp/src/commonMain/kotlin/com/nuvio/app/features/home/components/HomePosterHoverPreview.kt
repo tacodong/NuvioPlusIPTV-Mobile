@@ -50,13 +50,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import com.nuvio.app.core.ui.onDesktopScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -329,7 +328,7 @@ internal fun HomePosterHoverPreview(
                         modifier = Modifier
                             .platformTouchScroll()
                             .hoverable(previewInteractionSource)
-                            .onPointerEvent(PointerEventType.Scroll) {
+                            .onDesktopScroll {
                                 previewDismissedByScroll = true
                                 previewVisible = false
                                 popupMounted = false
