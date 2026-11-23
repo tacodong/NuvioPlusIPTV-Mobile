@@ -38,6 +38,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -122,6 +124,8 @@ import nuvio.composeapp.generated.resources.compose_nav_library
 import nuvio.composeapp.generated.resources.compose_nav_profile
 import nuvio.composeapp.generated.resources.compose_nav_search
 import nuvio.composeapp.generated.resources.compose_nav_settings
+import nuvio.composeapp.generated.resources.livetv_title
+import nuvio.composeapp.generated.resources.livetv_sports
 import nuvio.composeapp.generated.resources.compose_settings_page_root
 import nuvio.composeapp.generated.resources.sidebar_library
 import nuvio.composeapp.generated.resources.sidebar_search
@@ -789,6 +793,8 @@ internal fun AppLaunchOverlay(
 @Composable
 internal fun DesktopHoverSidebar(
     selectedTab: AppScreenTab,
+    showLiveTvTab: Boolean,
+    showSportsTab: Boolean,
     onTabSelected: (AppScreenTab) -> Unit,
     onProfileSelected: (NuvioProfile) -> Unit,
     onAddProfileRequested: () -> Unit,
@@ -837,7 +843,9 @@ internal fun DesktopHoverSidebar(
             } else {
                 0.dp
             }
-            val navColumnHeight = DesktopSidebarItemHeight * AppScreenTab.entries.size
+            val visibleTabs = AppScreenTab.entries.size -
+                (if (showLiveTvTab) 0 else 1) - (if (showSportsTab) 0 else 1)
+            val navColumnHeight = DesktopSidebarItemHeight * visibleTabs
             val centeredNavTop = ((maxHeight - navColumnHeight) / 2).coerceAtLeast(0.dp)
             val availableNavOffset = (maxHeight - navColumnHeight - centeredNavTop).coerceAtLeast(0.dp)
             val navColumnOffset = (minNavTop - centeredNavTop)
@@ -931,6 +939,30 @@ internal fun DesktopHoverSidebar(
                         modifier = Modifier.size(DesktopSidebarIconSize),
                         tint = color,
                     )
+                }
+                if (showLiveTvTab) {
+                    val label = stringResource(Res.string.livetv_title)
+                    DesktopSidebarItem(
+                        id = "sidebar_live_tv",
+                        label = label,
+                        selected = selectedTab == AppScreenTab.LiveTv,
+                        expanded = sidebarExpanded,
+                        onClick = { selectTab(AppScreenTab.LiveTv) },
+                    ) { color ->
+                        Icon(Icons.Filled.LiveTv, label, Modifier.size(DesktopSidebarIconSize), tint = color)
+                    }
+                }
+                if (showSportsTab) {
+                    val label = stringResource(Res.string.livetv_sports)
+                    DesktopSidebarItem(
+                        id = "sidebar_sports",
+                        label = label,
+                        selected = selectedTab == AppScreenTab.Sports,
+                        expanded = sidebarExpanded,
+                        onClick = { selectTab(AppScreenTab.Sports) },
+                    ) { color ->
+                        Icon(Icons.Filled.SportsSoccer, label, Modifier.size(DesktopSidebarIconSize), tint = color)
+                    }
                 }
                 DesktopSidebarItem(
                     id = "sidebar_settings",

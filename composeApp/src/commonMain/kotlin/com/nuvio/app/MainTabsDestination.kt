@@ -303,6 +303,8 @@ internal fun MainTabsDestination(
                 if (useDesktopSidebar) {
                     DesktopHoverSidebar(
                         selectedTab = selectedTab,
+                        showLiveTvTab = showLiveTvTab,
+                        showSportsTab = showSportsTab,
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
