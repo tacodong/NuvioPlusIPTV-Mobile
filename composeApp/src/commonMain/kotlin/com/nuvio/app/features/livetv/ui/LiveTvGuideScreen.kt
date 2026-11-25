@@ -211,7 +211,10 @@ fun LiveTvGuideScreen(
     fun pxPerMs(): Float = with(density) { hourWidth.toPx() } / HOUR_MS
     fun jumpToNow() {
         scope.launch {
-            val target = ((now - gridStart - 15 * 60_000L).coerceAtLeast(0) * pxPerMs()).toInt()
+            // Wide windows open on the current half-hour column, like a TV guide, so the time
+            // header and the programs on air now are not cut off at the left edge.
+            val offset = if (wide) (now - gridStart) - (now - gridStart).mod(SLOT_MS) else now - gridStart - 15 * 60_000L
+            val target = (offset.coerceAtLeast(0) * pxPerMs()).toInt()
             hScroll.animateScrollTo(target)
         }
     }
