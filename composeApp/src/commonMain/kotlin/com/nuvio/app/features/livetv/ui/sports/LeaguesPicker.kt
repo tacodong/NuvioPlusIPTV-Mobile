@@ -32,7 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtonStyle
 import com.nuvio.app.core.ui.NuvioInputField
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.features.livetv.ui.LiveTvAdaptiveSheet
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
@@ -94,7 +94,7 @@ internal fun LeaguesSheet(onDismiss: () -> Unit) {
     val top = remember(ordered) { ordered.filter { it.id in onWhenOpened } }
     val more = remember(ordered) { ordered.filter { it.id !in onWhenOpened } }
 
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8),
             verticalAlignment = Alignment.CenterVertically,

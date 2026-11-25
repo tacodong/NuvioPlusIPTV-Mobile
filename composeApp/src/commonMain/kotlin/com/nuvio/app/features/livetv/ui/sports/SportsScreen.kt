@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -404,7 +405,7 @@ private fun com.nuvio.app.features.livetv.sports.FollowedTeam.toTeamInfo() =
 private class LeagueGroup(val leagueId: String, val league: League?, val games: List<SportsEvent>)
 
 @Composable
-private fun AllEventsTab(
+internal fun AllEventsTab(
     events: List<SportsEvent>,
     follows: SportsFollows,
     settings: SportsSettings,
@@ -416,6 +417,7 @@ private fun AllEventsTab(
     onHighlights: (SportsEvent) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
+    val wide = com.nuvio.app.features.livetv.ui.isWideLiveTvWindow()
     val repo = SportsRepository
     var day by rememberSaveable { mutableIntStateOf(0) }
     var sportFilter by rememberSaveable { mutableStateOf<String?>(null) }
@@ -472,143 +474,177 @@ private fun AllEventsTab(
         if (pick != null || day != 0) emptyList() else liveOnChannels(sections.live, matches, now)
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (sports.isNotEmpty()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val columns = if (wide) sportsGameColumns(maxWidth - 32.dp) else 1
+        Column(Modifier.fillMaxSize()) {
+            if (sports.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = NuvioTokens.Space.s12, vertical = NuvioTokens.Space.s4),
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
+                ) {
+                    item { Chip("All", selected = sportFilter == null, onClick = { sportFilter = null; leaguePick = null }) }
+                    items(sports, key = { it.name }) { s ->
+                        Chip(s.icon + " " + s.label, selected = sportFilter == s.name, onClick = {
+                            if (sportFilter != s.name) leaguePick = null
+                            sportFilter = s.name
+                        })
+                    }
+                }
+            }
             LazyRow(
+                state = rememberLazyListState(initialFirstVisibleItemIndex = SportsRepository.DAYS_BACK - 1),
                 contentPadding = PaddingValues(horizontal = NuvioTokens.Space.s12, vertical = NuvioTokens.Space.s4),
                 horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
             ) {
-                item { Chip("All", selected = sportFilter == null, onClick = { sportFilter = null; leaguePick = null }) }
-                items(sports, key = { it.name }) { s ->
-                    Chip(s.icon + " " + s.label, selected = sportFilter == s.name, onClick = {
-                        if (sportFilter != s.name) leaguePick = null
-                        sportFilter = s.name
-                    })
-                }
-            }
-        }
-        LazyRow(
-            state = rememberLazyListState(initialFirstVisibleItemIndex = SportsRepository.DAYS_BACK - 1),
-            contentPadding = PaddingValues(horizontal = NuvioTokens.Space.s12, vertical = NuvioTokens.Space.s4),
-            horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
-        ) {
-            items((-SportsRepository.DAYS_BACK..SportsRepository.DAYS_AHEAD).toList(), key = { it }) { offset ->
-                val label = when (offset) {
-                    -1 -> "Yesterday"
-                    0 -> "Today"
-                    1 -> "Tomorrow"
-                    else -> SportsDates.shortDayLabel(repo.dayStart(offset) + 12 * 3_600_000L)
-                }
-                Chip(label, selected = day == offset, onClick = { day = offset })
-            }
-        }
-        if (sportLeagues.size > 1) {
-            Spacer(Modifier.height(NuvioTokens.Space.s4))
-            LeaguePickRow(sportLeagues, pick, onPick = { leaguePick = it })
-            Spacer(Modifier.height(NuvioTokens.Space.s4))
-        }
-        val empty = all.isEmpty()
-        val pickedLeague = pick?.let { id -> sportLeagues.firstOrNull { it.id == id } }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = NuvioTokens.Space.s16, end = NuvioTokens.Space.s16, top = NuvioTokens.Space.s8, bottom = nuvioSafeBottomPadding(NuvioTokens.Space.s16)),
-            verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
-        ) {
-            if (pickedLeague != null) {
-                // ---- one league picked: its games (or its next match day), with its table
-                val dayName = if (day == 0) "today" else if (day == 1) "tomorrow" else if (day == -1) "yesterday" else "on " + SportsDates.dayLabel(dayStart + 12 * 3_600_000L)
-                if (ready != null && page.nextDay != null) {
-                    item(key = "next-day") {
-                        NextMatchDayNote(
-                            "No ${pickedLeague.name} games $dayName",
-                            "Showing the next match day: " + SportsDates.dayLabel(repo.dayStart(page.nextDay) + 12 * 3_600_000L),
-                        )
+                items((-SportsRepository.DAYS_BACK..SportsRepository.DAYS_AHEAD).toList(), key = { it }) { offset ->
+                    val label = when (offset) {
+                        -1 -> "Yesterday"
+                        0 -> "Today"
+                        1 -> "Tomorrow"
+                        else -> SportsDates.shortDayLabel(repo.dayStart(offset) + 12 * 3_600_000L)
                     }
-                } else if (ready != null && page.noneAhead) {
-                    item(key = "none-ahead") { NextMatchDayNote("No ${pickedLeague.name} games $dayName or in the week ahead", null) }
+                    Chip(label, selected = day == offset, onClick = { day = offset })
                 }
-                item(key = "table") { LeagueTablePreview(pickedLeague, follows, settings.hideScores) { actions.onOpenLeague(pickedLeague) } }
-                if (all.isNotEmpty()) {
-                    item(key = "day-h") {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = NuvioTokens.Space.s4)) {
-                            val shownDay = page.nextDay ?: day
-                            Text(
-                                when (shownDay) { 0 -> "Today"; 1 -> "Tomorrow"; -1 -> "Yesterday"; else -> SportsDates.dayLabel(repo.dayStart(shownDay) + 12 * 3_600_000L) },
-                                style = MaterialTheme.typography.titleSmall, color = tokens.colors.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+            }
+            if (sportLeagues.size > 1) {
+                Spacer(Modifier.height(NuvioTokens.Space.s4))
+                LeaguePickRow(sportLeagues, pick, onPick = { leaguePick = it })
+                Spacer(Modifier.height(NuvioTokens.Space.s4))
+            }
+            val empty = all.isEmpty()
+            val pickedLeague = pick?.let { id -> sportLeagues.firstOrNull { it.id == id } }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = NuvioTokens.Space.s16, end = NuvioTokens.Space.s16, top = NuvioTokens.Space.s8, bottom = nuvioSafeBottomPadding(NuvioTokens.Space.s16)),
+                verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
+            ) {
+                if (pickedLeague != null) {
+                    // ---- one league picked: its games (or its next match day), with its table
+                    val dayName = if (day == 0) "today" else if (day == 1) "tomorrow" else if (day == -1) "yesterday" else "on " + SportsDates.dayLabel(dayStart + 12 * 3_600_000L)
+                    if (ready != null && page.nextDay != null) {
+                        item(key = "next-day") {
+                            NextMatchDayNote(
+                                "No ${pickedLeague.name} games $dayName",
+                                "Showing the next match day: " + SportsDates.dayLabel(repo.dayStart(page.nextDay) + 12 * 3_600_000L),
                             )
-                            Text("${all.size} game${if (all.size == 1) "" else "s"}", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
+                        }
+                    } else if (ready != null && page.noneAhead) {
+                        item(key = "none-ahead") { NextMatchDayNote("No ${pickedLeague.name} games $dayName or in the week ahead", null) }
+                    }
+                    item(key = "table") { LeagueTablePreview(pickedLeague, follows, settings.hideScores) { actions.onOpenLeague(pickedLeague) } }
+                    if (all.isNotEmpty()) {
+                        item(key = "day-h") {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = NuvioTokens.Space.s4)) {
+                                val shownDay = page.nextDay ?: day
+                                Text(
+                                    when (shownDay) { 0 -> "Today"; 1 -> "Tomorrow"; -1 -> "Yesterday"; else -> SportsDates.dayLabel(repo.dayStart(shownDay) + 12 * 3_600_000L) },
+                                    style = MaterialTheme.typography.titleSmall, color = tokens.colors.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                                )
+                                Text("${all.size} game${if (all.size == 1) "" else "s"}", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
+                            }
                         }
                     }
-                }
-                items(all, key = { "p/" + it.id }) { ev ->
-                    GameCard(
-                        ev, follows, now, use24h, settings.hideScores, channels = channelCount(ev, matches),
-                        showLeague = false, onHighlights = { onHighlights(ev) },
-                    ) { actions.onOpenGame(ev) }
-                }
-                if (ready == null || loading && all.isEmpty() && page.nextDay == null && !page.noneAhead) {
-                    item { Text("Getting the games…", style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, modifier = Modifier.padding(vertical = NuvioTokens.Space.s24)) }
-                }
-            } else {
-                // ---- the big card and live on your channels
-                if (heroes.isNotEmpty()) {
-                    item(key = "hero") { FeaturedGames(heroes, matches, follows, now, use24h, settings.hideScores, onOpen = actions.onOpenGame) }
-                }
-                if (liveItems.isNotEmpty()) {
-                    item(key = "live-row") { LiveOnChannelsRow(liveItems, now, use24h, settings.hideScores, actions) }
-                }
-                // ---- the leagues, folded
-                item(key = "leagues-h") {
-                    LeaguesHeading(
-                        settings, follows, showToggle = groups.size > 2, allOpen = defaultOpen && toggled.isEmpty(),
-                        onChoose = { choosingLeagues = true },
-                        onToggleAll = { wantOpen -> openAll = wantOpen; toggled = emptySet() },
-                    )
-                }
-                if (empty) {
-                    item {
-                        Text(
-                            when {
-                                ready == null || loading -> "Getting today's games…"
-                                else -> stringResource(Res.string.livetv_sports_nothing_today)
-                            },
-                            style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, modifier = Modifier.padding(vertical = NuvioTokens.Space.s24),
+                    if (wide) {
+                        sportsGameRows("p", all, columns) { ev, modifier ->
+                            GameCard(ev, follows, now, use24h, settings.hideScores, channelCount(ev, matches), modifier,
+                                showLeague = false, onHighlights = { onHighlights(ev) }) { actions.onOpenGame(ev) }
+                        }
+                    } else {
+                        items(all, key = { "p/" + it.id }) { ev ->
+                            GameCard(
+                                ev, follows, now, use24h, settings.hideScores, channels = channelCount(ev, matches),
+                                showLeague = false, onHighlights = { onHighlights(ev) },
+                            ) { actions.onOpenGame(ev) }
+                        }
+                    }
+                    if (ready == null || loading && all.isEmpty() && page.nextDay == null && !page.noneAhead) {
+                        item { Text("Getting the games…", style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, modifier = Modifier.padding(vertical = NuvioTokens.Space.s24)) }
+                    }
+                } else {
+                    // ---- the big card and live on your channels
+                    if (heroes.isNotEmpty()) {
+                        item(key = "hero") { FeaturedGames(heroes, matches, follows, now, use24h, settings.hideScores, onOpen = actions.onOpenGame) }
+                    }
+                    if (liveItems.isNotEmpty()) {
+                        item(key = "live-row") { LiveOnChannelsRow(liveItems, now, use24h, settings.hideScores, actions) }
+                    }
+                    // ---- the leagues, folded
+                    // Do not anchor the initial wide list to this heading before prep inserts its hero rail above it.
+                    if (!wide || ready != null) item(key = "leagues-h") {
+                        LeaguesHeading(
+                            settings, follows, showToggle = groups.size > 2, allOpen = defaultOpen && toggled.isEmpty(),
+                            onChoose = { choosingLeagues = true },
+                            onToggleAll = { wantOpen -> openAll = wantOpen; toggled = emptySet() },
                         )
                     }
-                }
-                items(groups, key = { "g/" + it.leagueId }) { g ->
-                    val isOpenNow = isOpen(g.leagueId)
-                    Column(modifier = Modifier.fillMaxWidth().clip(tokens.shapes.card).background(tokens.colors.surface.copy(alpha = 0.6f))) {
-                        LeagueGroupHeader(
-                            league = g.league,
-                            name = g.league?.name ?: g.games.first().let { SportsCatalog.league(it.leagueId)?.name } ?: "More sports",
-                            live = g.games.count { it.state == GameState.LIVE && it.hasTime },
-                            onChannels = if (matches.isEmpty()) null else g.games.count { it.state != GameState.POST && matches[it.id]?.isNotEmpty() == true },
-                            total = g.games.size,
-                            open = isOpenNow,
-                            onToggle = { toggled = if (g.leagueId in toggled) toggled - g.leagueId else toggled + g.leagueId },
-                            onOpenLeague = g.league?.takeIf { g.leagueId != SportsMatcher.OTHER_ID }?.let { l -> { actions.onOpenLeague(l) } },
-                        )
-                        if (isOpenNow) {
-                            Column(
-                                modifier = Modifier.padding(start = NuvioTokens.Space.s8, end = NuvioTokens.Space.s8, bottom = NuvioTokens.Space.s8),
-                                verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
-                            ) {
-                                g.games.forEach { ev ->
-                                    androidx.compose.runtime.key(ev.id) {
-                                        GameCard(
-                                            ev, follows, now, use24h, settings.hideScores, channels = channelCount(ev, matches),
-                                            showLeague = false, onHighlights = { onHighlights(ev) },
-                                        ) { actions.onOpenGame(ev) }
+                    if (empty) {
+                        item {
+                            Text(
+                                when {
+                                    ready == null || loading -> "Getting today's games…"
+                                    else -> stringResource(Res.string.livetv_sports_nothing_today)
+                                },
+                                style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, modifier = Modifier.padding(vertical = NuvioTokens.Space.s24),
+                            )
+                        }
+                    }
+                    if (wide) {
+                        groups.forEach { g ->
+                            val isOpenNow = isOpen(g.leagueId)
+                            item(key = "g/" + g.leagueId) {
+                                LeagueGroupHeader(
+                                    league = g.league, name = g.league?.name ?: "More sports",
+                                    live = g.games.count { it.state == GameState.LIVE && it.hasTime },
+                                    onChannels = if (matches.isEmpty()) null else g.games.count { it.state != GameState.POST && matches[it.id]?.isNotEmpty() == true },
+                                    total = g.games.size, open = isOpenNow,
+                                    onToggle = { toggled = if (g.leagueId in toggled) toggled - g.leagueId else toggled + g.leagueId },
+                                    onOpenLeague = g.league?.takeIf { g.leagueId != SportsMatcher.OTHER_ID }?.let { l -> { actions.onOpenLeague(l) } },
+                                    wide = true,
+                                )
+                            }
+                            if (isOpenNow) {
+                                sportsGameRows("games/${g.leagueId}", g.games, columns) { ev, modifier ->
+                                    GameCard(ev, follows, now, use24h, settings.hideScores, channelCount(ev, matches), modifier,
+                                        showLeague = false, onHighlights = { onHighlights(ev) }) { actions.onOpenGame(ev) }
+                                }
+                            }
+                        }
+                    } else {
+                        items(groups, key = { "g/" + it.leagueId }) { g ->
+                            val isOpenNow = isOpen(g.leagueId)
+                            Column(modifier = Modifier.fillMaxWidth().clip(tokens.shapes.card).background(tokens.colors.surface.copy(alpha = 0.6f))) {
+                                LeagueGroupHeader(
+                                    league = g.league,
+                                    name = g.league?.name ?: g.games.first().let { SportsCatalog.league(it.leagueId)?.name } ?: "More sports",
+                                    live = g.games.count { it.state == GameState.LIVE && it.hasTime },
+                                    onChannels = if (matches.isEmpty()) null else g.games.count { it.state != GameState.POST && matches[it.id]?.isNotEmpty() == true },
+                                    total = g.games.size,
+                                    open = isOpenNow,
+                                    onToggle = { toggled = if (g.leagueId in toggled) toggled - g.leagueId else toggled + g.leagueId },
+                                    onOpenLeague = g.league?.takeIf { g.leagueId != SportsMatcher.OTHER_ID }?.let { l -> { actions.onOpenLeague(l) } },
+                                )
+                                if (isOpenNow) {
+                                    Column(
+                                        modifier = Modifier.padding(start = NuvioTokens.Space.s8, end = NuvioTokens.Space.s8, bottom = NuvioTokens.Space.s8),
+                                        verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
+                                    ) {
+                                        g.games.forEach { ev ->
+                                            androidx.compose.runtime.key(ev.id) {
+                                                GameCard(
+                                                    ev, follows, now, use24h, settings.hideScores, channels = channelCount(ev, matches),
+                                                    showLeague = false, onHighlights = { onHighlights(ev) },
+                                                ) { actions.onOpenGame(ev) }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                if (groups.isNotEmpty() && matches.isNotEmpty()) {
-                    item(key = "legend") {
-                        Text("Blue number: games on your channels · grey: all games that day", style = MaterialTheme.typography.labelSmall, color = tokens.colors.textMuted, modifier = Modifier.padding(horizontal = NuvioTokens.Space.s4))
+                    if (groups.isNotEmpty() && matches.isNotEmpty()) {
+                        item(key = "legend") {
+                            Text("Blue number: games on your channels · grey: all games that day", style = MaterialTheme.typography.labelSmall, color = tokens.colors.textMuted, modifier = Modifier.padding(horizontal = NuvioTokens.Space.s4))
+                        }
                     }
                 }
             }

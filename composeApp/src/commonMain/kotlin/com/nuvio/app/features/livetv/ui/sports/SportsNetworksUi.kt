@@ -46,7 +46,7 @@ import com.nuvio.app.core.ui.LocalScreenActive
 import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.features.livetv.ui.LiveTvAdaptiveSheet
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -209,7 +209,7 @@ private fun NetworkMenuSheet(
 ) {
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Text(
             tile.network.name,
             style = MaterialTheme.typography.titleMedium,

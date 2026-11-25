@@ -2,6 +2,8 @@ package com.nuvio.app.features.livetv.ui.sports
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.nuvio.app.core.ui.NuvioProgressBar
@@ -65,6 +69,8 @@ import com.nuvio.app.features.livetv.sports.TeamInfo
 import com.nuvio.app.features.livetv.sports.clockText
 import com.nuvio.app.features.livetv.sports.wrestlingHeadline
 import com.nuvio.app.features.livetv.ui.formatClock
+import com.nuvio.app.features.livetv.ui.isHoveredOrFocused
+import com.nuvio.app.features.livetv.ui.isWideLiveTvWindow
 
 // ------------------------------------------------------------------ colours
 
@@ -192,6 +198,7 @@ internal fun use24h(): Boolean {
 @Composable
 internal fun TeamLogo(team: TeamInfo?, size: Dp) {
     val tokens = MaterialTheme.nuvio
+    val smallWideBadge = size <= 28.dp && isWideLiveTvWindow()
     Box(
         modifier = Modifier.size(size).clip(CircleShape).background(Color.White.copy(alpha = 0.92f)),
         contentAlignment = Alignment.Center,
@@ -201,8 +208,10 @@ internal fun TeamLogo(team: TeamInfo?, size: Dp) {
             AsyncImage(model = logo, contentDescription = null, modifier = Modifier.fillMaxSize().padding(size / 8), contentScale = ContentScale.Fit)
         } else {
             Text(
-                text = team?.abbr?.take(3)?.ifBlank { null } ?: team?.name?.take(2)?.uppercase() ?: "?",
-                style = MaterialTheme.typography.labelSmall,
+                text = team?.abbr?.take(if (smallWideBadge) 2 else 3)?.ifBlank { null } ?: team?.name?.take(2)?.uppercase() ?: "?",
+                style = if (smallWideBadge) MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp) else MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                softWrap = false,
                 color = tokens.colors.textInverse,
                 fontWeight = FontWeight.Bold,
             )
@@ -427,13 +436,17 @@ internal fun GameCard(
     val recording = ev.state != GameState.POST && ev.hasTime && SportsRecordings.forEvent(ev) != null
     val reminded = follows.reminders.any { it.eventId == ev.id }
     val wash = gameWash(sides)
+    val wide = isWideLiveTvWindow()
+    val interaction = if (wide) remember { MutableInteractionSource() } else null
+    val highlighted = interaction?.isHoveredOrFocused() == true
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(tokens.shapes.card)
             .background(tokens.colors.surface)
             .let { if (wash != null) it.background(wash) else it }
-            .clickable(onClick = onClick)
+            .then(if (highlighted) Modifier.border(1.dp, tokens.colors.accent.copy(alpha = 0.75f), tokens.shapes.card) else Modifier)
+            .clickable(interactionSource = interaction, onClick = onClick)
             .padding(start = NuvioTokens.Space.s12, end = NuvioTokens.Space.s10, top = NuvioTokens.Space.s10, bottom = NuvioTokens.Space.s10),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
     ) {

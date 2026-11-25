@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,9 +19,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +44,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.nuvio.app.features.livetv.ui.isHoveredOrFocused
+import com.nuvio.app.features.livetv.ui.isWideLiveTvWindow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -97,7 +102,7 @@ internal fun SportsSearchBar(query: String, onQuery: (String) -> Unit, modifier:
         onValueChange = onQuery,
         placeholder = "Search games, teams, leagues…",
         shape = CircleShape,
-        modifier = modifier,
+        modifier = modifier.then(if (isWideLiveTvWindow()) Modifier.widthIn(max = 460.dp) else Modifier),
         trailingContent = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Clear search", tint = tokens.colors.textSecondary) }
@@ -143,7 +148,15 @@ internal fun FeaturedGames(
     if (games.isEmpty()) return
     val pager = rememberPagerState { games.size }
     Box(modifier = modifier.fillMaxWidth().height(188.dp)) {
-        HorizontalPager(state = pager, pageSpacing = NuvioTokens.Space.s8, key = { games.getOrNull(it)?.id ?: it }) { page ->
+        val pageSize = if (isWideLiveTvWindow()) remember(games.size) {
+            object : PageSize {
+                override fun androidx.compose.ui.unit.Density.calculateMainAxisPageSize(availableSpace: Int, pageSpacing: Int): Int {
+                    val visible = (availableSpace / 400.dp.roundToPx()).coerceIn(1, games.size)
+                    return (availableSpace - (visible - 1) * pageSpacing) / visible
+                }
+            }
+        } else PageSize.Fill
+        HorizontalPager(state = pager, pageSize = pageSize, pageSpacing = NuvioTokens.Space.s8, key = { games.getOrNull(it)?.id ?: it }) { page ->
             val ev = games.getOrNull(page) ?: return@HorizontalPager
             FeaturedCard(ev, matches[ev.id], follows, now, use24h, hideScores, label, onClick = { onOpen(ev) })
         }
@@ -357,13 +370,17 @@ internal fun LeagueGroupHeader(
     open: Boolean,
     onToggle: () -> Unit,
     onOpenLeague: (() -> Unit)?,
+    wide: Boolean = false,
 ) {
     val tokens = MaterialTheme.nuvio
+    val interaction = if (wide) remember { MutableInteractionSource() } else null
+    val highlighted = interaction?.isHoveredOrFocused() == true
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clickable(onClickLabel = if (open) "Close" else "Open", onClick = onToggle)
+            .heightIn(min = if (wide) 44.dp else 56.dp)
+            .then(if (wide) Modifier.clip(tokens.shapes.compactCard).background(if (highlighted) tokens.colors.surfaceCard else tokens.colors.surface.copy(alpha = 0.6f)) else Modifier)
+            .clickable(interactionSource = interaction, onClickLabel = if (open) "Close" else "Open", onClick = onToggle)
             .padding(start = NuvioTokens.Space.s12),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s10),

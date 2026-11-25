@@ -28,7 +28,7 @@ import com.nuvio.app.core.ui.DialogButtonStyle
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.DialogOption
 import com.nuvio.app.core.ui.DialogSurface
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.features.livetv.ui.LiveTvAdaptiveSheet
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.livetv.record.RecordingPlatform
@@ -131,7 +131,7 @@ internal fun GameAlertsSheet(onDismiss: () -> Unit) {
         }
     }
 
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, scrollContent = true) {
         Text(
             stringResource(Res.string.livetv_game_alerts),
             style = MaterialTheme.typography.titleMedium,

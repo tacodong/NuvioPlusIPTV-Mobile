@@ -76,7 +76,7 @@ import com.nuvio.app.core.ui.DialogSurface
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.features.livetv.ui.LiveTvAdaptiveSheet
 import com.nuvio.app.core.ui.NuvioProgressBar
 import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioToastController
@@ -941,7 +941,7 @@ private fun RegionDialog(codes: Collection<String?>, current: String, onPick: (S
 private fun ChannelMenuSheet(ev: SportsEvent, m: ChannelMatch, actions: SportsActions, onDismiss: () -> Unit) {
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, scrollContent = true) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12)) {
             ChannelLogo(m.channel, size = 40.dp)
             Column {
@@ -983,7 +983,7 @@ internal fun TeamSheet(team: TeamInfo, actions: SportsActions, onDismiss: () -> 
     var games by remember(team.key) { mutableStateOf<List<SportsEvent>?>(null) }
     LaunchedEffect(team.key) { games = runCatching { repo.teamGames(team) }.getOrDefault(emptyList()) }
     val followed = follows.followedTeam(team) != null
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -57,7 +57,7 @@ import com.nuvio.app.core.ui.DialogSurface
 import com.nuvio.app.core.ui.LocalScreenActive
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
+import com.nuvio.app.features.livetv.ui.LiveTvAdaptiveSheet
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.nuvioSafeBottomPadding
@@ -269,7 +269,7 @@ internal fun TeamPickerSheet(league: League, follows: SportsFollows, onOpenLeagu
         }
     }
     val followedLeague = league.id in follows.pins || league.id in follows.leagues
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, fullHeight = true) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8),
             verticalAlignment = Alignment.CenterVertically,
@@ -414,7 +414,7 @@ internal fun SportsSettingsSheet(settings: SportsSettings, onDismiss: () -> Unit
     var pickChannels by remember { mutableStateOf(false) }
     var showAlerts by remember { mutableStateOf(false) }
     fun update(t: (SportsSettings) -> SportsSettings) = repo.updateSettings(t)
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Text(stringResource(Res.string.livetv_sports_settings), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8))
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = NuvioTokens.Space.s16)) {
         SettingsGroup(isTablet = false) {
