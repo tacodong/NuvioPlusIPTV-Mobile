@@ -141,10 +141,11 @@ internal fun MainTabsDestination(
         )
 
         val isSidebarAlwaysExpanded = useDesktopSidebar && navBarStyleSetting == NavBarStyle.EXPANDED
-        val contentStartPadding = if (useDesktopSidebar) {
-            if (isSidebarAlwaysExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth
-        } else {
-            0.dp
+        val contentStartPadding = when {
+            !useDesktopSidebar -> 0.dp
+            selectedTab == AppScreenTab.LiveTv || selectedTab == AppScreenTab.Sports -> animatedSidebarWidth
+            isSidebarAlwaysExpanded -> DesktopSidebarExpandedWidth
+            else -> DesktopSidebarCollapsedWidth
         }
         val navBarGlowEnabled by ThemeSettingsRepository.navBarGlowEnabled.collectAsStateWithLifecycle()
         var isTopProfileSwitcherOpen by remember { mutableStateOf(false) }
