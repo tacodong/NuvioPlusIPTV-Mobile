@@ -27,3 +27,6 @@ internal actual fun NuvioDesktopVerticalScrollbar(
     modifier: Modifier,
     backgroundColor: Color?,
 ) = Unit
+
+@Composable
+internal actual fun NuvioDesktopHorizontalScrollbar(state: ScrollState, modifier: Modifier) = Unit

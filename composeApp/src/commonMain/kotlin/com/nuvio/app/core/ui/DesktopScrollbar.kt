@@ -27,3 +27,6 @@ internal expect fun NuvioDesktopVerticalScrollbar(
     modifier: Modifier = Modifier,
     backgroundColor: Color? = null,
 )
+
+@Composable
+internal expect fun NuvioDesktopHorizontalScrollbar(state: ScrollState, modifier: Modifier = Modifier)

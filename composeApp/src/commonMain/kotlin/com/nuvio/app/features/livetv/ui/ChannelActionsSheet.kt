@@ -48,9 +48,7 @@ import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
 import com.nuvio.app.core.ui.NuvioInputField
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioTokens
-import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.data.LiveTvRepository
@@ -61,6 +59,7 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_cancel
 import nuvio.composeapp.generated.resources.action_play
+import nuvio.composeapp.generated.resources.livetv_guide
 import nuvio.composeapp.generated.resources.action_save
 import nuvio.composeapp.generated.resources.livetv_action_add_favorite
 import nuvio.composeapp.generated.resources.livetv_action_assign_epg
@@ -89,6 +88,7 @@ internal fun ChannelActionsSheet(
     customGroups: List<CustomGroup>,
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
+    onOpenGuide: (() -> Unit)? = null,
     /** Set when the show on now can be restarted from its beginning (catch-up). */
     onWatchFromStart: (() -> Unit)? = null,
     /** More rows, after Play (recordings and the like). */
@@ -97,13 +97,14 @@ internal fun ChannelActionsSheet(
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val wide = isWideLiveTvWindow()
     var dialog by remember { mutableStateOf<ChannelDialog?>(null) }
     fun close(then: () -> Unit = {}) {
-        scope.launch { dismissNuvioBottomSheet(sheetState) { onDismiss(); then() } }
+        scope.launch { dismissLiveTvAdaptiveSheet(sheetState, wide) { onDismiss(); then() } }
     }
 
     if (dialog == null) {
-        NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, wide = wide, scrollContent = true) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
@@ -126,6 +127,9 @@ internal fun ChannelActionsSheet(
                     icon = Icons.Filled.GridView,
                     onClick = { MultiviewQueue.addAndAnnounce(channel.key); close() },
                 )
+            }
+            if (onOpenGuide != null) {
+                NuvioBottomSheetActionRow(title = stringResource(Res.string.livetv_guide), icon = Icons.Filled.Schedule, onClick = { close(onOpenGuide) })
             }
             extraRows { then -> close(then) }
             NuvioBottomSheetActionRow(

@@ -32,10 +32,8 @@ import com.nuvio.app.core.ui.DialogButton
 import com.nuvio.app.core.ui.DialogButtonStyle
 import com.nuvio.app.core.ui.DialogButtons
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.NuvioToastController
-import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.model.LiveChannel
@@ -60,10 +58,11 @@ internal fun PickFavoritesSheet(
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val wide = isWideLiveTvWindow()
     var picked by remember { mutableStateOf(channels.map { it.key }.filter { it in favoriteKeys }.toSet()) }
-    fun close(then: () -> Unit = {}) { scope.launch { dismissNuvioBottomSheet(sheetState) { onDismiss(); then() } } }
+    fun close(then: () -> Unit = {}) { scope.launch { dismissLiveTvAdaptiveSheet(sheetState, wide) { onDismiss(); then() } } }
 
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, wide = wide) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8),
             verticalAlignment = Alignment.CenterVertically,

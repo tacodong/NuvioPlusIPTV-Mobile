@@ -5,3 +5,7 @@ import androidx.compose.ui.Modifier
 internal expect fun Modifier.onDesktopMouseBack(onBack: () -> Unit): Modifier
 internal expect fun Modifier.consumeDesktopMouseNavigation(): Modifier
 internal expect fun Modifier.onDesktopScroll(onScroll: () -> Unit): Modifier
+
+internal expect fun Modifier.onDesktopSecondaryClick(onClick: () -> Unit): Modifier
+
+internal expect fun Modifier.onDesktopHorizontalWheel(scrollBy: (Float) -> Unit): Modifier

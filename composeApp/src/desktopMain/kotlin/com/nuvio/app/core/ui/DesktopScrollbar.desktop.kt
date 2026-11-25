@@ -1,5 +1,6 @@
 package com.nuvio.app.core.ui
 
+import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.ScrollbarStyle
 import androidx.compose.foundation.VerticalScrollbar
@@ -77,3 +78,8 @@ private fun nuvioDesktopScrollbarStyle(backgroundColor: Color?): ScrollbarStyle 
 }
 
 private const val EqualBlackWhiteContrastLuminance = 0.179f
+
+@Composable
+internal actual fun NuvioDesktopHorizontalScrollbar(state: ScrollState, modifier: Modifier) {
+    HorizontalScrollbar(adapter = rememberScrollbarAdapter(state), modifier = modifier, style = nuvioDesktopScrollbarStyle(null))
+}

@@ -25,6 +25,13 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -98,6 +105,9 @@ import com.nuvio.app.core.ui.NuvioScreenHeader
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.ScreenActivityEffect
 import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.core.ui.nuvioSafeBottomPadding
+import com.nuvio.app.core.ui.nuvioPlatformExtraTopPadding
+import com.nuvio.app.core.ui.onDesktopSecondaryClick
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.data.LiveTvRepository
 import com.nuvio.app.features.livetv.data.NowNext
@@ -168,6 +178,7 @@ fun LiveTvScreen(
     onOpenMultiview: () -> Unit = {},
 ) {
     val tokens = MaterialTheme.nuvio
+    val wide = isWideLiveTvWindow()
     // Restore the open groups and the scroll position when coming back from the player.
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = LiveTvListMemory.scrollIndex,
@@ -211,10 +222,14 @@ fun LiveTvScreen(
     var sheetGroup by remember { mutableStateOf<ChannelGroup?>(null) }
     var unlockGroup by remember { mutableStateOf<ChannelGroup?>(null) }
     var overflow by remember { mutableStateOf(false) }
+    var selectedGroupId by rememberSaveable { mutableStateOf<String?>(null) }
+    val wideChannelScroll = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
 
-    LaunchedEffect(scrollToTopRequests) {
-        scrollToTopRequests.collect { listState.animateScrollToItem(0) }
+    LaunchedEffect(scrollToTopRequests, wide) {
+        scrollToTopRequests.collect {
+            (if (wide) wideChannelScroll else listState).animateScrollToItem(0)
+        }
     }
     ScreenActivityEffect { active ->
         if (active) {
@@ -275,77 +290,120 @@ fun LiveTvScreen(
         return null
     }
 
-    Box(modifier = modifier.fillMaxSize().liveTvSideInsets().onGloballyPositioned { boxTopPx = it.positionInRoot().y }) {
-        NuvioScreen(modifier = Modifier.fillMaxSize(), listState = listState) {
-            stickyHeader {
-                Column(modifier = Modifier.background(tokens.colors.background).onGloballyPositioned { headerBottomPx = it.positionInRoot().y + it.size.height }) {
-                    // The title has the top row to itself (with the menu for managing playlists); every page
-                    // button sits in one labelled row under it, so none are hidden.
-                    val headerActions = buildList {
-                        add(HeaderAction(Icons.Filled.Search, stringResource(Res.string.livetv_search_hint), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_search), showClose = searching) { searching = !searching; if (!searching) query = "" })
-                        add(HeaderAction(Icons.Filled.CalendarViewDay, stringResource(Res.string.livetv_guide), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_guide)) { onOpenGuide() })
-                        if (isMultiviewSupported) add(HeaderAction(Icons.Filled.GridView, "Multiview", tokens.colors.textPrimary, short = "Multiview") { onOpenMultiview() })
-                        add(HeaderAction(Icons.Filled.CalendarMonth, stringResource(Res.string.livetv_calendar), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_calendar)) { onOpenCalendar() })
-                        if (showOnDemand) add(HeaderAction(Icons.Filled.Movie, stringResource(Res.string.livetv_on_demand), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_on_demand)) { onOpenOnDemand() })
-                        if (sportsOn) add(HeaderAction(Icons.Filled.SportsSoccer, stringResource(Res.string.livetv_sports), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_sports)) { onOpenSports() })
-                        if (showRecordings) add(HeaderAction(Icons.Filled.FiberManualRecord, stringResource(Res.string.livetv_recordings), if (recordings.any { it.isRecording }) tokens.colors.danger else tokens.colors.textPrimary, short = stringResource(Res.string.livetv_recordings)) { onOpenRecordings() })
-                        add(HeaderAction(Icons.Filled.Settings, stringResource(Res.string.livetv_settings), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_settings)) { onOpenSettings() })
-                    }
-                    NuvioScreenHeader(
-                        title = stringResource(Res.string.livetv_title),
-                        actions = {
-                            if (state.hasSources) {
-                                IconButton(onClick = { overflow = true }) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = null, tint = tokens.colors.textPrimary)
-                                }
-                                Menu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                                    MenuItem(text = stringResource(Res.string.livetv_manage_menu), onClick = { overflow = false; onOpenManage() })
-                                    MenuItem(text = stringResource(Res.string.livetv_update_now), onClick = { overflow = false; LiveTvRepository.refreshAll(force = true) })
-                                }
-                            }
-                        },
-                    )
-                    Row(modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp).padding(bottom = NuvioTokens.Space.s4)) {
-                        headerActions.forEach { a -> HeaderButton(a, Modifier.weight(1f)) }
-                    }
-                    PlaylistDropdown(
-                        choices = playlistChoices,
-                        selectedId = playlistId,
-                        allDetail = (state.sections.count { it.group.sourceId != null }).let { if (it == 1) "1 group" else "$it groups" },
-                        onSelect = PlaylistFilter::select,
-                        modifier = Modifier.padding(bottom = NuvioTokens.Space.s8),
-                    )
-                    AnimatedVisibility(visible = searching) {
-                        NuvioInputField(
-                            value = query,
-                            onValueChange = { query = it },
-                            placeholder = stringResource(Res.string.livetv_search_hint),
-                            modifier = Modifier.padding(bottom = NuvioTokens.Space.s8),
-                        )
-                    }
-                    if (status.loading && status.message != null &&
-                        ((settings.showImportProgress && !status.silent) || sections.none { it.channels.isNotEmpty() })
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = NuvioTokens.Space.s8),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
-                        ) {
-                            NuvioLoadingIndicator(size = NuvioTokens.Space.s16)
-                            Text(status.message.orEmpty(), style = MaterialTheme.typography.bodySmall, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val header: @Composable () -> Unit = {
+        Column(modifier = Modifier.background(tokens.colors.background).onGloballyPositioned { headerBottomPx = it.positionInRoot().y + it.size.height }) {
+            // The title has the top row to itself (with the menu for managing playlists); every page
+            // button sits in one labelled row under it, so none are hidden.
+
+            NuvioScreenHeader(
+                title = stringResource(Res.string.livetv_title),
+                actions = {
+                    if (state.hasSources) {
+                        IconButton(onClick = { overflow = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = null, tint = tokens.colors.textPrimary)
                         }
-                    } else if (status.error != null) {
-                        Text(
-                            text = status.error.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = tokens.colors.danger,
-                            modifier = Modifier.padding(bottom = NuvioTokens.Space.s8),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Menu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                            MenuItem(text = stringResource(Res.string.livetv_manage_menu), onClick = { overflow = false; onOpenManage() })
+                            MenuItem(text = stringResource(Res.string.livetv_update_now), onClick = { overflow = false; LiveTvRepository.refreshAll(force = true) })
+                        }
                     }
-                }
+                },
+            )
+            LiveTvHeaderActions(
+                wide = wide, searching = searching, showOnDemand = showOnDemand, sportsOn = sportsOn,
+                showRecordings = showRecordings, isRecording = recordings.any { it.isRecording },
+                onSearch = { searching = !searching; if (!searching) query = "" }, onOpenGuide = onOpenGuide,
+                onOpenMultiview = onOpenMultiview, onOpenCalendar = onOpenCalendar, onOpenOnDemand = onOpenOnDemand,
+                onOpenSports = onOpenSports, onOpenRecordings = onOpenRecordings, onOpenSettings = onOpenSettings,
+            )
+            PlaylistDropdown(
+                choices = playlistChoices,
+                selectedId = playlistId,
+                allDetail = (state.sections.count { it.group.sourceId != null }).let { if (it == 1) "1 group" else "$it groups" },
+                onSelect = PlaylistFilter::select,
+                modifier = (if (wide) Modifier.widthIn(max = 380.dp) else Modifier).padding(bottom = NuvioTokens.Space.s8),
+            )
+            AnimatedVisibility(visible = searching) {
+                NuvioInputField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = stringResource(Res.string.livetv_search_hint),
+                    modifier = (if (wide) Modifier.widthIn(max = 380.dp) else Modifier).padding(bottom = NuvioTokens.Space.s8),
+                )
             }
+            if (status.loading && status.message != null &&
+                ((settings.showImportProgress && !status.silent) || sections.none { it.channels.isNotEmpty() })
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = NuvioTokens.Space.s8),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
+                ) {
+                    NuvioLoadingIndicator(size = NuvioTokens.Space.s16)
+                    Text(status.message.orEmpty(), style = MaterialTheme.typography.bodySmall, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else if (status.error != null) {
+                Text(
+                    text = status.error.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.colors.danger,
+                    modifier = Modifier.padding(bottom = NuvioTokens.Space.s8),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+
+    if (wide) {
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        Column(
+            modifier = modifier.fillMaxSize().background(tokens.colors.background).liveTvSideInsets().padding(
+                start = tokens.spacing.screenHorizontal,
+                end = tokens.spacing.screenHorizontal,
+                top = tokens.spacing.screenTop + statusBarTop + nuvioPlatformExtraTopPadding,
+                bottom = nuvioSafeBottomPadding(tokens.spacing.screenBottom),
+            ),
+            verticalArrangement = Arrangement.spacedBy(tokens.spacing.listGap),
+        ) {
+            header()
+            if (!state.hasSources) {
+                EmptyLiveTv(onOpenSettings, wide = true)
+            } else {
+                val selected = sections.firstOrNull { it.group.id == selectedGroupId && !it.group.locked }
+                    ?: sections.firstOrNull { !it.group.locked && it.channels.isNotEmpty() }
+                    ?: sections.firstOrNull { !it.group.locked }
+                val isSearching = searching && query.isNotBlank()
+                WideLiveTvBrowser(
+                    sections = sections,
+                    selected = selected,
+                    searchResults = searchResults.takeIf { isSearching },
+                    favoriteKeys = state.favoriteKeys,
+                    nowNext = nowNext,
+                    now = now,
+                    listState = wideChannelScroll,
+                    onGroup = { section ->
+                        if (section.group.locked) unlockGroup = section.group
+                        else {
+                            selectedGroupId = section.group.id
+                            searching = false
+                            query = ""
+                        }
+                    },
+                    onGroupActions = { sheetGroup = it.group },
+                    onPickFavorites = { pickFavoritesFor = it },
+                    onPlay = { onPlayChannel(it, nowNext[it.key]?.now?.title) },
+                    onChannelActions = { sheetChannel = it },
+                    onOpenGuide = onOpenGuide,
+                    onRefresh = if (sections.isEmpty() && !status.loading && !isSearching) {
+                        { LiveTvRepository.refreshAll(force = true) }
+                    } else null,
+                )
+            }
+        }
+    } else Box(modifier = modifier.fillMaxSize().liveTvSideInsets().onGloballyPositioned { boxTopPx = it.positionInRoot().y }) {
+        NuvioScreen(modifier = Modifier.fillMaxSize(), listState = listState) {
+            stickyHeader { header() }
 
             if (!state.hasSources) {
                 item { EmptyLiveTv(onOpenSettings) }
@@ -442,6 +500,7 @@ fun LiveTvScreen(
             customGroups = state.customGroups,
             onDismiss = { sheetChannel = null },
             onPlay = { onPlayChannel(channel, nowNext[channel.key]?.now?.title) },
+            onOpenGuide = onOpenGuide.takeIf { wide },
             onWatchFromStart = nowNext[channel.key]?.now
                 ?.takeIf { LiveTvCatchup.canWatchFromStart(channel, it, now) }
                 ?.let { program -> { onPlayCatchup(channel, program) } },
@@ -464,7 +523,7 @@ fun LiveTvScreen(
 }
 
 @Composable
-private fun EmptyLiveTv(onOpenSettings: () -> Unit) {
+internal fun EmptyLiveTv(onOpenSettings: () -> Unit, wide: Boolean = false) {
     val tokens = MaterialTheme.nuvio
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = NuvioTokens.Space.s48, horizontal = NuvioTokens.Space.s16),
@@ -475,7 +534,7 @@ private fun EmptyLiveTv(onOpenSettings: () -> Unit) {
         Text(stringResource(Res.string.livetv_empty_title), style = MaterialTheme.typography.titleLarge, color = tokens.colors.textPrimary)
         Text(stringResource(Res.string.livetv_empty_body), style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted)
         Spacer(Modifier.height(NuvioTokens.Space.s8))
-        NuvioPrimaryButton(text = stringResource(Res.string.livetv_add_playlist), onClick = onOpenSettings)
+        NuvioPrimaryButton(text = stringResource(Res.string.livetv_add_playlist), modifier = if (wide) Modifier.widthIn(max = 280.dp) else Modifier, onClick = onOpenSettings)
     }
 }
 
@@ -654,11 +713,19 @@ internal fun ChannelRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    wide: Boolean = false,
+    onHover: (() -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
+    val interaction = if (wide) remember { MutableInteractionSource() } else null
+    val highlighted = interaction?.isHoveredOrFocused() == true
+    if (interaction != null && onHover != null) {
+        val hovered by interaction.collectIsHoveredAsState()
+        LaunchedEffect(hovered) { if (hovered) onHover() }
+    }
     val settings by LiveTvPreferences.settings.collectAsStateWithLifecycle()
     val showLogo = settings.phoneChannelLogos
-    val showName = settings.phoneChannelNames
+    val showName = wide || settings.phoneChannelNames
     val showNumber = settings.phoneChannelNumbers
     val logoOnly = showLogo && !showName && !showNumber
     val current = nowNext?.now
@@ -669,9 +736,10 @@ internal fun ChannelRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(NuvioTokens.Radius.xl))
-            .background(tokens.colors.surface)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = NuvioTokens.Space.s10, vertical = NuvioTokens.Space.s10),
+            .background(if (highlighted) tokens.colors.surfaceCard else tokens.colors.surface)
+            .onDesktopSecondaryClick(onLongClick)
+            .combinedClickable(interactionSource = interaction, onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = NuvioTokens.Space.s10, vertical = if (wide) NuvioTokens.Space.s6 else NuvioTokens.Space.s10),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s12),
     ) {
@@ -849,6 +917,48 @@ internal object LiveTvListMemory {
     fun saveScroll(index: Int, offset: Int) {
         scrollIndex = index
         scrollOffset = offset
+    }
+}
+
+@Composable
+internal fun LiveTvHeaderActions(
+    wide: Boolean,
+    searching: Boolean,
+    showOnDemand: Boolean,
+    sportsOn: Boolean,
+    showRecordings: Boolean,
+    isRecording: Boolean,
+    onSearch: () -> Unit,
+    onOpenGuide: () -> Unit,
+    onOpenMultiview: () -> Unit,
+    onOpenCalendar: () -> Unit,
+    onOpenOnDemand: () -> Unit,
+    onOpenSports: () -> Unit,
+    onOpenRecordings: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val tokens = MaterialTheme.nuvio
+    val headerActions = buildList {
+        add(HeaderAction(Icons.Filled.Search, stringResource(Res.string.livetv_search_hint), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_search), showClose = searching, onClick = onSearch))
+        add(HeaderAction(Icons.Filled.CalendarViewDay, stringResource(Res.string.livetv_guide), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_guide)) { onOpenGuide() })
+        if (isMultiviewSupported) add(HeaderAction(Icons.Filled.GridView, "Multiview", tokens.colors.textPrimary, short = "Multiview") { onOpenMultiview() })
+        add(HeaderAction(Icons.Filled.CalendarMonth, stringResource(Res.string.livetv_calendar), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_calendar)) { onOpenCalendar() })
+        if (showOnDemand) add(HeaderAction(Icons.Filled.Movie, stringResource(Res.string.livetv_on_demand), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_on_demand)) { onOpenOnDemand() })
+        if (sportsOn) add(HeaderAction(Icons.Filled.SportsSoccer, stringResource(Res.string.livetv_sports), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_sports)) { onOpenSports() })
+        if (showRecordings) add(HeaderAction(Icons.Filled.FiberManualRecord, stringResource(Res.string.livetv_recordings), if (isRecording) tokens.colors.danger else tokens.colors.textPrimary, short = stringResource(Res.string.livetv_recordings)) { onOpenRecordings() })
+        add(HeaderAction(Icons.Filled.Settings, stringResource(Res.string.livetv_settings), tokens.colors.textPrimary, short = stringResource(Res.string.livetv_header_settings)) { onOpenSettings() })
+    }
+    if (wide) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(bottom = NuvioTokens.Space.s4),
+            horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
+        ) {
+            headerActions.forEach { a -> HeaderButton(a, Modifier.widthIn(min = 76.dp).padding(horizontal = 8.dp)) }
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp).padding(bottom = NuvioTokens.Space.s4)) {
+            headerActions.forEach { a -> HeaderButton(a, Modifier.weight(1f)) }
+        }
     }
 }
 

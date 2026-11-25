@@ -25,9 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioBottomSheetActionRow
 import com.nuvio.app.core.ui.NuvioBottomSheetDivider
-import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.NuvioTokens
-import com.nuvio.app.core.ui.dismissNuvioBottomSheet
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.model.ChannelGroup
@@ -44,12 +42,13 @@ internal fun GroupActionsSheet(group: ChannelGroup, onDismiss: () -> Unit) {
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val wide = isWideLiveTvWindow()
     val user by LiveTvPreferences.userState.collectAsStateWithLifecycle()
     val favorite = group.id in user.favoriteGroups
     fun close(then: () -> Unit = {}) {
-        scope.launch { dismissNuvioBottomSheet(sheetState) { onDismiss(); then() } }
+        scope.launch { dismissLiveTvAdaptiveSheet(sheetState, wide) { onDismiss(); then() } }
     }
-    NuvioModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    LiveTvAdaptiveSheet(onDismissRequest = onDismiss, sheetState = sheetState, wide = wide, scrollContent = true) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s12),
             verticalAlignment = Alignment.CenterVertically,
