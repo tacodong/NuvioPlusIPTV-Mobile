@@ -7,7 +7,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import com.nuvio.app.core.ui.onDesktopHorizontalWheel
 import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
@@ -574,11 +585,34 @@ private fun DesktopHomeHeroFrame(
     val opacity = NuvioTokens.Opacity
     val space = NuvioTokens.Space
     val backgroundColor = colorScheme.background
+    val heroHover = remember { MutableInteractionSource() }
+    val hovered by heroHover.collectIsHoveredAsState()
+    // Trackpad swipes and horizontal wheels page the hero: one page per gesture, a slide
+    // only when the swipe has gone far enough and the previous slide has finished.
+    var wheelTravel by remember { mutableStateOf(0f) }
+    var wheelAt by remember { mutableStateOf(0L) }
+    val wheelClock = remember { kotlin.time.TimeSource.Monotonic.markNow() }
+    fun page(step: Int) {
+        if (items.size <= 1 || pagerState.isScrollInProgress) return
+        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + step) }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor),
+            .background(backgroundColor)
+            .hoverable(heroHover)
+            .onDesktopHorizontalWheel { delta ->
+                val nowMs = wheelClock.elapsedNow().inWholeMilliseconds
+                if (nowMs - wheelAt > 350) wheelTravel = 0f
+                wheelAt = nowMs
+                if (wheelTravel == Float.MAX_VALUE) return@onDesktopHorizontalWheel
+                wheelTravel += delta
+                if (kotlin.math.abs(wheelTravel) > 120f) {
+                    page(if (wheelTravel > 0) 1 else -1)
+                    wheelTravel = Float.MAX_VALUE
+                }
+            },
     ) {
         HeroBackgroundLayers(
             items = items,
@@ -686,6 +720,13 @@ private fun DesktopHomeHeroFrame(
                 )
             }
 
+            if (items.size > 1) {
+                HeroArrowButton(hovered, left = true, onClick = { page(-1) },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = space.s16))
+                HeroArrowButton(hovered, left = false, onClick = { page(1) },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = space.s16))
+            }
+
             HeroPageIndicatorRow(
                 itemCount = items.size,
                 pagerState = pagerState,
@@ -710,9 +751,13 @@ private fun HeroPageIndicatorRow(
 ) {
     if (itemCount <= 1) return
 
+    // A mouse needs more than the 8 dp dot to aim at: on desktop each dot sits in a larger
+    // clickable area, with the gaps between dots unchanged.
+    val dotPadX = if (isDesktop) 4.dp else 0.dp
+    val dotPadY = if (isDesktop) 10.dp else 0.dp
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp - dotPadX * 2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(itemCount) { index ->
@@ -726,6 +771,7 @@ private fun HeroPageIndicatorRow(
                             pagerState.animateScrollToPage(heroPageForItem(pagerState.currentPage, index, itemCount))
                         }
                     }
+                    .padding(horizontal = dotPadX, vertical = dotPadY)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.onBackground)
                     .graphicsLayer {
@@ -733,6 +779,28 @@ private fun HeroPageIndicatorRow(
                     }
                     .width(8.dp + (24.dp * activeFraction))
                     .height(8.dp),
+            )
+        }
+    }
+}
+
+/** Previous / next arrows at the hero's edges, shown while the mouse is over the hero. */
+@Composable
+private fun HeroArrowButton(visible: Boolean, left: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (left) Icons.AutoMirrored.Rounded.KeyboardArrowLeft else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = if (left) "Previous" else "Next",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(30.dp),
             )
         }
     }
