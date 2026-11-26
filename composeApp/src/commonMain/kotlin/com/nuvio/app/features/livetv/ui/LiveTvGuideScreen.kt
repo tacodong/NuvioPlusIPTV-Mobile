@@ -147,6 +147,8 @@ fun LiveTvGuideScreen(
     onPlayCatchup: (LiveChannel, EpgProgram) -> Unit = { _, _ -> },
     /** Find in Nuvio: the show's movie or series page ("movie"/"series", TMDB id, name). */
     onOpenTitle: ((type: String, tmdbId: Int, title: String) -> Unit)? = null,
+    /** Recordings, from the wide desktop guide's info panel (null: no button). */
+    onOpenRecordings: (() -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
     val wide = isWideLiveTvWindow()
@@ -313,6 +315,7 @@ fun LiveTvGuideScreen(
             onProgram = { channel, program -> detail = channel to program },
             onChannelActions = if (wide) ({ channelActions = it }) else null,
             modifier = Modifier.weight(1f),
+            onOpenRecordings = onOpenRecordings,
         ) {
                 PlaylistDropdown(
                     choices = playlistChoices,
@@ -361,11 +364,12 @@ internal fun LiveTvGuideGrid(
     onProgram: (LiveChannel, EpgProgram) -> Unit,
     modifier: Modifier = Modifier,
     onChannelActions: ((LiveChannel) -> Unit)? = null,
+    onOpenRecordings: (() -> Unit)? = null,
     corner: @Composable () -> Unit = {},
 ) {
     if (wide) platformLiveTvGuideRenderer?.let { renderer ->
         renderer.Render(channels, programs, favoriteKeys, gridStart, gridEnd, now, hScroll, listState,
-            onPlay, onProgram, onChannelActions, modifier, corner)
+            onPlay, onProgram, onChannelActions, modifier, corner, onOpenRecordings)
         return
     }
     val tokens = MaterialTheme.nuvio

@@ -25,9 +25,15 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -95,6 +101,13 @@ import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.livetv_guide_no_info
 import nuvio.composeapp.generated.resources.livetv_no_results
+import nuvio.composeapp.generated.resources.livetv_recordings
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display_24h
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display_logos
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display_now_line
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display_numbers
+import nuvio.composeapp.generated.resources.livetv_tv_guide_display_times
 import nuvio.composeapp.generated.resources.livetv_tv_guide_earlier
 import nuvio.composeapp.generated.resources.livetv_tv_guide_later
 import org.jetbrains.compose.resources.stringResource
@@ -153,6 +166,7 @@ internal fun DesktopTvGuide(
     modifier: Modifier = Modifier,
     corner: @Composable () -> Unit = {},
     loadProgramDetails: suspend (String, Long) -> EpgProgram? = LiveTvRepository::programDetails,
+    onOpenRecordings: (() -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
     val settings by LiveTvPreferences.settings.collectAsStateWithLifecycle()
@@ -190,7 +204,8 @@ internal fun DesktopTvGuide(
         Column(Modifier.fillMaxSize()) {
             if (selectedChannel != null) {
                 DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
-                    onPlay = { onPlay(selectedChannel) }, onChannelActions = onChannelActions?.let { { it(selectedChannel) } })
+                    onPlay = { onPlay(selectedChannel) }, onChannelActions = onChannelActions?.let { { it(selectedChannel) } },
+                    extraActions = { GuideHeaderActions(settings, onOpenRecordings) })
             }
             // Gives hScroll its range; nothing is drawn here.
             Box(Modifier.width(1.dp).height(0.dp).horizontalScroll(hScroll, enabled = false)) {
@@ -273,6 +288,46 @@ internal fun DesktopTvGuide(
             }
         }
     }
+}
+
+/** The TV guide's info-panel corner: ● Recordings and ⚙ Guide display (what the rows show). */
+@Composable
+private fun GuideHeaderActions(settings: LiveTvSettings, onOpenRecordings: (() -> Unit)?) {
+    val tokens = MaterialTheme.nuvio
+    onOpenRecordings?.let {
+        IconButton(it, Modifier.testTag("desktop-tv-guide-recordings")) {
+            Icon(Icons.Filled.FiberManualRecord, stringResource(Res.string.livetv_recordings), tint = Color(0xFFE53935))
+        }
+    }
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton({ open = true }, Modifier.testTag("desktop-tv-guide-display")) {
+            Icon(Icons.Filled.Tune, stringResource(Res.string.livetv_tv_guide_display), tint = tokens.colors.textSecondary)
+        }
+        DropdownMenu(open, onDismissRequest = { open = false }) {
+            Text(stringResource(Res.string.livetv_tv_guide_display), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textSecondary)
+            DisplayToggle(Res.string.livetv_tv_guide_display_numbers, settings.phoneChannelNumbers) { v ->
+                LiveTvPreferences.updateSettings { it.copy(phoneChannelNumbers = v) } }
+            DisplayToggle(Res.string.livetv_tv_guide_display_logos, settings.phoneChannelLogos) { v ->
+                LiveTvPreferences.updateSettings { it.copy(phoneChannelLogos = v) } }
+            DisplayToggle(Res.string.livetv_tv_guide_display_times, settings.showProgramTimes) { v ->
+                LiveTvPreferences.updateSettings { it.copy(showProgramTimes = v) } }
+            DisplayToggle(Res.string.livetv_tv_guide_display_now_line, settings.showNowLine) { v ->
+                LiveTvPreferences.updateSettings { it.copy(showNowLine = v) } }
+            DisplayToggle(Res.string.livetv_tv_guide_display_24h, settings.use24HourClock) { v ->
+                LiveTvPreferences.updateSettings { it.copy(use24HourClock = v) } }
+        }
+    }
+}
+
+@Composable
+private fun DisplayToggle(label: org.jetbrains.compose.resources.StringResource, checked: Boolean, onChange: (Boolean) -> Unit) {
+    DropdownMenuItem(
+        text = { Text(stringResource(label)) },
+        onClick = { onChange(!checked) },
+        trailingIcon = { Checkbox(checked, onCheckedChange = null) },
+    )
 }
 
 /** Date over the channels, a label every half hour, and the current time at the right end. */

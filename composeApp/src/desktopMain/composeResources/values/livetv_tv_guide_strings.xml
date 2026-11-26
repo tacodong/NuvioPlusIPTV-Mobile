@@ -9,4 +9,10 @@
     <string name="livetv_tv_guide_earlier">Earlier</string>
     <string name="livetv_tv_guide_later">Later</string>
     <string name="livetv_tv_guide_no_program_info">No program information</string>
+    <string name="livetv_tv_guide_display">Guide display</string>
+    <string name="livetv_tv_guide_display_numbers">Channel numbers</string>
+    <string name="livetv_tv_guide_display_logos">Channel logos</string>
+    <string name="livetv_tv_guide_display_times">Show times on programmes</string>
+    <string name="livetv_tv_guide_display_now_line">Now line</string>
+    <string name="livetv_tv_guide_display_24h">24-hour clock</string>
 </resources>

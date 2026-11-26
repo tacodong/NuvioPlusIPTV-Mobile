@@ -26,6 +26,7 @@ private object MacLiveTvGuideRenderer : LiveTvGuideRenderer {
         onChannelActions: ((LiveChannel) -> Unit)?,
         modifier: Modifier,
         corner: @Composable () -> Unit,
+        onOpenRecordings: (() -> Unit)?,
     ) = DesktopTvGuide(channels, programs, favoriteKeys, gridStart, gridEnd, now, hScroll, listState,
-        onPlay, onProgram, onChannelActions, modifier, corner)
+        onPlay, onProgram, onChannelActions, modifier, corner, onOpenRecordings = onOpenRecordings)
 }

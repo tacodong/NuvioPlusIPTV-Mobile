@@ -29,6 +29,7 @@ internal fun interface LiveTvGuideRenderer {
         onChannelActions: ((LiveChannel) -> Unit)?,
         modifier: Modifier,
         corner: @Composable () -> Unit,
+        onOpenRecordings: (() -> Unit)?,
     )
 }
 

@@ -75,6 +75,8 @@ internal fun DesktopTvGuideDetails(
     onPlay: () -> Unit,
     onChannelActions: (() -> Unit)?,
     visual: @Composable (LiveChannel) -> Unit = { ChannelLogo(it, width = 118.dp, height = 70.dp, inset = 8.dp) },
+    /** Recordings and Guide display, beside Watch (like the TV guide's info panel corner). */
+    extraActions: @Composable () -> Unit = {},
 ) {
     val tokens = MaterialTheme.nuvio
     // The grid loads light rows; read the extras for just the settled selection, so sweeping the
@@ -150,6 +152,7 @@ internal fun DesktopTvGuideDetails(
                 }
             }
             Row(verticalAlignment = Alignment.Top) {
+                extraActions()
                 val watch = stringResource(Res.string.livetv_tv_guide_watch_channel)
                 if (compact) {
                     IconButton(onPlay, Modifier.testTag("desktop-tv-guide-watch")) { Icon(Icons.Rounded.PlayArrow, watch) }
