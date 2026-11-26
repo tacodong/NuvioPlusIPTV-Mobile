@@ -1254,6 +1254,8 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation("com.google.code.gson:gson:2.11.0")
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")
+                // Live TV guide on disk (same SQLite layout as Android's EpgStore).
+                implementation("org.xerial:sqlite-jdbc:3.49.1.0")
                 implementation(libs.quickjs.kt)
                 implementation(libs.ksoup)
                 implementation(libs.sentry.jvm)
@@ -1372,6 +1374,7 @@ compose.desktop {
                 appResourcesRootDir.set(macosPlayerAppResourcesRoot)
             }
             modules(
+                "java.sql",
                 "java.instrument",
                 "java.management",
                 "java.net.http",
