@@ -24,7 +24,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -36,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -124,29 +124,6 @@ internal fun MainTabsDestination(
         val navBarStyleSetting by remember { ThemeSettingsRepository.navBarStyle }.collectAsStateWithLifecycle()
         val homeCatalogSettingsUiState by remember { HomeCatalogSettingsRepository.uiState }.collectAsStateWithLifecycle()
 
-        val sidebarHoverSource = remember { MutableInteractionSource() }
-        val isSidebarHovered by sidebarHoverSource.collectIsHoveredAsState()
-        var isProfileStackVisible by remember { mutableStateOf(false) }
-
-        val isSidebarExpanded = when (navBarStyleSetting) {
-            NavBarStyle.EXPANDED -> true
-            NavBarStyle.COMPACT -> isProfileStackVisible
-            else -> isSidebarHovered || isProfileStackVisible // ADAPTIVE
-        }
-
-        val animatedSidebarWidth by animateDpAsState(
-            targetValue = if (isSidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
-            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
-            label = "desktop_sidebar_width",
-        )
-
-        val isSidebarAlwaysExpanded = useDesktopSidebar && navBarStyleSetting == NavBarStyle.EXPANDED
-        val contentStartPadding = when {
-            !useDesktopSidebar -> 0.dp
-            selectedTab == AppScreenTab.LiveTv || selectedTab == AppScreenTab.Sports -> animatedSidebarWidth
-            isSidebarAlwaysExpanded -> DesktopSidebarExpandedWidth
-            else -> DesktopSidebarCollapsedWidth
-        }
         val navBarGlowEnabled by ThemeSettingsRepository.navBarGlowEnabled.collectAsStateWithLifecycle()
         var isTopProfileSwitcherOpen by remember { mutableStateOf(false) }
         val liveTvSettings by remember { LiveTvPreferences.settings }.collectAsStateWithLifecycle()
@@ -159,55 +136,62 @@ internal fun MainTabsDestination(
             val availableTab = sportsNavigationFallback(selectedTab, showSportsTab, showLiveTvTab)
             if (rootRouteActive && availableTab != selectedTab) onTabSelected(availableTab)
         }
-        val floatingNavigationItems = listOfNotNull(
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Home,
-                onClick = { onTabSelected(AppScreenTab.Home) },
-                icon = Icons.Filled.Home,
-                label = stringResource(Res.string.compose_nav_home),
-            ),
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Search,
-                onClick = { onTabSelected(AppScreenTab.Search) },
-                drawable = Res.drawable.sidebar_search,
-                label = stringResource(Res.string.compose_nav_search),
-            ),
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Library,
-                onClick = { onTabSelected(AppScreenTab.Library) },
-                drawable = Res.drawable.sidebar_library,
-                label = stringResource(Res.string.compose_nav_library),
-            ),
-            if (showLiveTvTab) FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.LiveTv,
-                onClick = { onTabSelected(AppScreenTab.LiveTv) },
-                icon = Icons.Filled.LiveTv,
-                label = liveTvLabel,
-            ) else null,
-            if (showSportsTab) FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Sports,
-                onClick = { onTabSelected(AppScreenTab.Sports) },
-                icon = Icons.Filled.SportsSoccer,
-                label = sportsLabel,
-            ) else null,
-            FloatingNavigationItem(
-                selected = selectedTab == AppScreenTab.Settings,
-                onClick = { onTabSelected(AppScreenTab.Settings) },
-                label = stringResource(if (isDesktop) Res.string.compose_nav_settings else Res.string.compose_nav_profile),
-                content = { onClick ->
-                    ProfileSwitcherTab(
-                        selected = selectedTab == AppScreenTab.Settings,
-                        onClick = onClick,
-                        onProfileSelected = onProfileSelected,
-                        onAddProfileRequested = onAddProfileRequested,
-                        hazeState = navBarHazeState,
-                        onPopupStateChanged = { isTopProfileSwitcherOpen = it },
-                        avatarSize = if (isDesktop && screenWidth < 800.dp) 26 else if (isDesktop && screenWidth > 1600.dp) 30 else 28,
-                        popupBelowAnchor = isDesktop || isTabletLayout,
-                    )
-                },
-            ),
-        )
+        val needsFloatingNavigationItems = useDesktopTopBar ||
+            (isTabletLayout && !useNativeBottomTabs && !isDesktop) ||
+            (!isDesktop && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC)
+        val floatingNavigationItems = if (needsFloatingNavigationItems) {
+            listOfNotNull(
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Home,
+                    onClick = { onTabSelected(AppScreenTab.Home) },
+                    icon = Icons.Filled.Home,
+                    label = stringResource(Res.string.compose_nav_home),
+                ),
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Search,
+                    onClick = { onTabSelected(AppScreenTab.Search) },
+                    drawable = Res.drawable.sidebar_search,
+                    label = stringResource(Res.string.compose_nav_search),
+                ),
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Library,
+                    onClick = { onTabSelected(AppScreenTab.Library) },
+                    drawable = Res.drawable.sidebar_library,
+                    label = stringResource(Res.string.compose_nav_library),
+                ),
+                if (showLiveTvTab) FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.LiveTv,
+                    onClick = { onTabSelected(AppScreenTab.LiveTv) },
+                    icon = Icons.Filled.LiveTv,
+                    label = liveTvLabel,
+                ) else null,
+                if (showSportsTab) FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Sports,
+                    onClick = { onTabSelected(AppScreenTab.Sports) },
+                    icon = Icons.Filled.SportsSoccer,
+                    label = sportsLabel,
+                ) else null,
+                FloatingNavigationItem(
+                    selected = selectedTab == AppScreenTab.Settings,
+                    onClick = { onTabSelected(AppScreenTab.Settings) },
+                    label = stringResource(if (isDesktop) Res.string.compose_nav_settings else Res.string.compose_nav_profile),
+                    content = { onClick ->
+                        ProfileSwitcherTab(
+                            selected = selectedTab == AppScreenTab.Settings,
+                            onClick = onClick,
+                            onProfileSelected = onProfileSelected,
+                            onAddProfileRequested = onAddProfileRequested,
+                            hazeState = navBarHazeState,
+                            onPopupStateChanged = { isTopProfileSwitcherOpen = it },
+                            avatarSize = if (isDesktop && screenWidth < 800.dp) 26 else if (isDesktop && screenWidth > 1600.dp) 30 else 28,
+                            popupBelowAnchor = isDesktop || isTabletLayout,
+                        )
+                    },
+                ),
+            )
+        } else {
+            emptyList()
+        }
 
         Scaffold(
             modifier = Modifier
@@ -217,7 +201,7 @@ internal fun MainTabsDestination(
             contentWindowInsets = WindowInsets(0),
             bottomBar = {
                 if (!isDesktop && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting == NavBarStyle.CLASSIC) {
-                    NuvioClassicNavigationBar(itemCount = floatingNavigationItems.size) {
+                    NuvioClassicNavigationBar(itemCount = 4 + (if (showLiveTvTab) 1 else 0) + (if (showSportsTab) 1 else 0)) {
                         NavItem(
                             selected = selectedTab == AppScreenTab.Home,
                             onClick = { onTabSelected(AppScreenTab.Home) },
@@ -275,47 +259,60 @@ internal fun MainTabsDestination(
                 } else {
                     !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC
                 }
-                val shouldAttachNestedScroll = if (isDesktop || isTabletLayout) {
+                val navBarUsesScrollState = !useDesktopSidebar && (
+                    useDesktopTopBar ||
+                        useFloatingTopBar ||
+                        (!isDesktop && !isTabletLayout && !useNativeBottomTabs && navBarStyleSetting != NavBarStyle.CLASSIC)
+                    )
+                val shouldAttachNestedScroll = navBarUsesScrollState && if (isDesktop || isTabletLayout) {
                     true
                 } else {
                     navBarStyleSetting == NavBarStyle.ADAPTIVE
                 }
-                CompositionLocalProvider(
-                    LocalNuvioBottomNavigationOverlayPadding provides if (useNativeBottomTabs) 49.dp else if (!isDesktop && !isTabletLayout && navBarStyleSetting != NavBarStyle.CLASSIC) 72.dp else 0.dp,
-                    LocalNuvioNavBarScrollState provides navBarScrollState,
-                ) {
-                    AppTabHost(
-                        selectedTab = selectedTab,
-                        requests = requests,
-                        state = state.copy(
-                            tabsRouteActiveState = tabsRouteActiveState,
-                            topChromePadding = topChromePadding,
-                        ),
-                        actions = tabActions,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(if (requiresNavBarHaze) Modifier.hazeSource(state = navBarHazeState) else Modifier)
-                            .then(if (shouldAttachNestedScroll) Modifier.nestedScroll(navBarScrollState.nestedScrollConnection) else Modifier)
-                            .padding(innerPadding)
-                            .padding(start = contentStartPadding),
-                    )
+                val tabContent: @Composable (contentStartPadding: Dp) -> Unit = { contentStartPadding ->
+                    CompositionLocalProvider(
+                        LocalNuvioBottomNavigationOverlayPadding provides if (useNativeBottomTabs) 49.dp else if (!isDesktop && !isTabletLayout && navBarStyleSetting != NavBarStyle.CLASSIC) 72.dp else 0.dp,
+                        LocalNuvioNavBarScrollState provides if (navBarUsesScrollState) navBarScrollState else null,
+                    ) {
+                        AppTabHost(
+                            selectedTab = selectedTab,
+                            requests = requests,
+                            state = state.copy(
+                                tabsRouteActiveState = tabsRouteActiveState,
+                                topChromePadding = topChromePadding,
+                            ),
+                            actions = tabActions,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(if (requiresNavBarHaze) Modifier.hazeSource(state = navBarHazeState) else Modifier)
+                                .then(if (shouldAttachNestedScroll) Modifier.nestedScroll(navBarScrollState.nestedScrollConnection) else Modifier)
+                                .padding(innerPadding)
+                                .padding(start = contentStartPadding),
+                        )
+                    }
                 }
 
                 if (useDesktopSidebar) {
-                    DesktopHoverSidebar(
+                    DesktopHoverSidebarHost(
                         selectedTab = selectedTab,
+                        navBarStyleSetting = navBarStyleSetting,
                         showLiveTvTab = showLiveTvTab,
                         showSportsTab = showSportsTab,
                         onTabSelected = onTabSelected,
                         onProfileSelected = onProfileSelected,
                         onAddProfileRequested = onAddProfileRequested,
-                        sidebarExpanded = isSidebarExpanded,
-                        sidebarWidth = animatedSidebarWidth,
-                        hoverSource = sidebarHoverSource,
-                        profileStackVisible = isProfileStackVisible,
-                        onProfileStackVisibleChange = { isProfileStackVisible = it },
                         modifier = Modifier.align(Alignment.CenterStart),
-                    )
+                    ) { sidebarWidth ->
+                        // Keep hover-driven width reads local to the two screens that follow it.
+                        val contentStartPadding = when {
+                            selectedTab == AppScreenTab.LiveTv || selectedTab == AppScreenTab.Sports -> sidebarWidth()
+                            navBarStyleSetting == NavBarStyle.EXPANDED -> DesktopSidebarExpandedWidth
+                            else -> DesktopSidebarCollapsedWidth
+                        }
+                        tabContent(contentStartPadding)
+                    }
+                } else {
+                    tabContent(0.dp)
                 }
 
                 if (useFloatingTopBar) {
@@ -383,4 +380,49 @@ internal fun MainTabsDestination(
             }
         }
     }
+}
+
+@Composable
+private fun DesktopHoverSidebarHost(
+    selectedTab: AppScreenTab,
+    navBarStyleSetting: NavBarStyle,
+    showLiveTvTab: Boolean,
+    showSportsTab: Boolean,
+    onTabSelected: (AppScreenTab) -> Unit,
+    onProfileSelected: (NuvioProfile) -> Unit,
+    onAddProfileRequested: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (sidebarWidth: () -> Dp) -> Unit,
+) {
+    val sidebarHoverSource = remember { MutableInteractionSource() }
+    val isSidebarHovered by sidebarHoverSource.collectIsHoveredAsState()
+    var isProfileStackVisible by remember { mutableStateOf(false) }
+
+    val isSidebarExpanded = when (navBarStyleSetting) {
+        NavBarStyle.EXPANDED -> true
+        NavBarStyle.COMPACT -> isProfileStackVisible
+        else -> isSidebarHovered || isProfileStackVisible
+    }
+
+    val animatedSidebarWidth by animateDpAsState(
+        targetValue = if (isSidebarExpanded) DesktopSidebarExpandedWidth else DesktopSidebarCollapsedWidth,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "desktop_sidebar_width",
+    )
+
+    content { animatedSidebarWidth }
+    DesktopHoverSidebar(
+        selectedTab = selectedTab,
+        showLiveTvTab = showLiveTvTab,
+        showSportsTab = showSportsTab,
+        onTabSelected = onTabSelected,
+        onProfileSelected = onProfileSelected,
+        onAddProfileRequested = onAddProfileRequested,
+        sidebarExpanded = isSidebarExpanded,
+        sidebarWidth = animatedSidebarWidth,
+        hoverSource = sidebarHoverSource,
+        profileStackVisible = isProfileStackVisible,
+        onProfileStackVisibleChange = { isProfileStackVisible = it },
+        modifier = modifier,
+    )
 }
