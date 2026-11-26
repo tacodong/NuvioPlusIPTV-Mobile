@@ -72,6 +72,8 @@ static constexpr double kMaxVolumePercent = 200.0;
 @interface NuvioPlayerOpenGLLayer : CAOpenGLLayer
 @property(nonatomic, assign, getter=isNuvioLiveResize) BOOL nuvioLiveResize;
 @property(nonatomic, assign, readonly) GLint bufferDepth;
+/** HDR keeps the float buffer; SDR renders into an 8-bit layer (half the bytes per frame). */
+- (void)setExtendedRangeOutput:(BOOL)extended;
 - (instancetype)initWithOwner:(PlayerMetalView *)owner;
 - (void)setMpvRenderContext:(mpv_render_context *)renderContext;
 - (void)clearMpvRenderContext;
@@ -603,6 +605,7 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
     std::atomic_bool _needsFlip;
     std::atomic_bool _forceDraw;
     std::atomic_bool _renderQueued;
+    std::atomic_bool _eightBitOutput;
 }
 
 @synthesize nuvioLiveResize = _nuvioLiveResize;
@@ -622,6 +625,7 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
     _needsFlip.store(false);
     _forceDraw.store(false);
     _renderQueued.store(false);
+    _eightBitOutput.store(false);
     _pixelFormat = createPlayerOpenGLPixelFormat(&_bufferDepth);
     _glContext = createPlayerOpenGLContext(_pixelFormat);
     self.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
@@ -644,6 +648,16 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
         CGLReleasePixelFormat(_pixelFormat);
         _pixelFormat = nullptr;
     }
+}
+
+- (void)setExtendedRangeOutput:(BOOL)extended {
+    bool eightBit = !extended || _bufferDepth <= 8;
+    if (_eightBitOutput.load() == eightBit && self.contentsFormat == (eightBit ? kCAContentsFormatRGBA8Uint : kCAContentsFormatRGBA16Float)) {
+        return;
+    }
+    _eightBitOutput.store(eightBit);
+    self.contentsFormat = eightBit ? kCAContentsFormatRGBA8Uint : kCAContentsFormatRGBA16Float;
+    [self requestRenderForced:YES];
 }
 
 - (void)setNuvioLiveResize:(BOOL)nuvioLiveResize {
@@ -719,7 +733,7 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
         0
     };
     int flipY = 1;
-    int depth = (int)_bufferDepth;
+    int depth = _eightBitOutput.load() ? 8 : (int)_bufferDepth;
     mpv_render_param params[] = {
         { MPV_RENDER_PARAM_OPENGL_FBO, &fbo },
         { MPV_RENDER_PARAM_FLIP_Y, &flipY },
@@ -814,6 +828,9 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     NSString *_edrPrimaries;
     NSString *_lastAppliedEdrLayerKey;
     double _edrMetadataMaxNits;
+    __weak NSScreen *_peakNitsScreen;
+    double _peakNits;
+    CFTimeInterval _peakNitsReadAt;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
@@ -855,13 +872,22 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     [self updateMetalLayerLayout];
 }
 
+/**
+ * Extended dynamic range only while HDR is playing. An EDR window is composited in floating
+ * point and the float video buffer doubles the bytes per frame; SDR video needs neither.
+ */
+- (void)applyExtendedRangeOutput:(BOOL)extended {
+    setBoolWithSelector(self, @"setWantsExtendedDynamicRangeContent:", extended);
+    setBoolWithSelector(self.window, @"setWantsExtendedDynamicRangeContent:", extended);
+    setBoolWithSelector(self.window.contentView, @"setWantsExtendedDynamicRangeContent:", extended);
+    setBoolWithSelector(_openGLLayer, @"setWantsExtendedDynamicRangeContent:", extended);
+    [_openGLLayer setExtendedRangeOutput:extended];
+}
+
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     [self updateMetalLayerLayout];
-    setBoolWithSelector(self, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window.contentView, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(_openGLLayer, @"setWantsExtendedDynamicRangeContent:", YES);
+    [self applyExtendedRangeOutput:_hasConfiguredEdr && _edrEnabled];
 }
 
 - (void)viewWillStartLiveResize {
@@ -925,10 +951,7 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
         return;
     }
 
-    setBoolWithSelector(self, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window.contentView, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(_openGLLayer, @"setWantsExtendedDynamicRangeContent:", YES);
+    [self applyExtendedRangeOutput:_edrEnabled];
 
     CGColorSpaceRef colorSpace = _edrEnabled
         ? copyPqColorSpaceForPrimaries(_edrPrimaries)
@@ -954,10 +977,7 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     _edrMetadataMaxNits = enabled ? normalizedHdrMetadataMaxNits(targetPeakNits) : hdrMetadataMaxNits();
     _lastAppliedEdrLayerKey = nil;
 
-    setBoolWithSelector(self, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(self.window.contentView, @"setWantsExtendedDynamicRangeContent:", YES);
-    setBoolWithSelector(_openGLLayer, @"setWantsExtendedDynamicRangeContent:", YES);
+    [self applyExtendedRangeOutput:enabled];
 
     CGColorSpaceRef colorSpace = enabled
         ? copyPqColorSpaceForPrimaries(primaries)
@@ -1045,7 +1065,16 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
 }
 
 - (double)hdrTargetPeakNits {
-    return hdrTargetPeakNitsForScreen(self.window.screen ?: NSScreen.mainScreen);
+    // Polled twice a second by the controls sync, and each read is a WindowServer round trip.
+    // Read again when the window moves to another screen, or after a minute.
+    NSScreen *screen = self.window.screen ?: NSScreen.mainScreen;
+    CFTimeInterval now = CACurrentMediaTime();
+    if (screen != _peakNitsScreen || _peakNits <= 0.0 || now - _peakNitsReadAt > 60.0) {
+        _peakNits = hdrTargetPeakNitsForScreen(screen);
+        _peakNitsScreen = screen;
+        _peakNitsReadAt = now;
+    }
+    return _peakNits;
 }
 
 - (CGSize)drawableSize {
