@@ -130,6 +130,8 @@ internal fun DesktopGuidePreviewSurface(
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
+    /** Hidden but still playing: a menu is open over it (native views draw above Compose). */
+    hidden: Boolean = false,
 ) {
     NativePlayerSurface(
         sourceUrl = sourceUrl,
@@ -156,6 +158,7 @@ internal fun DesktopGuidePreviewSurface(
         onSnapshot = onSnapshot,
         onError = onError,
         guidePreview = true,
+        guidePreviewHidden = hidden,
     )
 }
 
@@ -180,10 +183,18 @@ private fun NativePlayerSurface(
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
     guidePreview: Boolean = false,
+    guidePreviewHidden: Boolean = false,
 ) {
     val platformDensity = LocalNuvioPlatformDensity.current
+    val lastViewport = remember { DoubleArray(4) }
     val host = remember { NativePlayerHost().apply { if (guidePreview) isFocusable = false } }
     val controller = remember(host) { NativePlayerController(host, guidePreview = guidePreview) }
+    if (guidePreview) {
+        LaunchedEffect(guidePreviewHidden) {
+            if (guidePreviewHidden) controller.setGuideViewport(0.0, 0.0, 0.0, 0.0)
+            else if (lastViewport[2] > 1.0) controller.setGuideViewport(lastViewport[0], lastViewport[1], lastViewport[2], lastViewport[3])
+        }
+    }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
@@ -378,7 +389,8 @@ private fun NativePlayerSurface(
                     val r = coordinates.boundsInWindow()
                     val viewport = listOf(r.left / scale, r.top / scale, r.width / scale, r.height / scale)
                     if (viewport[2] > 1.0 && viewport[3] > 1.0) {
-                        controller.setGuideViewport(viewport[0], viewport[1], viewport[2], viewport[3])
+                        viewport.forEachIndexed { i, v -> lastViewport[i] = v }
+                        if (!guidePreviewHidden) controller.setGuideViewport(viewport[0], viewport[1], viewport[2], viewport[3])
                     }
                 }
             ),

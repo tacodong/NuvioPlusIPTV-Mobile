@@ -67,6 +67,8 @@ internal class DesktopGuidePreviewState {
         private set
     var failed by mutableStateOf(false)
     var pictureReady by mutableStateOf(false)
+    /** A menu from the guide header is open over the preview: hide it (it keeps playing). */
+    var covered by mutableStateOf(false)
     /** Stopped after a while with no mouse movement over the guide. */
     var pausedIdle by mutableStateOf(false)
     internal var controller: PlayerEngineController? = null
@@ -116,6 +118,7 @@ internal fun DesktopGuidePreviewWindow(state: DesktopGuidePreviewState) {
                     onControllerReady = { state.controller = it },
                     onSnapshot = { if (it.videoWidth > 0 && it.videoHeight > 0) state.pictureReady = true },
                     onError = { if (it != null) state.failed = true },
+                    hidden = state.covered,
                 )
             }
             LaunchedEffect(channel.key) {

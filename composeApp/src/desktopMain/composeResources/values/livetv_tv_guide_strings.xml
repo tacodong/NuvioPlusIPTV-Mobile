@@ -20,5 +20,5 @@
     <string name="livetv_tv_guide_preview_starting">Starting preview…</string>
     <string name="livetv_tv_guide_preview_unavailable">No preview for this channel</string>
     <string name="livetv_tv_guide_preview_paused">Preview paused. Click a channel to resume</string>
-    <string name="livetv_tv_guide_preview_warning">Very heavy: decodes the whole stream (4K included) while the guide is open, about 15–20% CPU and 300 MB more</string>
+    <string name="livetv_tv_guide_preview_warning">Uses noticeably more CPU, memory and battery while a preview plays</string>
 </resources>

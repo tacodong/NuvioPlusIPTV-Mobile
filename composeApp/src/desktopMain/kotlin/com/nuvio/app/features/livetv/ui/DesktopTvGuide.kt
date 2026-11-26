@@ -244,7 +244,7 @@ internal fun DesktopTvGuide(
                 DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
                     onPlay = { playChannel(selectedChannel) },
                     onChannelActions = onChannelActions?.let { { it(selectedChannel) } },
-                    extraActions = { GuideHeaderActions(settings, previewOn, onOpenRecordings) },
+                    extraActions = { GuideHeaderActions(settings, previewOn, onOpenRecordings) { preview.covered = it } },
                     preview = if (previewOn) ({ DesktopGuidePreviewWindow(preview) }) else null)
             }
             // Gives hScroll its range; nothing is drawn here.
@@ -332,7 +332,12 @@ internal fun DesktopTvGuide(
 
 /** The TV guide's info-panel corner: ● Recordings and ⚙ Guide display (what the rows show). */
 @Composable
-private fun GuideHeaderActions(settings: LiveTvSettings, previewOn: Boolean, onOpenRecordings: (() -> Unit)?) {
+private fun GuideHeaderActions(
+    settings: LiveTvSettings,
+    previewOn: Boolean,
+    onOpenRecordings: (() -> Unit)?,
+    onMenuOpen: (Boolean) -> Unit,
+) {
     val tokens = MaterialTheme.nuvio
     onOpenRecordings?.let {
         IconButton(it, Modifier.testTag("desktop-tv-guide-recordings")) {
@@ -340,6 +345,7 @@ private fun GuideHeaderActions(settings: LiveTvSettings, previewOn: Boolean, onO
         }
     }
     var open by remember { mutableStateOf(false) }
+    LaunchedEffect(open) { onMenuOpen(open) }
     Box {
         IconButton({ open = true }, Modifier.testTag("desktop-tv-guide-display")) {
             Icon(Icons.Filled.Tune, stringResource(Res.string.livetv_tv_guide_display), tint = tokens.colors.textSecondary)
