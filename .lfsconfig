@@ -1,0 +1,4 @@
+# GitHub does not take LFS uploads on public forks, so the player libraries merged from Nuvio
+# Desktop are downloaded from its LFS store, where those same objects already live.
+[lfs]
+	url = https://github.com/NuvioMedia/NuvioDesktop.git/info/lfs
