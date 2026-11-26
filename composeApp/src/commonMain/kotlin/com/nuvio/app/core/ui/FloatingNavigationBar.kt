@@ -16,6 +16,7 @@ internal class FloatingNavigationItem(
     val icon: ImageVector? = null,
     val drawable: DrawableResource? = null,
     val content: (@Composable (onClick: () -> Unit) -> Unit)? = null,
+    val focusKey: String? = null,
 )
 
 internal expect val floatingNavigationGlowSupported: Boolean

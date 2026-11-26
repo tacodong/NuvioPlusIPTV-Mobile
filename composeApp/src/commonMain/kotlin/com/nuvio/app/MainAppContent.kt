@@ -1654,12 +1654,7 @@ internal fun MainAppContent(
                     },
                     onOpenNavigation = {
                         ControllerFocusEngine.setNavigationZoneExpanded(true)
-                        val tabName = when (selectedTab) {
-                            AppScreenTab.Home -> "home"
-                            AppScreenTab.Search -> "search"
-                            AppScreenTab.Library -> "library"
-                            AppScreenTab.Settings -> "settings"
-                        }
+                        val tabName = selectedTab.navigationFocusKey
                         // The navigation rail can be a sidebar or the floating top bar depending on
                         // the Desktop Navigation setting; try the top bar first, then the sidebar.
                         ControllerFocusEngine.requestFocus("top_nav_$tabName", triggerScroll = false) ||

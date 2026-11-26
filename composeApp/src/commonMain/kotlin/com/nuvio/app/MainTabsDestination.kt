@@ -24,6 +24,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -143,36 +144,42 @@ internal fun MainTabsDestination(
             listOfNotNull(
                 FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.Home,
+                    focusKey = AppScreenTab.Home.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.Home) },
                     icon = Icons.Filled.Home,
                     label = stringResource(Res.string.compose_nav_home),
                 ),
                 FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.Search,
+                    focusKey = AppScreenTab.Search.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.Search) },
                     drawable = Res.drawable.sidebar_search,
                     label = stringResource(Res.string.compose_nav_search),
                 ),
                 FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.Library,
+                    focusKey = AppScreenTab.Library.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.Library) },
                     drawable = Res.drawable.sidebar_library,
                     label = stringResource(Res.string.compose_nav_library),
                 ),
                 if (showLiveTvTab) FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.LiveTv,
+                    focusKey = AppScreenTab.LiveTv.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.LiveTv) },
                     icon = Icons.Filled.LiveTv,
                     label = liveTvLabel,
                 ) else null,
                 if (showSportsTab) FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.Sports,
+                    focusKey = AppScreenTab.Sports.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.Sports) },
                     icon = Icons.Filled.SportsSoccer,
                     label = sportsLabel,
                 ) else null,
                 FloatingNavigationItem(
                     selected = selectedTab == AppScreenTab.Settings,
+                    focusKey = AppScreenTab.Settings.navigationFocusKey,
                     onClick = { onTabSelected(AppScreenTab.Settings) },
                     label = stringResource(if (isDesktop) Res.string.compose_nav_settings else Res.string.compose_nav_profile),
                     content = { onClick ->
@@ -292,6 +299,9 @@ internal fun MainTabsDestination(
                     }
                 }
 
+                // Moving between a sidebar and top bar must not discard the visited tabs' state.
+                val latestTabContent by rememberUpdatedState(tabContent)
+                val movableTabContent = remember { movableContentOf<Dp> { latestTabContent(it) } }
                 if (useDesktopSidebar) {
                     DesktopHoverSidebarHost(
                         selectedTab = selectedTab,
@@ -309,10 +319,10 @@ internal fun MainTabsDestination(
                             navBarStyleSetting == NavBarStyle.EXPANDED -> DesktopSidebarExpandedWidth
                             else -> DesktopSidebarCollapsedWidth
                         }
-                        tabContent(contentStartPadding)
+                        movableTabContent(contentStartPadding)
                     }
                 } else {
-                    tabContent(0.dp)
+                    movableTabContent(0.dp)
                 }
 
                 if (useFloatingTopBar) {

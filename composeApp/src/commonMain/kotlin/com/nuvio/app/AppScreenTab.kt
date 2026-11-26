@@ -17,6 +17,16 @@ enum class AppScreenTab {
     }
 }
 
+internal val AppScreenTab.navigationFocusKey: String
+    get() = when (this) {
+        AppScreenTab.Home -> "home"
+        AppScreenTab.Search -> "search"
+        AppScreenTab.Library -> "library"
+        AppScreenTab.LiveTv -> "live_tv"
+        AppScreenTab.Sports -> "sports"
+        AppScreenTab.Settings -> "settings"
+    }
+
 internal fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
     AppScreenTab.Home -> NativeNavigationTab.Home
     AppScreenTab.Search -> NativeNavigationTab.Search

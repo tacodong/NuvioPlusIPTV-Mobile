@@ -70,6 +70,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.TimeSource
 
 internal val LocalIsControllerNavigationActive = compositionLocalOf<Boolean?> { null }
 
@@ -270,7 +271,7 @@ object ControllerFocusEngine {
 
     private val routeFocusHistory = mutableMapOf<String, RouteFocusMemory>()
     private var pendingRestoredNodeId: String? = null
-    private var pendingRestoredAt = 0L
+    private var pendingRestoredAt: TimeSource.Monotonic.ValueTimeMark? = null
     private var pendingRestoreFallbackJob: Job? = null
     private var isInternalCleanupFocus: Boolean = false
 
@@ -457,7 +458,7 @@ object ControllerFocusEngine {
                     _focusedNodeId.value = null
                     _focusedNodeSnapshot.value = null
                     pendingRestoredNodeId = targetId
-                    pendingRestoredAt = System.currentTimeMillis()
+                    pendingRestoredAt = TimeSource.Monotonic.markNow()
                     val scope = activeCoroutineScope ?: nodes.values.firstNotNullOfOrNull { it.coroutineScope }
                     pendingRestoreFallbackJob = scope?.launch {
                         var waited = 0L
@@ -536,7 +537,7 @@ object ControllerFocusEngine {
                 )
                 return
             }
-            if (System.currentTimeMillis() - pendingRestoredAt < PENDING_RESTORE_TIMEOUT_MS) return
+            if (pendingRestoredAt?.elapsedNow()?.inWholeMilliseconds?.let { it < PENDING_RESTORE_TIMEOUT_MS } == true) return
         }
 
         if (currentId == node.id) {

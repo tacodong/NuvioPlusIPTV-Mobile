@@ -105,13 +105,13 @@ internal fun DesktopNavigationBar(
             iconSize = iconSize,
             modifier = Modifier.width(trackWidth).height(iconSize + 20.dp).hoverable(interactionSource),
             focusIdForIndex = { index ->
-                "top_nav_" + when (index) {
+                "top_nav_" + (items[index].focusKey ?: when (index) {
                     0 -> "home"
                     1 -> "search"
                     2 -> "library"
                     3 -> "settings"
                     else -> "item_$index"
-                }
+                })
             },
         ) {
             Box(
