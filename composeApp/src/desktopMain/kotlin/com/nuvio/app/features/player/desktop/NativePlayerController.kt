@@ -69,6 +69,8 @@ internal class NativePlayerController(
     private val createWaitTimeoutMs: Long = 5_000L,
     private val releaseTimeoutMs: Long = 10_000L,
     private val onCreateWaitCompleted: () -> Unit = {},
+    /** A silent guide preview: no controls page, remembered volume or resize mode. */
+    private val guidePreview: Boolean = false,
 ) : PlayerEngineController {
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
@@ -320,7 +322,7 @@ internal class NativePlayerController(
                         pending.headerLines.toTypedArray(),
                         pending.playWhenReady,
                         pending.initialPositionMs,
-                        NativePlayerBridge.controlsPageUrl,
+                        if (guidePreview) "" else NativePlayerBridge.controlsPageUrl,
                         pending.decoderPriority,
                         pending.nvidiaRtxSuperResolutionEnabled,
                         pending.nvidiaRtxHdrEnabled,
@@ -358,9 +360,11 @@ internal class NativePlayerController(
                             "attach created handle=$created source=${resolvedSource.toPlaybackLogKey()} " +
                                 "initialPositionMs=${pending.initialPositionMs}"
                         }
-                        applyRememberedVolume()
-                        updateControls(controlsState)
-                        setResizeMode(rememberedResizeMode)
+                        if (!guidePreview) {
+                            applyRememberedVolume()
+                            updateControls(controlsState)
+                            setResizeMode(rememberedResizeMode)
+                        }
                         if (currentNowPlayingTitle.isNotEmpty() || currentArtworkUrl.isNotEmpty()) {
                             setNowPlayingMetadata(currentNowPlayingTitle, currentNowPlayingSubtitle, currentArtworkUrl)
                         }
@@ -553,6 +557,10 @@ internal class NativePlayerController(
     }
 
     private fun handlePlayerEvent(type: String, value: Double) {
+        if (guidePreview) {
+            onEvent(type, value)
+            return
+        }
         if (type.shouldLogNativeControlEvent()) {
             log.d { "event received handle=$handle type=$type value=$value" }
         }

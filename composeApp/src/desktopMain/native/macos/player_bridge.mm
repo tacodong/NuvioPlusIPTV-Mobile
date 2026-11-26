@@ -1166,6 +1166,8 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     NSString *_pendingControlsJson;
     double _initialStartSeconds;
     BOOL _controlsSyncInFlight;
+    /** A guide preview: no controls page, no media keys, muted, small buffer (empty controls URL). */
+    BOOL _guidePreview;
     NSRect _lastAppliedNativeLayoutBounds;
     BOOL _lastAppliedNativeLayoutWasLiveResize;
     NSTimeInterval _lightweightResizeSettleUntil;
@@ -1233,7 +1235,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
     _videoView = [[PlayerMetalView alloc] initWithFrame:_hostView.bounds];
     [_hostView addSubview:_videoView];
+    _guidePreview = controlsUrl.length == 0;
 
+    if (!_guidePreview) {
     _scriptHandler = [PlayerScriptHandler new];
     _scriptHandler.player = self;
     WKUserContentController *contentController = [WKUserContentController new];
@@ -1256,6 +1260,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         [_webView loadFileURL:controlsURL allowingReadAccessToURL:[controlsURL URLByDeletingLastPathComponent]];
     } else {
         [_webView loadRequest:[NSURLRequest requestWithURL:controlsURL]];
+    }
     }
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(hostViewFrameDidChange:)
@@ -1281,26 +1286,40 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                                              selector:@selector(windowDidExitFullScreen:)
                                                  name:NSWindowDidExitFullScreenNotification
                                                object:nil];
-    __weak MpvWebPlayer *weakSelf = self;
-    _mediaKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskSystemDefined
-                                                            handler:^NSEvent *(NSEvent *event) {
-        MpvWebPlayer *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return event;
-        }
-        return [strongSelf handleMediaKeyEvent:event];
-    }];
-    [self activateRemoteCommands];
+    if (!_guidePreview) {
+        __weak MpvWebPlayer *weakSelf = self;
+        _mediaKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskSystemDefined
+                                                                handler:^NSEvent *(NSEvent *event) {
+            MpvWebPlayer *strongSelf = weakSelf;
+            if (!strongSelf) {
+                return event;
+            }
+            return [strongSelf handleMediaKeyEvent:event];
+        }];
+        [self activateRemoteCommands];
+    }
     [self layoutNativeSubviews];
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self focusControlsWebViewIfNeeded];
-    });
+    if (!_guidePreview) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self focusControlsWebViewIfNeeded];
+        });
+    }
 
-    [self startMpvWithSource:sourceUrl
-                 headerLines:headerLines
-                playWhenReady:playWhenReady
-             initialPositionMs:initialPositionMs
-              decoderPriority:decoderPriority];
+    @try {
+        [self startMpvWithSource:sourceUrl
+                     headerLines:headerLines
+                    playWhenReady:playWhenReady
+                 initialPositionMs:initialPositionMs
+                  decoderPriority:decoderPriority];
+    } @catch (NSException *exception) {
+        if (_guidePreview) {
+            // On a failed constructor the JNI caller still owns the global event reference.
+            [self stopMpvEventDrain];
+            _eventSink = nullptr;
+            [self shutdown];
+        }
+        @throw;
+    }
     _timer = [NSTimer scheduledTimerWithTimeInterval:0.5
                                              target:self
                                            selector:@selector(syncControls)
@@ -1792,6 +1811,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     setMpvOptionString(_mpv, "hdr-compute-peak", "no");
     setMpvOptionString(_mpv, "dither-depth", "auto");
     setMpvOptionString(_mpv, "demuxer-max-bytes", "150MiB");
+    if (_guidePreview) {
+        // The guide preview is a small silent picture: no audio decode and a small read-ahead.
+        setMpvOptionString(_mpv, "aid", "no");
+        setMpvOptionString(_mpv, "mute", "yes");
+        setMpvOptionString(_mpv, "demuxer-max-bytes", "16MiB");
+        setMpvOptionString(_mpv, "demuxer-max-back-bytes", "0");
+    }
     setMpvOptionString(
         _mpv,
         "stream-lavf-o",
@@ -1843,11 +1869,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 }
 
 - (void)syncControls {
-    if (!_webView || !_mpv) {
+    if (!_mpv || (!_webView && !_guidePreview)) {
         return;
     }
     [self layoutNativeSubviews];
-    [self focusControlsWebViewIfNeeded];
+    if (!_guidePreview) {
+        [self focusControlsWebViewIfNeeded];
+    }
     if (_controlsSyncInFlight || !_mpvEventQueue) {
         return;
     }
@@ -1867,16 +1895,16 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
             double duration = [self doubleProperty:"duration" fallback:0.0];
             double position = [self doubleProperty:"time-pos" fallback:0.0];
             double positionReadAt = CACurrentMediaTime();
-            double volumeLevel = [self volume];
+            double volumeLevel = self->_guidePreview ? 0.0 : [self volume];
             double cacheAhead = [self cacheAheadSecondsForPosition:position];
             double bufferedPosition = (double)([self bufferedPositionMs] / 1000.0);
             BOOL paused = [self rawIsPaused];
             BOOL ended = [self rawIsEnded];
             BOOL loading = [self rawLoadingWithPaused:paused ended:ended duration:duration];
             double speed = [self rawSpeed];
-            NSString *audioTracks = [self audioTracksJson] ?: @"[]";
-            NSString *subtitleTracks = [self subtitleTracksJson] ?: @"[]";
-            NSString *mediaTitle = [self stringProperty:"media-title" fallback:@""];
+            NSString *audioTracks = self->_guidePreview ? @"[]" : ([self audioTracksJson] ?: @"[]");
+            NSString *subtitleTracks = self->_guidePreview ? @"[]" : ([self subtitleTracksJson] ?: @"[]");
+            NSString *mediaTitle = self->_guidePreview ? @"" : [self stringProperty:"media-title" fallback:@""];
             NSString *gamma = [[self stringProperty:"video-params/gamma" fallback:@""] lowercaseString];
             NSString *primaries = [[self stringProperty:"video-params/primaries" fallback:@""] lowercaseString];
             [self updateCachedDuration:duration
@@ -1891,7 +1919,7 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
 
             dispatch_async(dispatch_get_main_queue(), ^{
                 self->_controlsSyncInFlight = NO;
-                if (!self->_webView || self->_mpv != mpv) {
+                if (self->_mpv != mpv || !self->_webView) {
                     return;
                 }
                 [self applyHdrForPolledGamma:gamma primaries:primaries reason:@"sync" force:NO];
@@ -2238,6 +2266,13 @@ static void nuvioMpvWakeup(void *ctx) {
         mpv_event *event = mpv_wait_event(mpv, 0);
         if (!event || event->event_id == MPV_EVENT_NONE) break;
         switch (event->event_id) {
+            case MPV_EVENT_END_FILE: {
+                mpv_event_end_file *ended = (mpv_event_end_file *)event->data;
+                if (_guidePreview && ended && ended->reason == MPV_END_FILE_REASON_ERROR) {
+                    [self sendPlayerEvent:@"guidePreviewError" value:0.0];
+                }
+                break;
+            }
             case MPV_EVENT_PROPERTY_CHANGE: {
                 mpv_event_property *prop = (mpv_event_property *)event->data;
                 if (event->reply_userdata == 2 && prop && prop->format == MPV_FORMAT_STRING) {

@@ -38,6 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +113,7 @@ import nuvio.composeapp.generated.resources.livetv_tv_guide_display_numbers
 import nuvio.composeapp.generated.resources.livetv_tv_guide_display_times
 import nuvio.composeapp.generated.resources.livetv_tv_guide_earlier
 import nuvio.composeapp.generated.resources.livetv_tv_guide_later
+import nuvio.composeapp.generated.resources.livetv_tv_guide_preview
 import org.jetbrains.compose.resources.stringResource
 
 // The Android TV guide (TiviMate style): a fixed two-hour window that fills the width and moves in
@@ -179,6 +183,16 @@ internal fun DesktopTvGuide(
         ?: schedule.firstOrNull { it.startMs >= now }
     val clock = if (settings.use24HourClock) ::clock24 else ::formatLocalTime
     val rowHeight = rowHeight(settings)
+    // The preview window (togglable in Guide display): one silent second player at most, and its
+    // stream is released before the full player opens a channel.
+    val previewOn by DesktopGuidePreviewSetting.enabled.collectAsState()
+    val preview = remember { DesktopGuidePreviewState() }
+    DisposableEffect(preview) { onDispose { preview.release {} } }
+    LaunchedEffect(previewOn) { if (!previewOn) preview.release {} }
+    val playChannel: (LiveChannel) -> Unit = { channel -> preview.release { onPlay(channel) } }
+    val channelClick: (LiveChannel) -> Unit = { channel ->
+        if (previewOn && preview.channel?.key != channel.key) preview.start(channel) else playChannel(channel)
+    }
 
     // The shared screen keeps the time position in hScroll (Jump to Now, loading the visible
     // listings), in its own 216 dp-per-hour units. This guide shows the half-hour page it falls in.
@@ -204,8 +218,13 @@ internal fun DesktopTvGuide(
         Column(Modifier.fillMaxSize()) {
             if (selectedChannel != null) {
                 DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
-                    onPlay = { onPlay(selectedChannel) }, onChannelActions = onChannelActions?.let { { it(selectedChannel) } },
-                    extraActions = { GuideHeaderActions(settings, onOpenRecordings) })
+                    onPlay = { playChannel(selectedChannel) },
+                    onChannelActions = onChannelActions?.let { { it(selectedChannel) } },
+                    visual = { channel ->
+                        if (previewOn) DesktopGuidePreviewWindow(preview) { ChannelLogo(channel, width = 96.dp, height = 54.dp, inset = 6.dp) }
+                        else ChannelLogo(channel, width = 118.dp, height = 70.dp, inset = 8.dp)
+                    },
+                    extraActions = { GuideHeaderActions(settings, previewOn, onOpenRecordings) })
             }
             // Gives hScroll its range; nothing is drawn here.
             Box(Modifier.width(1.dp).height(0.dp).horizontalScroll(hScroll, enabled = false)) {
@@ -236,7 +255,7 @@ internal fun DesktopTvGuide(
                         val channelSelected = channel.key == selectedChannel?.key
                         Row(Modifier.fillMaxWidth().height(rowHeight).padding(vertical = 2.dp)) {
                             GuideChannelCell(channel, settings, rowHeight, channel.key in favoriteKeys, channelSelected,
-                                onBrowse = { selection = GuideSelection(channel.key) }, onPlay = { onPlay(channel) },
+                                onBrowse = { selection = GuideSelection(channel.key) }, onPlay = { channelClick(channel) },
                                 onActions = onChannelActions?.let { { it(channel) } })
                             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().then(wheel)) {
                                 val areaWidth = maxWidth
@@ -266,7 +285,7 @@ internal fun DesktopTvGuide(
                                             modifier = tile,
                                             onBrowse = { selection = GuideSelection(channel.key, program.startMs) },
                                             onOpen = { onProgram(channel, program) },
-                                            onPlay = { onPlay(channel) },
+                                            onPlay = { playChannel(channel) },
                                         )
                                     }
                                 }
@@ -292,7 +311,7 @@ internal fun DesktopTvGuide(
 
 /** The TV guide's info-panel corner: ● Recordings and ⚙ Guide display (what the rows show). */
 @Composable
-private fun GuideHeaderActions(settings: LiveTvSettings, onOpenRecordings: (() -> Unit)?) {
+private fun GuideHeaderActions(settings: LiveTvSettings, previewOn: Boolean, onOpenRecordings: (() -> Unit)?) {
     val tokens = MaterialTheme.nuvio
     onOpenRecordings?.let {
         IconButton(it, Modifier.testTag("desktop-tv-guide-recordings")) {
@@ -307,6 +326,7 @@ private fun GuideHeaderActions(settings: LiveTvSettings, onOpenRecordings: (() -
         DropdownMenu(open, onDismissRequest = { open = false }) {
             Text(stringResource(Res.string.livetv_tv_guide_display), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textSecondary)
+            DisplayToggle(Res.string.livetv_tv_guide_preview, previewOn) { v -> DesktopGuidePreviewSetting.set(v) }
             DisplayToggle(Res.string.livetv_tv_guide_display_numbers, settings.phoneChannelNumbers) { v ->
                 LiveTvPreferences.updateSettings { it.copy(phoneChannelNumbers = v) } }
             DisplayToggle(Res.string.livetv_tv_guide_display_logos, settings.phoneChannelLogos) { v ->

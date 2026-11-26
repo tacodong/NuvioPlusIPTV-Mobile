@@ -116,6 +116,47 @@ actual fun PlatformPlayerSurface(
     )
 }
 
+/**
+ * The Live TV guide's preview window (macOS): a second, silent native player without the full
+ * player's controls page, audio decode or large read-ahead.
+ */
+@Composable
+internal fun DesktopGuidePreviewSurface(
+    sourceUrl: String,
+    sourceHeaders: Map<String, String>,
+    modifier: Modifier,
+    onControllerReady: (PlayerEngineController) -> Unit,
+    onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
+    onError: (String?) -> Unit,
+) {
+    NativePlayerSurface(
+        sourceUrl = sourceUrl,
+        sourceAvailable = true,
+        sourceHeaders = sourceHeaders,
+        externalSubtitles = emptyList(),
+        modifier = modifier,
+        playWhenReady = true,
+        resizeMode = PlayerResizeMode.Fit,
+        initialPositionMs = 0L,
+        initialPositionRequestKey = null,
+        playerControlsState = PlayerControlsState(),
+        onPlayerControlsAction = { false },
+        onPlayerControlsEvent = { type, _ ->
+            if (type == "guidePreviewError") {
+                onError("Guide preview could not play")
+                true
+            } else false
+        },
+        onPlayerControlsScrubChange = { false },
+        onPlayerControlsScrubFinished = { false },
+        onInitialPositionHandled = { _, _ -> },
+        onControllerReady = onControllerReady,
+        onSnapshot = onSnapshot,
+        onError = onError,
+        guidePreview = true,
+    )
+}
+
 @Composable
 private fun NativePlayerSurface(
     sourceUrl: String,
@@ -136,10 +177,11 @@ private fun NativePlayerSurface(
     onControllerReady: (PlayerEngineController) -> Unit,
     onSnapshot: (PlayerPlaybackSnapshot) -> Unit,
     onError: (String?) -> Unit,
+    guidePreview: Boolean = false,
 ) {
     val platformDensity = LocalNuvioPlatformDensity.current
-    val host = remember { NativePlayerHost() }
-    val controller = remember(host) { NativePlayerController(host) }
+    val host = remember { NativePlayerHost().apply { if (guidePreview) isFocusable = false } }
+    val controller = remember(host) { NativePlayerController(host, guidePreview = guidePreview) }
     val hostFirstPaintComplete = remember { mutableStateOf(false) }
     val hostFirstFullSizePaintComplete = remember { mutableStateOf(false) }
     val playbackHeaders = remember(sourceHeaders) { sanitizePlaybackHeaders(sourceHeaders) }
