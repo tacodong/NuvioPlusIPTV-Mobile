@@ -1,0 +1,77 @@
+# Keeps the Mac branch current with both projects it's built from: homelessbrian's Nuvio + IPTV
+# (dev) and Nuvio Desktop (Dev). Each is merged in on its own; a clean merge is pushed, and a
+# conflicting one is left alone and reported as an issue listing the files both sides changed.
+#
+# automation-workflow:v1
+# {"owner":"tacodong","outcome":"Vikunja #189 (macOS Live TV and Sports)","source":".github/workflows/macos-sync.yml on the fork's macos branch","scheduler":"github-actions","schedule":"0 9 * * *","timezone":"UTC","failure":"GitHub Actions failure email to the repo owner, plus a 'sync-conflict' issue on the fork","missed_run":{"reason":"no external heartbeat; GitHub pauses schedules after 60 days without repo activity","owner":"tacodong","expires":"2027-01-31T00:00:00Z"},"catalogue":{"reason":"not yet registered in xyOps","owner":"tacodong","expires":"2027-01-31T00:00:00Z"}}
+name: Mac sync
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # daily, 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: macos-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: macos
+          fetch-depth: 0
+
+      - name: Merge both projects
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git remote add iptv https://github.com/homelessbrian/NuvioPlusIPTV-Mobile.git
+          git remote add desktop https://github.com/NuvioMedia/NuvioDesktop.git
+          git fetch --no-tags iptv dev
+          git fetch --no-tags desktop Dev
+          gh label create sync-conflict --color B60205 --description "The Mac sync needs a person" 2>/dev/null || true
+
+          before=$(git rev-parse HEAD)
+          failed=0
+          merge_source() {
+            local ref="$1" name="$2"
+            if [ "$(git rev-list --count HEAD.."$ref")" = "0" ]; then
+              echo "$name: nothing new." >> "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+            if git merge --no-edit -m "Merge $name into macos" "$ref"; then
+              echo "$name: merged $(git rev-list --count HEAD^1.."$ref") commits." >> "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+            local files
+            files=$(git diff --name-only --diff-filter=U)
+            git merge --abort
+            local title="Mac sync: $name conflicts"
+            local body
+            body=$(printf 'The daily sync could not merge **%s** into `macos` because both changed these files:\n\n%s\n\nMerge it by hand, keeping both sides, then the sync carries on.' \
+              "$name" "$(echo "$files" | sed 's/^/- `/; s/$/`/')")
+            existing=$(gh issue list --label sync-conflict --state open --search "$title in:title" --json number -q '.[0].number')
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "$body"
+            else
+              gh issue create --title "$title" --label sync-conflict --body "$body"
+            fi
+            echo "$name: conflicts, issue opened." >> "$GITHUB_STEP_SUMMARY"
+            failed=1
+          }
+          merge_source refs/remotes/iptv/dev "Nuvio + IPTV dev"
+          merge_source refs/remotes/desktop/Dev "Nuvio Desktop Dev"
+
+          if [ "$(git rev-parse HEAD)" != "$before" ]; then
+            git push origin HEAD:macos
+          fi
+          exit $failed

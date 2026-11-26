@@ -38,8 +38,17 @@ import com.nuvio.app.core.ui.nuvio
 // decision after the rail and safe insets have been taken out of the available space.
 internal val LiveTvWideWidth = 768.dp
 
+/**
+ * The wide Live TV and Sports layouts (desktop-style guide, card grids, centred sheets) are for
+ * the desktop app. Phones and tablets keep their own layouts; set this to true to give tablets
+ * (iPad, Android tablets) the wide layouts too, at the same width.
+ */
+internal const val LiveTvWideLayoutsOnTablets = false
+
 @Composable
-internal fun isWideLiveTvWindow(): Boolean = LocalWindowInfo.current.containerDpSize.width >= LiveTvWideWidth
+internal fun isWideLiveTvWindow(): Boolean =
+    (com.nuvio.app.isDesktop || LiveTvWideLayoutsOnTablets) &&
+        LocalWindowInfo.current.containerDpSize.width >= LiveTvWideWidth
 
 @Composable
 internal fun MutableInteractionSource.isHoveredOrFocused(): Boolean {
