@@ -102,6 +102,9 @@ import nuvio.composeapp.generated.resources.livetv_sports_channels_from
 import nuvio.composeapp.generated.resources.livetv_sports_clear_fixes
 import nuvio.composeapp.generated.resources.livetv_sports_clear_fixes_description
 import kotlinx.coroutines.flow.collect
+import androidx.compose.foundation.horizontalScroll
+import nuvio.composeapp.generated.resources.livetv_sports_nothing_followed
+import nuvio.composeapp.generated.resources.livetv_sports_pick_teams
 import org.jetbrains.compose.resources.stringResource
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -316,7 +319,7 @@ internal fun TeamPickerSheet(league: League, follows: SportsFollows, onOpenLeagu
 
 /** Everything you follow, in My Sports' order (drag to arrange), with unfollow, plus a name to add. */
 @Composable
-internal fun SportsFollowingTab(follows: SportsFollows, settings: SportsSettings, actions: SportsActions) {
+internal fun SportsFollowingTab(follows: SportsFollows, actions: SportsActions, onPickTeams: () -> Unit) {
     val tokens = MaterialTheme.nuvio
     val repo = SportsRepository
     val haptics = LocalHapticFeedback.current
@@ -332,7 +335,6 @@ internal fun SportsFollowingTab(follows: SportsFollows, settings: SportsSettings
     }
     var addingName by remember { mutableStateOf(false) }
     var pickingLeague by remember { mutableStateOf<League?>(null) }
-    LaunchedEffect(Unit) { if (!follows.setUp) repo.markSetUp() }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -340,12 +342,18 @@ internal fun SportsFollowingTab(follows: SportsFollows, settings: SportsSettings
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
     ) {
         item(key = "add") {
-            Row(horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8), modifier = Modifier.padding(vertical = NuvioTokens.Space.s4)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(vertical = NuvioTokens.Space.s4),
+            ) {
+                Chip(label = stringResource(Res.string.livetv_sports_pick_teams), selected = false, onClick = onPickTeams)
                 Chip(label = stringResource(Res.string.livetv_sports_add_name), selected = false, onClick = { addingName = true })
             }
         }
         if (keys.isEmpty()) {
-            item(key = "empty") { Text("Follow teams, leagues and names from Search; their games then show under My Sports.", style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted) }
+            item(key = "empty") {
+                Text(stringResource(Res.string.livetv_sports_nothing_followed), style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted)
+            }
         }
         items(keys, key = { it }) { key ->
             ReorderableItem(reorderState, key = key) {

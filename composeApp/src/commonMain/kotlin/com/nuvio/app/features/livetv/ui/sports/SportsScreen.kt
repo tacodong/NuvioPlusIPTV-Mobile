@@ -159,6 +159,7 @@ fun SportsScreen(
         if (tab == SportsTab.MINE) SportsWatchSelection.select(mine = true)
     }
     var showSettings by remember { mutableStateOf(false) }
+    var showTeamPicker by remember { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val onHighlights: (SportsEvent) -> Unit = { ev -> playGameHighlights(ev, actions, scope) }
@@ -203,14 +204,15 @@ fun SportsScreen(
         if (withSearch && searchQuery.isNotBlank()) {
             SportsSearchTab(known, follows, actions, searchQuery)
         } else when (tab) {
-            SportsTab.MINE -> MySportsTab(known, follows, settings, matches, now, use24h, actions, onHighlights, onPick = { tabIndex = SportsTab.FOLLOWING.ordinal })
+            SportsTab.MINE -> MySportsTab(known, follows, settings, matches, now, use24h, actions, onHighlights, onPick = { showTeamPicker = true })
             SportsTab.ALL -> AllEventsTab(events, follows, settings, matches, now, use24h, loading, actions, onHighlights)
-            SportsTab.FOLLOWING -> SportsFollowingTab(follows, settings, actions)
+            SportsTab.FOLLOWING -> SportsFollowingTab(follows, actions, onPickTeams = { showTeamPicker = true })
             SportsTab.NETWORKS -> SportsNetworksTab(actions)
         }
     }
 
     if (screenActive && showSettings) SportsSettingsSheet(settings, onDismiss = { showSettings = false })
+    if (screenActive && showTeamPicker) PickYourTeamsSheet(settings, follows, onDismiss = { showTeamPicker = false })
     if (screenActive) GameAlertsOffer()
 }
 

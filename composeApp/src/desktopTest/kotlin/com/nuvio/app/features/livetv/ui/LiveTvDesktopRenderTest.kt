@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getAllSemanticsNodes
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
@@ -45,14 +46,18 @@ import com.nuvio.app.features.livetv.data.XmltvParser
 import com.nuvio.app.features.livetv.model.LiveChannel
 import com.nuvio.app.features.livetv.model.LiveTvSettings
 import com.nuvio.app.features.livetv.model.LiveUserState
+import com.nuvio.app.features.livetv.sports.FollowedTeam
 import com.nuvio.app.features.livetv.sports.GameState
+import com.nuvio.app.features.livetv.sports.League
 import com.nuvio.app.features.livetv.sports.Side
+import com.nuvio.app.features.livetv.sports.Sport
 import com.nuvio.app.features.livetv.sports.SportsDates
 import com.nuvio.app.features.livetv.sports.SportsEvent
 import com.nuvio.app.features.livetv.sports.SportsFollows
 import com.nuvio.app.features.livetv.sports.SportsSettings
 import com.nuvio.app.features.livetv.sports.TeamInfo
 import com.nuvio.app.features.livetv.ui.sports.AllEventsTab
+import com.nuvio.app.features.livetv.ui.sports.PickYourTeamsSheet
 import com.nuvio.app.features.livetv.ui.sports.SportsActions
 import com.nuvio.app.features.livetv.ui.sports.SportsSearchBar
 import kotlin.test.Test
@@ -224,6 +229,80 @@ class LiveTvDesktopRenderTest {
         }.withScene {
             png("livetv-compact", 420, 900)
             assertTrue(text("Add a playlist").boundsInRoot.center.x in 190f..230f)
+        }
+    }
+
+    @Test
+    fun teamPickerReflowsAndTogglesFollows() {
+        val leagues = listOf(
+            League("fixture/pro", Sport.BASKETBALL, "National Basketball League", "NBL"),
+            League("fixture/college", Sport.BASKETBALL, "College Basketball", "College"),
+            League("fixture/hockey", Sport.HOCKEY, "National Hockey League", "NHL"),
+            League("fixture/soccer", Sport.FOOTBALL, "Premier League", "EPL"),
+            League("fixture/baseball", Sport.BASEBALL, "Major League Baseball", "MLB"),
+            League("fixture/rugby", Sport.RUGBY, "Super Rugby", "SR"),
+        )
+        val teamNames = listOf(
+            "Boston Harbors", "Brooklyn Towers", "Chicago Flyers", "Cleveland Captains", "Dallas Outlaws",
+            "Denver Summits", "Detroit Foundry", "Golden State Tides", "Houston Comets", "Indiana Racers",
+            "Los Angeles Stars", "Memphis Kings", "Miami Palms", "Milwaukee Herd", "Minnesota North Stars",
+            "New York Knights", "Oklahoma City Cyclones", "Orlando Suns", "Philadelphia Liberty", "Phoenix Firebirds",
+            "Portland Pioneers", "Sacramento Gold", "San Antonio Arrows", "Toronto Owls", "Utah Peaks", "Washington Generals",
+        )
+        val colors = listOf(0xFF177149L, 0xFF71539BL, 0xFF9B353FL, 0xFF2A5EADL, 0xFF9C4C35L, 0xFF286A8EL)
+        val proTeams = teamNames.mapIndexed { i, name ->
+            TeamInfo(leagues[0].id, "team-$i", name, name, name.take(3).uppercase(), null,
+                colors[i % colors.size], null, null, "${20 + i}–${10 + i}")
+        }
+        val collegeTeam = TeamInfo(leagues[1].id, "college", "Riverside Owls", "Riverside Owls", "RIV", null, colors[2], null, null)
+        val hockeyTeam = TeamInfo(leagues[2].id, "hockey", "Halifax Icebreakers", "Halifax Icebreakers", "HAL", null, colors[3], null, null)
+        fun TeamInfo.asFollow() = FollowedTeam(leagueId, id, name, abbr, color, logo)
+        for ((width, height) in listOf(1280 to 800, 420 to 900)) {
+            var follows by mutableStateOf(SportsFollows(teams = listOf(proTeams[0].asFollow(), proTeams[5].asFollow())))
+            var open by mutableStateOf(true)
+            scene(width, height) {
+                if (open) PickYourTeamsSheet(leagues, follows, teamsFor = { league ->
+                    when (league) {
+                        leagues[0] -> proTeams
+                        leagues[1] -> listOf(collegeTeam)
+                        leagues[2] -> listOf(hockeyTeam)
+                        else -> emptyList()
+                    }
+                }, onToggle = { team ->
+                    val old = follows.followedTeam(team)
+                    follows = follows.copy(teams = if (old == null) follows.teams + team.asFollow() else follows.teams - old)
+                }, onDismiss = { open = false })
+            }.withScene {
+                text("Pick your teams")
+                text("Search teams across all leagues")
+                val first = text(proTeams[0].fullName)
+                val second = text(proTeams[1].fullName)
+                val sport = text("🏀  Basketball")
+                val league = text(leagues[0].name)
+                if (width == 1280) {
+                    assertTrue(sport.boundsInWindow.right < league.boundsInWindow.left)
+                    assertTrue(first.boundsInWindow.right <= second.boundsInWindow.left)
+                    assertEquals(first.boundsInWindow.top, second.boundsInWindow.top)
+                } else {
+                    assertTrue(sport.boundsInWindow.bottom <= league.boundsInWindow.top)
+                    assertTrue(first.boundsInWindow.bottom <= second.boundsInWindow.top)
+                }
+                assertTrue(league.boundsInWindow.bottom <= first.boundsInWindow.top)
+                png("sports-picker", width, height)
+                click(second.boundsInWindow.center)
+                assertNotNull(follows.followedTeam(proTeams[1]))
+                val toggle = generateSequence(text(proTeams[1].fullName)) { it.parent }
+                    .firstNotNullOfOrNull { it.config.getOrNull(SemanticsProperties.ToggleableState) }
+                assertEquals(ToggleableState.On, toggle)
+                click(second.boundsInWindow.center)
+                assertEquals(null, follows.followedTeam(proTeams[1]))
+                click(text(leagues[1].name).boundsInWindow.center)
+                text(collegeTeam.fullName)
+                click(text("🏒  Hockey").boundsInWindow.center)
+                text(hockeyTeam.fullName)
+                click(text("Done").boundsInWindow.center)
+                assertEquals(false, open)
+            }
         }
     }
 

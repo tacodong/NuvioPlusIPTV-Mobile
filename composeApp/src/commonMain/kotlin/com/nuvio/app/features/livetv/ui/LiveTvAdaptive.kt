@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.ui.NuvioModalBottomSheet
 import com.nuvio.app.core.ui.dismissNuvioBottomSheet
@@ -55,6 +56,7 @@ internal fun LiveTvAdaptiveSheet(
     fullHeight: Boolean = false,
     scrollContent: Boolean = false,
     wide: Boolean = isWideLiveTvWindow(),
+    wideMaxWidth: Dp = 520.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (wide) {
@@ -65,7 +67,7 @@ internal fun LiveTvAdaptiveSheet(
                 Box(Modifier.matchParentSize().background(tokens.colors.overlayScrim)
                     .pointerInput(onDismissRequest) { detectTapGestures { onDismissRequest() } })
                 Surface(
-                    modifier = Modifier.padding(16.dp).widthIn(max = 520.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(16.dp).widthIn(max = wideMaxWidth).fillMaxWidth(),
                     shape = tokens.shapes.dialog,
                     color = tokens.colors.surfaceDialog.copy(alpha = 1f),
                     contentColor = tokens.colors.textPrimary,
