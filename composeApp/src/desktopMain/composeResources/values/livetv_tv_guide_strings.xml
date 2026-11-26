@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_tv_guide_on_now">On now</string>
+    <string name="livetv_tv_guide_time_range">%1$s – %2$s</string>
+    <string name="livetv_tv_guide_watch_channel">Watch channel</string>
+</resources>

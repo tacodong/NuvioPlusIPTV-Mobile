@@ -132,7 +132,7 @@ private val RowHeight = 64.dp
 private val RowGap = 6.dp
 private val HourWidth = 240.dp
 private const val HOUR_MS = 60L * 60L * 1000L
-private const val SLOT_MS = 30L * 60L * 1000L
+private const val SLOT_MS = LiveTvGuideHalfHourMs
 
 /**
  * The TV guide: a time grid, channels down the side, hours across. Tap a show for its details,
@@ -150,16 +150,17 @@ fun LiveTvGuideScreen(
 ) {
     val tokens = MaterialTheme.nuvio
     val wide = isWideLiveTvWindow()
-    val channelWidth = if (wide) 178.dp else ChannelColumnWidth
-    val hourWidth = if (wide) 216.dp else HourWidth
+    val channelWidth = if (wide) LiveTvWideGuideChannelWidth else ChannelColumnWidth
+    val hourWidth = if (wide) LiveTvWideGuideHourWidth else HourWidth
     val state by remember {
         LiveTvRepository.ensureLoaded()
         LiveTvViewState.list
     }.collectAsStateWithLifecycle()
     val generation by LiveTvRepository.guideGeneration.collectAsStateWithLifecycle()
     val settings by LiveTvPreferences.settings.collectAsStateWithLifecycle()
-    val now by produceState(LiveTvClock.nowMs()) {
-        while (true) { value = LiveTvClock.nowMs(); delay(30_000) }
+    val tickMs = if (wide && platformLiveTvGuideRenderer != null) 60_000L else 30_000L
+    val now by produceState(LiveTvClock.nowMs(), tickMs) {
+        while (true) { value = LiveTvClock.nowMs(); delay(tickMs) }
     }
     val playlists by LiveTvPreferences.playlists.collectAsStateWithLifecycle()
     val savedPlaylist by PlaylistFilter.selected.collectAsStateWithLifecycle()
@@ -362,10 +363,15 @@ internal fun LiveTvGuideGrid(
     onChannelActions: ((LiveChannel) -> Unit)? = null,
     corner: @Composable () -> Unit = {},
 ) {
+    if (wide) platformLiveTvGuideRenderer?.let { renderer ->
+        renderer.Render(channels, programs, favoriteKeys, gridStart, gridEnd, now, hScroll, listState,
+            onPlay, onProgram, onChannelActions, modifier, corner)
+        return
+    }
     val tokens = MaterialTheme.nuvio
     val density = LocalDensity.current
-    val channelWidth = if (wide) 178.dp else ChannelColumnWidth
-    val hourWidth = if (wide) 216.dp else HourWidth
+    val channelWidth = if (wide) LiveTvWideGuideChannelWidth else ChannelColumnWidth
+    val hourWidth = if (wide) LiveTvWideGuideHourWidth else HourWidth
     val pxPerMs = { with(density) { hourWidth.toPx() } / HOUR_MS }
     Column(modifier) {
         // Time ruler, with the playlist menu in the corner above the channel column.

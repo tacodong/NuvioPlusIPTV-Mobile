@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,6 +17,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.InternalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -24,6 +27,7 @@ import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.semantics.SemanticsNode
@@ -43,6 +47,7 @@ import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.features.livetv.data.M3uParser
 import com.nuvio.app.features.livetv.data.NowNext
 import com.nuvio.app.features.livetv.data.XmltvParser
+import com.nuvio.app.features.livetv.model.EpgProgram
 import com.nuvio.app.features.livetv.model.LiveChannel
 import com.nuvio.app.features.livetv.model.LiveTvSettings
 import com.nuvio.app.features.livetv.model.LiveUserState
@@ -146,28 +151,109 @@ class LiveTvDesktopRenderTest {
 
     @Test
     fun guideFocusPlaybackAndScroll() {
+        val slotWidth = (LiveTvWideGuideHourWidth.value / 2).toInt() // fixture density is 1
+        val snappedStart = now - now % LiveTvGuideHalfHourMs
+        val snappedOffset = ((snappedStart - start) / LiveTvGuideHalfHourMs).toInt() * slotWidth
+        val firstChannel = channels.first()
+        val onNow = guide.getValue(firstChannel.key).first { it.isLive(now) }
+        val next = guide.getValue(firstChannel.key).first { it.startMs >= onNow.stopMs }
+        // A missing schedule and empty space between listings shouldn't move any other cell.
+        val listings = guide - channels[5].key
         for ((width, height) in wideSizes) {
             val played = mutableListOf<String>()
-            val scroll = ScrollState(0)
+            val opened = mutableListOf<Pair<String, EpgProgram>>()
+            val contextMenus = mutableListOf<String>()
+            val scroll = ScrollState(snappedOffset)
+            lateinit var focusManager: FocusManager
             scene(width, height) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                focusManager = LocalFocusManager.current
+                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                     NuvioScreenHeader("TV Guide", includeStatusBarPadding = false)
-                    LiveTvGuideGrid(channels, guide, setOf(channels.first().key), start, end, now, scroll,
-                        rememberLazyListState(), wide = isWideLiveTvWindow(), onPlay = { played += it.key }, onProgram = { _, _ -> }, modifier = Modifier.weight(1f))
+                    TvGuideFixture(listings, firstChannel, scroll,
+                        onPlay = { played += it.key },
+                        onProgram = { channel, program -> opened += channel.key to program },
+                        onChannelActions = { contextMenus += it.key }, modifier = Modifier.weight(1f),
+                        corner = { Text("Sample playlists", color = MaterialTheme.nuvio.colors.textSecondary) })
                 }
             }.withScene {
-                val cell = text("Headlines")
-                png("guide", width, height)
+                val title = tagged("desktop-tv-guide-title")
+                val first = text(firstChannel.name)
+                val cell = text(onNow.title, below = title.boundsInRoot.bottom)
+                assertEquals(onNow.title, title.config.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text)
+                text("Headlines and local stories, with interviews from the studio.")
+                text("On now")
+                text("No information")
+                assertTrue(text("Sample playlists").boundsInRoot.bottom <= text("Channels").boundsInRoot.top)
+                assertTrue(title.boundsInRoot.bottom < first.boundsInRoot.top)
+                assertTrue(first.boundsInRoot.right < cell.boundsInRoot.left)
+                assertTrue(cell.boundsInRoot.width > 40)
+                png("guide-tv", width, height)
+
+                val nextCell = text(next.title, below = title.boundsInRoot.bottom)
+                sendPointerEvent(PointerEventType.Move, nextCell.boundsInRoot.center, type = PointerType.Mouse)
+                renderFrame()
+                assertEquals(next.title, tagged("desktop-tv-guide-title").config.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text)
+                assertTrue(opened.isEmpty(), "Hover previews details without opening a dialog")
                 click(cell.boundsInRoot.center)
-                key(Key.DirectionRight)
+                assertEquals(listOf(firstChannel.key to onNow), opened)
+                // The app's AWT dispatcher calls into Compose spatial focus; ImageComposeScene
+                // bypasses that dispatcher. Exercise the same move against the actual tiles here.
+                assertTrue(focusManager.moveFocus(FocusDirection.Right))
+                renderFrame()
+                assertEquals(next.title, tagged("desktop-tv-guide-title").config.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text)
                 key(Key.Enter)
-                assertEquals(listOf(channels.first().key), played)
-                val timeline = Offset(400f, cell.boundsInRoot.center.y)
+                click(tagged("desktop-tv-guide-watch").boundsInRoot.center)
+                assertEquals(listOf(firstChannel.key, firstChannel.key), played)
+                click(first.boundsInRoot.center, PointerButton.Secondary)
+                assertEquals(listOf(firstChannel.key), contextMenus)
+
+                val timeline = Offset(400f, first.boundsInRoot.center.y)
                 sendPointerEvent(PointerEventType.Move, timeline, type = PointerType.Mouse)
                 sendPointerEvent(PointerEventType.Scroll, timeline, type = PointerType.Mouse, scrollDelta = Offset(3f, 0f))
                 renderFrame()
-                assertTrue(scroll.value > 0, "A horizontal trackpad/wheel event should move the shared time axis")
+                assertTrue(scroll.value > snappedOffset, "Trackpad/wheel input should move the shared time axis")
+                assertEquals(first.boundsInRoot.left, text(firstChannel.name).boundsInRoot.left)
             }
+        }
+    }
+
+    @Composable
+    private fun TvGuideFixture(
+        listings: Map<String, List<EpgProgram>>,
+        firstChannel: LiveChannel,
+        scroll: ScrollState,
+        onPlay: (LiveChannel) -> Unit,
+        onProgram: (LiveChannel, EpgProgram) -> Unit,
+        onChannelActions: (LiveChannel) -> Unit,
+        modifier: Modifier,
+        corner: @Composable () -> Unit,
+    ) {
+        val listState = rememberLazyListState()
+        val favorites = setOf(firstChannel.key)
+        // Exercise the production platform dispatch on macOS, but still test the portable
+        // renderer when running desktopTest on another host.
+        if (platformLiveTvGuideRenderer != null) {
+            LiveTvGuideGrid(channels, listings, favorites, start, end, now, scroll, listState,
+                wide = isWideLiveTvWindow(), onPlay = onPlay, onProgram = onProgram, modifier = modifier,
+                onChannelActions = onChannelActions, corner = corner)
+        } else {
+            DesktopTvGuide(channels, listings, favorites, start, end, now, scroll, listState,
+                onPlay, onProgram, onChannelActions, modifier, corner)
+        }
+    }
+
+    @Test
+    fun compactGuideUsesSharedLayout() {
+        scene(420, 800) {
+            Column(Modifier.fillMaxSize()) {
+                LiveTvGuideGrid(channels, guide, emptySet(), start, end, now, ScrollState(0),
+                    rememberLazyListState(), wide = isWideLiveTvWindow(), onPlay = {}, onProgram = { _, _ -> },
+                    modifier = Modifier.weight(1f))
+            }
+        }.withScene {
+            text("Headlines")
+            assertTrue(semanticsOwners.flatMap { it.getAllSemanticsNodes(mergingEnabled = false) }
+                .none { it.config.getOrNull(SemanticsProperties.TestTag) == "desktop-tv-guide" })
         }
     }
 
@@ -352,9 +438,16 @@ class LiveTvDesktopRenderTest {
         }
     }
 
-    private fun ImageComposeScene.text(value: String, last: Boolean = false): SemanticsNode {
+    private fun ImageComposeScene.tagged(tag: String): SemanticsNode = assertNotNull(
+        semanticsOwners.flatMap { it.getAllSemanticsNodes(mergingEnabled = false) }
+            .firstOrNull { it.config.getOrNull(SemanticsProperties.TestTag) == tag },
+        "Visible node: $tag",
+    )
+
+    private fun ImageComposeScene.text(value: String, last: Boolean = false, below: Float = 0f): SemanticsNode {
         val matches = semanticsOwners.flatMap { it.getAllSemanticsNodes(mergingEnabled = false) }
-            .filter { node -> node.config.getOrNull(SemanticsProperties.Text)?.any { it.text == value } == true && node.boundsInRoot.width > 0 }
+            .filter { node -> node.config.getOrNull(SemanticsProperties.Text)?.any { it.text == value } == true &&
+                node.boundsInRoot.width > 0 && node.boundsInRoot.top >= below }
         return assertNotNull(if (last) matches.maxByOrNull { it.boundsInRoot.top } else matches.firstOrNull(), "Visible text: $value")
     }
 
