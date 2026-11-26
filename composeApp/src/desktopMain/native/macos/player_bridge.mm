@@ -1685,7 +1685,12 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
                     : bounds.size.height - _viewport.origin.y - _viewport.size.height;
                 layerFrame = NSMakeRect(_viewport.origin.x, ly, _viewport.size.width, _viewport.size.height);
             }
-            [_videoView setPreviewLayerOrigin:layerFrame.origin];
+            // No rectangle (not laid out yet, or a menu is open over it): hide the view and its
+            // layer outright, since a zero-size layout leaves the layer where it was.
+            BOOL hide = !_hasViewport;
+            if (_videoView.hidden != hide) _videoView.hidden = hide;
+            if (_videoView.layer.hidden != hide) _videoView.layer.hidden = hide;
+            if (!hide) [_videoView setPreviewLayerOrigin:layerFrame.origin];
         }
         if (!liveResize && !settlingFromResize) {
             [_videoView setNeedsLayout:YES];

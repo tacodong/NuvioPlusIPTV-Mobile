@@ -130,6 +130,7 @@ private val RulerHeight = 34.dp
 private val ScrollbarWidth = 9.dp
 private val TileShape = RoundedCornerShape(10.dp)
 private val GlassEdge = Color.White.copy(alpha = 0.10f)
+private val MenuWidth = 300.dp
 
 private fun rowHeight(s: LiveTvSettings): Dp = if (s.showProgramTimes) 52.dp else 40.dp
 
@@ -350,12 +351,15 @@ private fun GuideHeaderActions(
         IconButton({ open = true }, Modifier.testTag("desktop-tv-guide-display")) {
             Icon(Icons.Filled.Tune, stringResource(Res.string.livetv_tv_guide_display), tint = tokens.colors.textSecondary)
         }
-        DropdownMenu(open, onDismissRequest = { open = false }) {
+        // Opens leftwards from the ⚙ (its right edge under the button's), so it never reaches
+        // over the preview at the panel's right end: a native video view draws above menus.
+        DropdownMenu(open, onDismissRequest = { open = false }, modifier = Modifier.width(MenuWidth),
+            offset = androidx.compose.ui.unit.DpOffset(-(MenuWidth - 48.dp), 0.dp)) {
             Text(stringResource(Res.string.livetv_tv_guide_display), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textSecondary)
             DisplayToggle(Res.string.livetv_tv_guide_preview, previewOn) { v -> DesktopGuidePreviewSetting.set(v) }
             Text(stringResource(Res.string.livetv_tv_guide_preview_warning),
-                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp).width(260.dp),
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 fontSize = 12.sp, color = tokens.colors.warning)
             DisplayToggle(Res.string.livetv_tv_guide_display_numbers, settings.phoneChannelNumbers) { v ->
                 LiveTvPreferences.updateSettings { it.copy(phoneChannelNumbers = v) } }
