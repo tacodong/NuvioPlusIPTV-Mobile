@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,28 +23,36 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -56,14 +65,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.format.formatLocalTime
-import com.nuvio.app.core.ui.NuvioDesktopHorizontalScrollbar
 import com.nuvio.app.core.ui.NuvioDesktopVerticalScrollbar
 import com.nuvio.app.core.ui.nuvio
 import com.nuvio.app.core.ui.onDesktopHorizontalWheel
@@ -80,37 +91,51 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.livetv_guide_no_info
 import nuvio.composeapp.generated.resources.livetv_no_results
-import nuvio.composeapp.generated.resources.livetv_player_channels
+import nuvio.composeapp.generated.resources.livetv_tv_guide_earlier
+import nuvio.composeapp.generated.resources.livetv_tv_guide_later
 import org.jetbrains.compose.resources.stringResource
 
-private val RowHeight = 58.dp
+// The Android TV guide (TiviMate style): a fixed two-hour window that fills the width and moves in
+// half-hour steps, glass tiles with a faint white edge, and the theme's glow behind the info panel.
+private const val SlotMs = LiveTvGuideHalfHourMs
+private const val WindowMs = 4 * SlotMs
+private const val HourMs = 2 * SlotMs
+private val ChannelColumnWidth = 272.dp
 private val RulerHeight = 34.dp
 private val ScrollbarWidth = 9.dp
-private val SlotWidth = LiveTvWideGuideHourWidth / 2
-private const val SlotMs = LiveTvGuideHalfHourMs
+private val TileShape = RoundedCornerShape(10.dp)
+private val GlassEdge = Color.White.copy(alpha = 0.10f)
+
+private fun rowHeight(s: LiveTvSettings): Dp = if (s.showProgramTimes) 52.dp else 40.dp
+
+/** The guide's dark, see-through glass: the theme background (near-black themes get a fixed dark grey). */
+@Composable
+internal fun guideGlass(alpha: Float = 0.66f): Color {
+    val c = MaterialTheme.nuvio.colors.background
+    return (if (c.luminance() < 0.003f) Color(0xFF0E0E12) else c).copy(alpha = alpha)
+}
 
 private data class GuideSelection(val channelKey: String, val start: Long? = null)
+
+/** A show clipped to the visible window, or a gap with no listing. */
 private data class GuideCell(val start: Long, val end: Long, val program: EpgProgram? = null)
 
-// Clip overlapping listings in chronological order, as the old TV grid did, and give
-// unknown portions of the timeline real width rather than letting later shows slide left.
-private fun guideCells(programs: List<EpgProgram>, start: Long, end: Long): List<GuideCell> = buildList {
+private fun windowCells(programs: List<EpgProgram>, start: Long, end: Long): List<GuideCell> = buildList {
     var cursor = start
     programs.sortedBy { it.startMs }.forEach { program ->
         val left = maxOf(cursor, program.startMs)
         val right = minOf(end, program.stopMs)
         if (right <= left) return@forEach
-        if (left > cursor) add(GuideCell(cursor, left))
+        if (left - cursor > 60_000L) add(GuideCell(cursor, left))
         add(GuideCell(left, right, program))
         cursor = right
     }
-    if (cursor < end) add(GuideCell(cursor, end))
+    if (end - cursor > 60_000L) add(GuideCell(cursor, end))
 }
-
-private fun timeWidth(ms: Long) = SlotWidth * (ms.toDouble() / SlotMs).toFloat()
 
 @Composable
 internal fun DesktopTvGuide(
@@ -139,132 +164,148 @@ internal fun DesktopTvGuide(
         ?: schedule.firstOrNull { it.isLive(now) }
         ?: schedule.firstOrNull { it.startMs >= now }
     val clock = if (settings.use24HourClock) ::clock24 else ::formatLocalTime
-    val slotCount = ((gridEnd - gridStart) / SlotMs).toInt().coerceAtLeast(0)
+    val rowHeight = rowHeight(settings)
 
-    Column(modifier.fillMaxWidth().testTag("desktop-tv-guide")) {
-        if (selectedChannel != null) {
-            DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
-                onPlay = { onPlay(selectedChannel) }, onChannelActions = onChannelActions?.let { { it(selectedChannel) } })
+    // The shared screen keeps the time position in hScroll (Jump to Now, loading the visible
+    // listings), in its own 216 dp-per-hour units. This guide shows the half-hour page it falls in.
+    val pxPerMs = with(LocalDensity.current) { LiveTvWideGuideHourWidth.toPx() } / HourMs
+    val lastStart = maxOf(gridStart, gridEnd - WindowMs)
+    val windowStart by remember(hScroll, gridStart, lastStart, pxPerMs) {
+        derivedStateOf {
+            val offset = (hScroll.value / pxPerMs).toLong()
+            (gridStart + offset - offset.mod(SlotMs)).coerceIn(gridStart, lastStart)
         }
-        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-            val viewportWidth = (maxWidth - LiveTvWideGuideChannelWidth - ScrollbarWidth).coerceAtLeast(0.dp)
-            val slotPx = with(LocalDensity.current) { SlotWidth.toPx() }
-            val visibleSlots = (viewportWidth / SlotWidth).toInt() + 2
-            // Keep an extra hour on each side for keyboard focus and scroll. Only recompose
-            // the horizon when crossing a slot boundary; exact pixels are handled by ScrollState.
-            val firstSlot by remember(hScroll, slotPx, slotCount) {
-                derivedStateOf { (hScroll.value / slotPx).toInt().coerceIn(0, slotCount) }
-            }
-            val leadingSlot = (firstSlot - 2).coerceAtLeast(0)
-            val trailingSlot = (firstSlot + visibleSlots + 2).coerceAtMost(slotCount)
-            val leadingTime = gridStart + leadingSlot * SlotMs
-            val trailingTime = gridStart + trailingSlot * SlotMs
-            val currentDay = remember(gridStart, firstSlot) {
-                Instant.ofEpochMilli(gridStart + firstSlot * SlotMs).atZone(ZoneId.systemDefault()).toLocalDate()
-            }
-            val dateLabel = remember(currentDay) { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(currentDay) }
-            val timelineWidth = timeWidth(gridEnd - gridStart)
-            val wheel = Modifier.onDesktopHorizontalWheel { hScroll.dispatchRawDelta(it) }
+    }
+    val windowEnd = windowStart + WindowMs
+    val scope = rememberCoroutineScope()
+    fun page(slots: Int) {
+        val target = (windowStart - gridStart + slots * SlotMs).coerceIn(0L, lastStart - gridStart)
+        // A pixel past the slot edge, so rounding never lands on the previous half hour.
+        scope.launch { hScroll.scrollTo((target * pxPerMs).roundToInt() + 1) }
+    }
+    val wheel = Modifier.onDesktopHorizontalWheel { hScroll.dispatchRawDelta(it) }
 
-            Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(dateLabel, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
-                        color = tokens.colors.textSecondary)
-                    Box(Modifier.width(LiveTvWideGuideChannelWidth - 16.dp)) { corner() }
+    Box(modifier.fillMaxWidth().testTag("desktop-tv-guide")) {
+        GuideThemeGlow(Modifier.fillMaxWidth().height(230.dp))
+        Column(Modifier.fillMaxSize()) {
+            if (selectedChannel != null) {
+                DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
+                    onPlay = { onPlay(selectedChannel) }, onChannelActions = onChannelActions?.let { { it(selectedChannel) } })
+            }
+            // Gives hScroll its range; nothing is drawn here.
+            Box(Modifier.width(1.dp).height(0.dp).horizontalScroll(hScroll, enabled = false)) {
+                Box(Modifier.width(LiveTvWideGuideHourWidth * ((gridEnd - gridStart).toFloat() / HourMs)).height(0.dp))
+            }
+            Row(Modifier.fillMaxWidth().height(40.dp).padding(start = 4.dp, end = ScrollbarWidth),
+                verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { corner() }
+                TextButton({ page(-1) }, enabled = windowStart > gridStart) {
+                    Text("‹  " + stringResource(Res.string.livetv_tv_guide_earlier), fontSize = 13.sp)
                 }
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    Column(Modifier.fillMaxSize().padding(end = ScrollbarWidth)) {
-                        Row(Modifier.fillMaxWidth().height(RulerHeight).background(tokens.colors.surfaceCard),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.width(LiveTvWideGuideChannelWidth).padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.CenterStart) {
-                                Text(stringResource(Res.string.livetv_player_channels),
-                                    style = MaterialTheme.typography.labelMedium, color = tokens.colors.textPrimary)
-                            }
-                            Box(Modifier.weight(1f).fillMaxHeight().then(wheel).horizontalScroll(hScroll, enabled = false)) {
-                                Box(Modifier.width(timelineWidth).fillMaxHeight()) {
-                                    for (slot in leadingSlot until trailingSlot) {
-                                        val time = gridStart + slot * SlotMs
-                                        val current = now in time until time + SlotMs
-                                        Box(Modifier.offset(x = SlotWidth * slot).width(SlotWidth).fillMaxHeight()
-                                            .padding(start = 8.dp), contentAlignment = Alignment.CenterStart) {
-                                            Text(clock(time), style = MaterialTheme.typography.labelMedium,
-                                                color = if (current) tokens.colors.textPrimary else tokens.colors.textSecondary,
-                                                fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        }
-                                    }
+                TextButton({ page(1) }, enabled = windowStart < lastStart) {
+                    Text(stringResource(Res.string.livetv_tv_guide_later) + "  ›", fontSize = 13.sp)
+                }
+            }
+            GuideRuler(windowStart, now, clock, Modifier.fillMaxWidth().height(RulerHeight)
+                .padding(end = ScrollbarWidth + 6.dp, bottom = 4.dp).then(wheel))
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(end = ScrollbarWidth),
+                    contentPadding = PaddingValues(bottom = 12.dp)) {
+                    if (channels.isEmpty()) item {
+                        Text(stringResource(Res.string.livetv_no_results), Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textSecondary)
+                    }
+                    items(channels, key = { it.key }) { channel ->
+                        val rowPrograms = programs[channel.key].orEmpty()
+                        val cells = remember(rowPrograms, windowStart) { windowCells(rowPrograms, windowStart, windowEnd) }
+                        val channelSelected = channel.key == selectedChannel?.key
+                        Row(Modifier.fillMaxWidth().height(rowHeight).padding(vertical = 2.dp)) {
+                            GuideChannelCell(channel, settings, rowHeight, channel.key in favoriteKeys, channelSelected,
+                                onBrowse = { selection = GuideSelection(channel.key) }, onPlay = { onPlay(channel) },
+                                onActions = onChannelActions?.let { { it(channel) } })
+                            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().then(wheel)) {
+                                val areaWidth = maxWidth
+                                fun xOf(t: Long): Dp = areaWidth * ((t - windowStart).toFloat() / WindowMs)
+                                if (cells.isEmpty()) {
+                                    GuideGapTile(Modifier.fillMaxSize().padding(horizontal = 3.dp), showLabel = true)
                                 }
-                            }
-                        }
-                        if (channels.isEmpty()) {
-                            Text(stringResource(Res.string.livetv_no_results), Modifier.padding(12.dp),
-                                style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textSecondary)
-                        }
-                        LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(top = 3.dp, bottom = 8.dp)) {
-                            items(channels, key = { it.key }) { channel ->
-                                val rowPrograms = programs[channel.key].orEmpty()
-                                val cells = remember(rowPrograms, gridStart, gridEnd) { guideCells(rowPrograms, gridStart, gridEnd) }
-                                val channelSelected = channel.key == selectedChannel?.key
-                                Row(Modifier.fillMaxWidth().height(RowHeight)) {
-                                    DesktopGuideChannel(channel, settings, channel.key in favoriteKeys, channelSelected,
-                                        onBrowse = { selection = GuideSelection(channel.key) }, onPlay = { onPlay(channel) },
-                                        onActions = onChannelActions?.let { { it(channel) } })
-                                    Box(Modifier.weight(1f).fillMaxHeight().then(wheel).horizontalScroll(hScroll)) {
-                                        Box(Modifier.width(timelineWidth).fillMaxHeight()) {
-                                            cells.forEach { cell ->
-                                                if (cell.end <= leadingTime || cell.start >= trailingTime) return@forEach
-                                                val program = cell.program
-                                                val width = timeWidth(cell.end - cell.start)
-                                                val offset = timeWidth(cell.start - gridStart)
-                                                val tile = Modifier.offset(x = offset).width(width).fillMaxHeight()
-                                                    .padding(end = minOf(3.dp, width / 4))
-                                                if (program == null) {
-                                                    DesktopGuideGap(tile, showLabel = cells.size == 1, hScroll, offsetPx = 0)
-                                                } else {
-                                                    val logicalStartPx = with(LocalDensity.current) { offset.roundToPx() }
-                                                    val browse = { selection = GuideSelection(channel.key, program.startMs) }
-                                                    DesktopGuideProgram(program, program.isLive(now),
-                                                        channelSelected && selectedProgram?.startMs == program.startMs,
-                                                        replayable = !program.isLive(now) && LiveTvCatchup.isReplayable(channel, program, now),
-                                                        tile, hScroll, logicalStartPx, singleLine = width < 100.dp, browse,
-                                                        onOpen = { onProgram(channel, program) },
-                                                        onPlay = { onPlay(channel) })
-                                                }
-                                            }
-                                        }
+                                cells.forEach { cell ->
+                                    val x = xOf(cell.start)
+                                    val w = (xOf(cell.end) - x).coerceAtLeast(2.dp)
+                                    val tile = Modifier.offset(x = x).width(w).fillMaxHeight().padding(horizontal = 3.dp)
+                                    val program = cell.program
+                                    if (program == null) {
+                                        GuideGapTile(tile, showLabel = w > 90.dp)
+                                    } else {
+                                        val live = program.isLive(now)
+                                        GuideProgramTile(
+                                            program = program,
+                                            live = live,
+                                            past = program.stopMs <= now,
+                                            selected = channelSelected && selectedProgram?.startMs == program.startMs,
+                                            continuesLeft = program.startMs < windowStart,
+                                            replayable = !live && LiveTvCatchup.isReplayable(channel, program, now),
+                                            timeRange = if (settings.showProgramTimes && w > 64.dp)
+                                                clock(program.startMs) + " – " + clock(program.stopMs) else null,
+                                            progress = if (live) program.progress(now) else null,
+                                            modifier = tile,
+                                            onBrowse = { selection = GuideSelection(channel.key, program.startMs) },
+                                            onOpen = { onProgram(channel, program) },
+                                            onPlay = { onPlay(channel) },
+                                        )
                                     }
                                 }
                             }
                         }
                     }
-                    if (settings.showNowLine && now in gridStart until gridEnd) {
-                        val nowColor = tokens.colors.warning
-                        // One continuous line across the ruler and visible rows. Scroll position is
-                        // read in drawing, not composition, and the shared clock ticks once a minute.
-                        Box(Modifier.matchParentSize().padding(start = LiveTvWideGuideChannelWidth, end = ScrollbarWidth)
-                            .clipToBounds().drawWithContent {
-                                val left = timeWidth(now - gridStart).toPx() - hScroll.value
-                                val x = if (layoutDirection == LayoutDirection.Ltr) left else size.width - left
-                                if (x in 0f..size.width) drawLine(nowColor, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
-                            })
-                    }
-                    NuvioDesktopVerticalScrollbar(listState, Modifier.align(Alignment.CenterEnd)
-                        .padding(top = RulerHeight).fillMaxHeight())
                 }
-                NuvioDesktopHorizontalScrollbar(hScroll, Modifier.fillMaxWidth()
-                    .padding(start = LiveTvWideGuideChannelWidth, end = ScrollbarWidth).height(12.dp))
+                if (settings.showNowLine && now in windowStart until windowEnd) {
+                    val nowColor = tokens.colors.accent
+                    Box(Modifier.matchParentSize().padding(start = ChannelColumnWidth, end = ScrollbarWidth)
+                        .clipToBounds().drawWithContent {
+                            drawContent()
+                            val left = size.width * ((now - windowStart).toFloat() / WindowMs)
+                            val x = if (layoutDirection == LayoutDirection.Ltr) left else size.width - left
+                            drawLine(nowColor.copy(alpha = 0.8f), Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
+                        })
+                }
+                NuvioDesktopVerticalScrollbar(listState, Modifier.align(Alignment.CenterEnd).fillMaxHeight())
             }
         }
     }
 }
 
+/** Date over the channels, a label every half hour, and the current time at the right end. */
 @Composable
-private fun DesktopGuideChannel(
+private fun GuideRuler(windowStart: Long, now: Long, clock: (Long) -> String, modifier: Modifier) {
+    val tokens = MaterialTheme.nuvio
+    val day = remember(windowStart / HourMs) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .format(Instant.ofEpochMilli(windowStart).atZone(ZoneId.systemDefault()).toLocalDate())
+    }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(ChannelColumnWidth).padding(start = 8.dp)) {
+            Text(day, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textPrimary, maxLines = 1)
+        }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val w = maxWidth
+            for (i in 0 until (WindowMs / SlotMs).toInt()) {
+                val t = windowStart + i * SlotMs
+                Text(clock(t), Modifier.offset(x = w * (i.toFloat() / (WindowMs / SlotMs))).align(Alignment.CenterStart)
+                    .padding(start = 6.dp), fontSize = 13.sp, color = tokens.colors.textSecondary, maxLines = 1)
+            }
+            Text(clock(now), Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(8.dp))
+                .background(guideGlass()).padding(horizontal = 10.dp, vertical = 3.dp),
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textPrimary, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun GuideChannelCell(
     channel: LiveChannel,
     settings: LiveTvSettings,
+    rowHeight: Dp,
     favorite: Boolean,
     selected: Boolean,
     onBrowse: () -> Unit,
@@ -272,103 +313,111 @@ private fun DesktopGuideChannel(
     onActions: (() -> Unit)?,
 ) {
     val tokens = MaterialTheme.nuvio
-    Box(Modifier.width(LiveTvWideGuideChannelWidth).fillMaxHeight().padding(start = 4.dp, end = 4.dp)) {
-        DesktopGuideTile(selected, false, onBrowse, onPlay, onActions, Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxSize().padding(start = 8.dp, end = if (favorite) 22.dp else 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (settings.phoneChannelLogos) ChannelLogo(channel, width = 38.dp, height = 30.dp, inset = 2.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(channel.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                        color = tokens.colors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (settings.phoneChannelNumbers) Text(channel.number.toString(), style = MaterialTheme.typography.labelSmall,
-                        color = tokens.colors.textSecondary, maxLines = 1)
-                }
+    GuideTile(selected, onBrowse, onPlay, onActions, Modifier.width(ChannelColumnWidth).fillMaxHeight().padding(end = 6.dp)) { focused ->
+        Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (settings.phoneChannelNumbers) {
+                Text(channel.number.toString(), Modifier.width(40.dp), textAlign = TextAlign.End, fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium, color = tokens.colors.textSecondary, maxLines = 1)
+                Spacer(Modifier.width(8.dp))
+            }
+            if (settings.phoneChannelLogos) {
+                val logoHeight = (rowHeight - 14.dp).coerceAtLeast(18.dp)
+                ChannelLogo(channel, width = logoHeight * 1.6f, height = logoHeight, inset = 2.dp)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(channel.name, Modifier.weight(1f), fontSize = 14.sp,
+                fontWeight = if (focused || selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = tokens.colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (channel.catchup != null) {
+                Icon(Icons.Filled.Replay, null, Modifier.padding(start = 4.dp).size(14.dp), tint = tokens.colors.textSecondary)
+            }
+            if (favorite) {
+                Icon(Icons.Filled.Star, null, Modifier.padding(start = 4.dp).size(14.dp), tint = tokens.colors.warning)
             }
         }
-        if (favorite) FavoriteBadge(Modifier.align(Alignment.TopEnd).padding(3.dp))
     }
 }
 
 @Composable
-private fun DesktopGuideProgram(
+private fun GuideProgramTile(
     program: EpgProgram,
     live: Boolean,
+    past: Boolean,
     selected: Boolean,
+    continuesLeft: Boolean,
     replayable: Boolean,
+    timeRange: String?,
+    progress: Float?,
     modifier: Modifier,
-    hScroll: ScrollState,
-    offsetPx: Int,
-    singleLine: Boolean,
     onBrowse: () -> Unit,
     onOpen: () -> Unit,
     onPlay: () -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
     val fallback = stringResource(Res.string.livetv_guide_no_info)
-    DesktopGuideTile(selected, live, onBrowse, onOpen, onOpen, modifier.onPreviewKeyEvent {
-        // Match the existing desktop guide: Enter tunes the channel, while a click (or Space)
-        // opens the shared details dialog, where catch-up and title lookup live.
+    GuideTile(selected, onBrowse, onOpen, onOpen, modifier.onPreviewKeyEvent {
+        // Enter tunes the channel; a click (or Space) opens the shared details dialog, where
+        // catch-up and title lookup live.
         if (it.key != Key.Enter && it.key != Key.NumPadEnter) return@onPreviewKeyEvent false
         if (it.type == KeyEventType.KeyUp) onPlay()
         true
-    }) {
-        Row(Modifier.browseLabelOffset(hScroll, offsetPx).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (replayable) Icon(Icons.Filled.Replay, null, Modifier.size(12.dp), tint = tokens.colors.textSecondary)
-            Text(RecordingRules.shownTitle(program.title).ifBlank { fallback },
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (selected || live) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected || live) tokens.colors.textPrimary else tokens.colors.textSecondary,
-                maxLines = if (singleLine) 1 else 2, overflow = TextOverflow.Ellipsis)
+    }) { focused ->
+        val text = if (past && !focused && !selected) tokens.colors.textSecondary else tokens.colors.textPrimary
+        Column(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalArrangement = Arrangement.Center) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text((if (continuesLeft) "‹ " else "") + RecordingRules.shownTitle(program.title).ifBlank { fallback },
+                    Modifier.weight(1f, fill = false), fontSize = 14.sp,
+                    fontWeight = if (live || focused || selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (replayable) Icon(Icons.Filled.Replay, null, Modifier.padding(start = 6.dp).size(13.dp), tint = text.copy(alpha = 0.8f))
+            }
+            timeRange?.let {
+                Text(it, fontSize = 12.sp, color = text.copy(alpha = if (focused) 0.6f else 0.42f), maxLines = 1)
+            }
+        }
+        progress?.let { fraction ->
+            Box(Modifier.align(Alignment.BottomStart).padding(start = 2.dp, end = 2.dp, bottom = 2.dp).fillMaxWidth().height(3.dp)
+                .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))) {
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(tokens.colors.accent.copy(alpha = 0.9f)))
+            }
         }
     }
 }
 
 @Composable
-private fun DesktopGuideGap(modifier: Modifier, showLabel: Boolean, hScroll: ScrollState, offsetPx: Int) {
+private fun GuideGapTile(modifier: Modifier, showLabel: Boolean) {
     val tokens = MaterialTheme.nuvio
-    Box(modifier.clip(tokens.shapes.compactCard).background(tokens.colors.surfaceCard.copy(alpha = .45f)),
+    Box(modifier.clip(TileShape).background(guideGlass(0.36f)).border(1.dp, Color.White.copy(alpha = 0.07f), TileShape),
         contentAlignment = Alignment.CenterStart) {
-        if (showLabel) Text(stringResource(Res.string.livetv_guide_no_info),
-            Modifier.browseLabelOffset(hScroll, offsetPx).padding(horizontal = 8.dp),
-            style = MaterialTheme.typography.bodySmall, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (showLabel) Text(stringResource(Res.string.livetv_guide_no_info), Modifier.padding(horizontal = 12.dp),
+            fontSize = 14.sp, fontStyle = FontStyle.Italic, color = tokens.colors.textMuted, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
     }
 }
 
-// A programme that starts before the visible ruler (including on Jump to Now) retains its title
-// beside the pinned channel column until its tile scrolls completely out of view.
-private fun Modifier.browseLabelOffset(hScroll: ScrollState, offsetPx: Int): Modifier = offset {
-    IntOffset((hScroll.value - offsetPx).coerceAtLeast(0), 0)
-}
-
+/** A glass tile that follows the mouse like the TV's focus: hover or focus selects it, click activates. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun DesktopGuideTile(
+private fun GuideTile(
     selected: Boolean,
-    live: Boolean,
     onBrowse: () -> Unit,
     onActivate: () -> Unit,
     onSecondary: (() -> Unit)?,
     modifier: Modifier,
-    content: @Composable () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.BoxScope.(focused: Boolean) -> Unit,
 ) {
     val tokens = MaterialTheme.nuvio
     val focusRequester = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     var hovered by remember { mutableStateOf(false) }
-    val border = when {
-        focused -> tokens.colors.accentStrong
-        hovered || selected -> tokens.colors.accent
-        live -> tokens.colors.warning.copy(alpha = .55f)
-        else -> tokens.colors.borderSubtle
+    val highlighted = focused || hovered || selected
+    val fill = if (highlighted) tokens.colors.focusBackground else guideGlass()
+    val edge = when {
+        focused -> tokens.colors.focusRing
+        highlighted -> tokens.colors.focusRing.copy(alpha = 0.7f)
+        else -> GlassEdge
     }
-    val surface = when {
-        focused || hovered || selected -> tokens.colors.accent.copy(alpha = .19f).compositeOver(tokens.colors.surfaceCard)
-        live -> tokens.colors.warning.copy(alpha = .08f).compositeOver(tokens.colors.surfaceCard)
-        else -> tokens.colors.surfaceCard
-    }
-    Box(modifier.clip(tokens.shapes.compactCard)
-        .background(surface).border(if (focused) 2.dp else 1.dp, border, tokens.shapes.compactCard)
+    Box(modifier.clip(TileShape).background(fill).border(if (highlighted) 2.dp else 1.dp, edge, TileShape)
         .onPointerEvent(PointerEventType.Enter) { hovered = true; onBrowse() }
         .onPointerEvent(PointerEventType.Exit) { hovered = false }
         .focusRequester(focusRequester)
@@ -380,6 +429,27 @@ private fun DesktopGuideTile(
             onBrowse()
             onActivate()
         }, contentAlignment = Alignment.CenterStart) {
-        content()
+        content(focused)
     }
+}
+
+/** The TV guide's soft glow in the theme's accent behind the info panel, fading into the guide. */
+@Composable
+private fun GuideThemeGlow(modifier: Modifier) {
+    val accent = MaterialTheme.nuvio.colors.accent
+    val top = MaterialTheme.nuvio.colors.surfaceElevated
+    Box(modifier.drawBehind {
+        val w = size.width
+        val h = size.height
+        val strength = if (accent.luminance() > 0.8f) 0.08f else 0.16f
+        drawRect(Brush.verticalGradient(listOf(top.copy(alpha = 0.85f), Color.Transparent), startY = 0f, endY = h))
+        val right = Offset(w * 0.80f, h * 0.04f)
+        scale(scaleX = 2.4f, scaleY = 1f, pivot = right) {
+            drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = strength), Color.Transparent), right, h * 0.94f), h * 0.94f, right)
+        }
+        val left = Offset(w * 0.10f, 0f)
+        scale(scaleX = 2.2f, scaleY = 1f, pivot = left) {
+            drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = strength * 0.4f), Color.Transparent), left, h * 0.80f), h * 0.80f, left)
+        }
+    })
 }

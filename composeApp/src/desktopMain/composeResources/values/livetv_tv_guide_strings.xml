@@ -3,4 +3,10 @@
     <string name="livetv_tv_guide_on_now">On now</string>
     <string name="livetv_tv_guide_time_range">%1$s – %2$s</string>
     <string name="livetv_tv_guide_watch_channel">Watch channel</string>
+    <string name="livetv_tv_guide_live_tag">LIVE</string>
+    <string name="livetv_tv_guide_catchup_tag">CATCH-UP</string>
+    <string name="livetv_tv_guide_minutes_left">%1$d min left</string>
+    <string name="livetv_tv_guide_earlier">Earlier</string>
+    <string name="livetv_tv_guide_later">Later</string>
+    <string name="livetv_tv_guide_no_program_info">No program information</string>
 </resources>
