@@ -47,6 +47,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -198,18 +200,22 @@ internal fun DesktopTvGuide(
     // listings), in its own 216 dp-per-hour units. This guide shows the half-hour page it falls in.
     val pxPerMs = with(LocalDensity.current) { LiveTvWideGuideHourWidth.toPx() } / HourMs
     val lastStart = maxOf(gridStart, gridEnd - WindowMs)
-    val windowStart by remember(hScroll, gridStart, lastStart, pxPerMs) {
-        derivedStateOf {
-            val offset = (hScroll.value / pxPerMs).toLong()
-            (gridStart + offset - offset.mod(SlotMs)).coerceIn(gridStart, lastStart)
+    fun slotOf(t: Long) = (t - (t - gridStart).mod(SlotMs)).coerceIn(gridStart, lastStart)
+    // The window keeps its own position, opening on the current half hour. It follows hScroll
+    // when that moves (wheel, the shared screen's jumps), and pages also move hScroll so the
+    // shared screen loads the listings in view.
+    var windowStart by remember(gridStart) { mutableStateOf(slotOf(now)) }
+    LaunchedEffect(hScroll, gridStart, pxPerMs) {
+        snapshotFlow { hScroll.value }.drop(1).collect { value ->
+            windowStart = slotOf(gridStart + (value / pxPerMs).toLong())
         }
     }
     val windowEnd = windowStart + WindowMs
     val scope = rememberCoroutineScope()
     fun page(slots: Int) {
-        val target = (windowStart - gridStart + slots * SlotMs).coerceIn(0L, lastStart - gridStart)
+        windowStart = slotOf(windowStart + slots * SlotMs)
         // A pixel past the slot edge, so rounding never lands on the previous half hour.
-        scope.launch { hScroll.scrollTo((target * pxPerMs).roundToInt() + 1) }
+        scope.launch { hScroll.scrollTo(((windowStart - gridStart) * pxPerMs).roundToInt() + 1) }
     }
     val wheel = Modifier.onDesktopHorizontalWheel { hScroll.dispatchRawDelta(it) }
 
@@ -220,11 +226,8 @@ internal fun DesktopTvGuide(
                 DesktopTvGuideDetails(selectedChannel, selectedProgram, now, clock, loadProgramDetails,
                     onPlay = { playChannel(selectedChannel) },
                     onChannelActions = onChannelActions?.let { { it(selectedChannel) } },
-                    visual = { channel ->
-                        if (previewOn) DesktopGuidePreviewWindow(preview) { ChannelLogo(channel, width = 96.dp, height = 54.dp, inset = 6.dp) }
-                        else ChannelLogo(channel, width = 118.dp, height = 70.dp, inset = 8.dp)
-                    },
-                    extraActions = { GuideHeaderActions(settings, previewOn, onOpenRecordings) })
+                    extraActions = { GuideHeaderActions(settings, previewOn, onOpenRecordings) },
+                    preview = if (previewOn) ({ DesktopGuidePreviewWindow(preview) }) else null)
             }
             // Gives hScroll its range; nothing is drawn here.
             Box(Modifier.width(1.dp).height(0.dp).horizontalScroll(hScroll, enabled = false)) {

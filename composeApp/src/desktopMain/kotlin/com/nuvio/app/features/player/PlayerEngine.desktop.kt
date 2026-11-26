@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -365,7 +367,21 @@ private fun NativePlayerSurface(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
+            .background(Color.Black)
+            .then(
+                if (!guidePreview) Modifier else Modifier.onGloballyPositioned { coordinates ->
+                    // On macOS the native host is the whole window's content view: the preview
+                    // takes the rectangle Compose laid this box out at, in window points.
+                    val window = javax.swing.SwingUtilities.getWindowAncestor(host)
+                    val scale = (window?.graphicsConfiguration ?: host.graphicsConfiguration)
+                        ?.defaultTransform?.scaleX ?: return@onGloballyPositioned
+                    val r = coordinates.boundsInWindow()
+                    val viewport = listOf(r.left / scale, r.top / scale, r.width / scale, r.height / scale)
+                    if (viewport[2] > 1.0 && viewport[3] > 1.0) {
+                        controller.setGuideViewport(viewport[0], viewport[1], viewport[2], viewport[3])
+                    }
+                }
+            ),
         contentAlignment = Alignment.Center,
     ) {
         // SwingPanel keeps the stable AWT host. PiP moves only the native player

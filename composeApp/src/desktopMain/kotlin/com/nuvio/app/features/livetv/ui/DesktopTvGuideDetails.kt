@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +56,6 @@ import nuvio.composeapp.generated.resources.livetv_tv_guide_live_tag
 import nuvio.composeapp.generated.resources.livetv_tv_guide_minutes_left
 import nuvio.composeapp.generated.resources.livetv_tv_guide_no_program_info
 import nuvio.composeapp.generated.resources.livetv_tv_guide_time_range
-import nuvio.composeapp.generated.resources.livetv_tv_guide_watch_channel
 import org.jetbrains.compose.resources.stringResource
 
 private val LiveRed = Color(0xFFE53935)
@@ -74,9 +74,11 @@ internal fun DesktopTvGuideDetails(
     loadProgramDetails: suspend (String, Long) -> EpgProgram?,
     onPlay: () -> Unit,
     onChannelActions: (() -> Unit)?,
-    visual: @Composable (LiveChannel) -> Unit = { ChannelLogo(it, width = 118.dp, height = 70.dp, inset = 8.dp) },
+    visual: @Composable (LiveChannel) -> Unit = { channel -> GuidePoster(channel, program) },
     /** Recordings and Guide display, beside Watch (like the TV guide's info panel corner). */
     extraActions: @Composable () -> Unit = {},
+    /** The live preview window, at the panel's right end like the Android TV guide. */
+    preview: (@Composable () -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
     // The grid loads light rows; read the extras for just the settled selection, so sweeping the
@@ -101,7 +103,7 @@ internal fun DesktopTvGuideDetails(
         val compact = maxWidth < 700.dp
         Row(Modifier.fillMaxWidth().height(if (compact) 136.dp else 164.dp).padding(horizontal = 18.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Box(Modifier.width(if (compact) 96.dp else 130.dp).fillMaxHeight(), contentAlignment = Alignment.Center) { visual(channel) }
+            visual(channel)
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(listOf(channel.number.toString(), channel.name).joinToString("  ") +
@@ -153,19 +155,27 @@ internal fun DesktopTvGuideDetails(
             }
             Row(verticalAlignment = Alignment.Top) {
                 extraActions()
-                val watch = stringResource(Res.string.livetv_tv_guide_watch_channel)
-                if (compact) {
-                    IconButton(onPlay, Modifier.testTag("desktop-tv-guide-watch")) { Icon(Icons.Rounded.PlayArrow, watch) }
-                } else {
-                    FilledTonalButton(onPlay, Modifier.testTag("desktop-tv-guide-watch")) {
-                        Icon(Icons.Rounded.PlayArrow, null, Modifier.padding(end = 4.dp).size(20.dp))
-                        Text(watch, maxLines = 1)
-                    }
-                }
                 onChannelActions?.let {
                     IconButton(it) { Icon(Icons.Filled.MoreVert, stringResource(Res.string.details_actions_menu_label), tint = tokens.colors.textSecondary) }
                 }
             }
+            if (!compact) preview?.invoke()
+        }
+    }
+}
+
+/**
+ * The TV info panel's poster slot: the show's own image from the guide in a 2:3 frame, or the
+ * channel's logo there when the guide has none.
+ */
+@Composable
+private fun GuidePoster(channel: LiveChannel, program: EpgProgram?) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(shape).background(guideGlass(0.9f))
+        .border(1.dp, Color.White.copy(alpha = 0.10f), shape), contentAlignment = Alignment.Center) {
+        ChannelLogo(channel, width = 56.dp, height = 40.dp, inset = 4.dp)
+        program?.icon?.takeIf { it.isNotBlank() }?.let { icon ->
+            AsyncImage(model = icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         }
     }
 }

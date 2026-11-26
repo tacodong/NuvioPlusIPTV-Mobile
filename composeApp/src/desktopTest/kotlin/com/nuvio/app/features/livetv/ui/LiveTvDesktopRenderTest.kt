@@ -202,7 +202,7 @@ class LiveTvDesktopRenderTest {
                 renderFrame()
                 assertEquals(next.title, tagged("desktop-tv-guide-title").config.getOrNull(SemanticsProperties.Text)?.firstOrNull()?.text)
                 key(Key.Enter)
-                click(tagged("desktop-tv-guide-watch").boundsInRoot.center)
+                key(Key.Enter)
                 assertEquals(listOf(firstChannel.key, firstChannel.key), played)
                 click(first.boundsInRoot.center, PointerButton.Secondary)
                 assertEquals(listOf(firstChannel.key), contextMenus)

@@ -58,6 +58,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (void)updateMetalLayerLayout;
 - (void)refreshMetalLayerEdrState;
 - (void)configureExtendedDynamicRange:(BOOL)enabled primaries:(NSString *)primaries targetPeakNits:(double)targetPeakNits;
+- (void)setPreviewLayerOrigin:(NSPoint)origin;
 - (BOOL)createMpvRenderContext:(mpv_handle *)mpv error:(NSString **)error;
 - (void)destroyMpvRenderContext;
 - (void)scheduleRenderUpdate;
@@ -183,6 +184,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 - (void)stopMpvEventDrain;
 - (void)focusControlsWebViewIfNeeded;
 - (void)layoutNativeSubviews;
+- (void)setViewportX:(double)x y:(double)y width:(double)width height:(double)height;
 - (void)dispatchMediaKeyPlayerEvent:(NSString *)type;
 - (void)activateRemoteCommands;
 - (void)deactivateRemoteCommands;
@@ -828,6 +830,8 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     NSString *_edrPrimaries;
     NSString *_lastAppliedEdrLayerKey;
     double _edrMetadataMaxNits;
+    BOOL _hasLayerOrigin;
+    NSPoint _layerOrigin;
     __weak NSScreen *_peakNitsScreen;
     double _peakNits;
     CFTimeInterval _peakNitsReadAt;
@@ -842,7 +846,11 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     self.wantsLayer = YES;
     _openGLLayer = [[NuvioPlayerOpenGLLayer alloc] initWithOwner:self];
-    _openGLLayer.frame = self.bounds;
+    // A guide preview sits inside the window's own layer, which doesn't follow subview frames:
+    // its layer keeps the origin it was given.
+    _openGLLayer.frame = _hasLayerOrigin
+        ? NSMakeRect(_layerOrigin.x, _layerOrigin.y, self.bounds.size.width, self.bounds.size.height)
+        : self.bounds;
     _openGLLayer.contentsGravity = kCAGravityResize;
     self.layer = _openGLLayer;
     [self updateMetalLayerLayout];
@@ -929,7 +937,11 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     [CATransaction setDisableActions:YES];
     _openGLLayer.nuvioLiveResize = liveResize;
     _openGLLayer.contentsScale = scale;
-    _openGLLayer.frame = self.bounds;
+    // A guide preview sits inside the window's own layer, which doesn't follow subview frames:
+    // its layer keeps the origin it was given.
+    _openGLLayer.frame = _hasLayerOrigin
+        ? NSMakeRect(_layerOrigin.x, _layerOrigin.y, self.bounds.size.width, self.bounds.size.height)
+        : self.bounds;
     if (!liveResize) {
         [self refreshMetalLayerEdrState];
         [_openGLLayer requestRenderForced:NO];
@@ -1064,6 +1076,12 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
     return edrMaxForScreen(self.window.screen ?: NSScreen.mainScreen);
 }
 
+- (void)setPreviewLayerOrigin:(NSPoint)origin {
+    _hasLayerOrigin = YES;
+    _layerOrigin = origin;
+    [self updateMetalLayerLayout];
+}
+
 - (double)hdrTargetPeakNits {
     // Polled twice a second by the controls sync, and each read is a WindowServer round trip.
     // Read again when the window moves to another screen, or after a minute.
@@ -1168,6 +1186,9 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     BOOL _controlsSyncInFlight;
     /** A guide preview: no controls page, no media keys, muted, small buffer (empty controls URL). */
     BOOL _guidePreview;
+    /** The preview's rectangle in the host (window content) view, top-left origin; none yet = hidden. */
+    BOOL _hasViewport;
+    NSRect _viewport;
     NSRect _lastAppliedNativeLayoutBounds;
     BOOL _lastAppliedNativeLayoutWasLiveResize;
     NSTimeInterval _lightweightResizeSettleUntil;
@@ -1570,6 +1591,13 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         || (_windowTrackingMonitor && _windowTrackingEdge != 0);
 }
 
+- (void)setViewportX:(double)x y:(double)y width:(double)width height:(double)height {
+    _viewport = NSMakeRect(x, y, fmax(width, 0.0), fmax(height, 0.0));
+    _hasViewport = width > 1.0 && height > 1.0;
+    _lastAppliedNativeLayoutBounds = NSZeroRect;
+    [self layoutNativeSubviews];
+}
+
 - (void)layoutNativeSubviews {
     if (!_hostView) {
         return;
@@ -1609,6 +1637,18 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
     }
     _lastAppliedNativeLayoutBounds = bounds;
     _lastAppliedNativeLayoutWasLiveResize = liveResize;
+    // The host is the whole window's content view; a guide preview only takes its viewport, and
+    // stays hidden until the guide reports one (so it never flashes over the whole window).
+    NSRect videoFrame = bounds;
+    if (_guidePreview) {
+        if (!_hasViewport) {
+            videoFrame = NSZeroRect;
+        } else {
+            CGFloat y = _hostView.isFlipped ? _viewport.origin.y
+                : bounds.size.height - _viewport.origin.y - _viewport.size.height;
+            videoFrame = NSMakeRect(_viewport.origin.x, y, _viewport.size.width, _viewport.size.height);
+        }
+    }
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -1616,8 +1656,19 @@ static void setMpvOptionString(mpv_handle *mpv, const char *name, const char *va
         if (liveResize || settlingFromResize) {
             [_videoView setFullscreenTransitionActive:YES];
         }
-        if (!NSEqualRects(_videoView.frame, bounds)) {
-            _videoView.frame = bounds;
+        if (!NSEqualRects(_videoView.frame, videoFrame)) {
+            _videoView.frame = videoFrame;
+        }
+        if (_guidePreview) {
+            // The host view hosts its own layer, so AppKit doesn't move a subview's layer when its
+            // frame origin changes: place the preview's layer directly (layer origin bottom-left).
+            NSRect layerFrame = NSZeroRect;
+            if (_hasViewport) {
+                CGFloat ly = _hostView.layer.geometryFlipped ? _viewport.origin.y
+                    : bounds.size.height - _viewport.origin.y - _viewport.size.height;
+                layerFrame = NSMakeRect(_viewport.origin.x, ly, _viewport.size.width, _viewport.size.height);
+            }
+            [_videoView setPreviewLayerOrigin:layerFrame.origin];
         }
         if (!liveResize && !settlingFromResize) {
             [_videoView setNeedsLayout:YES];
@@ -3648,6 +3699,23 @@ Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setResizeMode(
     MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
     runOnMainAsync(^{
         [player setResizeMode:(int)mode];
+    });
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_nuvio_app_features_player_desktop_NativePlayerBridge_setViewport(
+    JNIEnv * /* env */,
+    jobject /* bridge */,
+    jlong handle,
+    jdouble x,
+    jdouble y,
+    jdouble width,
+    jdouble height
+) {
+    if (handle == 0) return;
+    MpvWebPlayer *player = (__bridge MpvWebPlayer *)(void *)(intptr_t)handle;
+    runOnMainAsync(^{
+        [player setViewportX:x y:y width:width height:height];
     });
 }
 

@@ -364,6 +364,8 @@ internal class NativePlayerController(
                             applyRememberedVolume()
                             updateControls(controlsState)
                             setResizeMode(rememberedResizeMode)
+                        } else {
+                            synchronized(this@NativePlayerController) { applyGuideViewport() }
                         }
                         if (currentNowPlayingTitle.isNotEmpty() || currentArtworkUrl.isNotEmpty()) {
                             setNowPlayingMetadata(currentNowPlayingTitle, currentNowPlayingSubtitle, currentArtworkUrl)
@@ -533,6 +535,22 @@ internal class NativePlayerController(
     fun setResizeMode(mode: PlayerResizeMode) {
         rememberedResizeMode = mode
         applyResizeMode()
+    }
+
+    /** The guide preview's rectangle in the window (the native host is the whole window's view). */
+    private var guideViewport: DoubleArray? = null
+
+    @Synchronized
+    fun setGuideViewport(x: Double, y: Double, width: Double, height: Double) {
+        guideViewport = doubleArrayOf(x, y, width, height)
+        applyGuideViewport()
+    }
+
+    private fun applyGuideViewport() {
+        val current = handle
+        val v = guideViewport
+        if (!guidePreview || current == 0L || v == null) return
+        NativePlayerBridge.setViewport(current, v[0], v[1], v[2], v[3])
     }
 
     @Synchronized

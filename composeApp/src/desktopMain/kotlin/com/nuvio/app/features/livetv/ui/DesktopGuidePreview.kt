@@ -2,7 +2,6 @@ package com.nuvio.app.features.livetv.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -88,7 +87,7 @@ internal class DesktopGuidePreviewState {
 
 /** The 16:9 preview window in the guide's info panel. */
 @Composable
-internal fun DesktopGuidePreviewWindow(state: DesktopGuidePreviewState, idle: @Composable () -> Unit) {
+internal fun DesktopGuidePreviewWindow(state: DesktopGuidePreviewState) {
     val tokens = MaterialTheme.nuvio
     val shape = RoundedCornerShape(10.dp)
     Box(Modifier.fillMaxHeight().aspectRatio(16f / 9f).clip(shape).background(Color.Black)
@@ -120,11 +119,8 @@ internal fun DesktopGuidePreviewWindow(state: DesktopGuidePreviewState, idle: @C
             }
         }
         when {
-            channel == null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                idle()
-                Text(stringResource(Res.string.livetv_tv_guide_preview_hint), Modifier.padding(top = 6.dp),
-                    fontSize = 12.sp, color = tokens.colors.textSecondary, textAlign = TextAlign.Center)
-            }
+            channel == null -> Text(stringResource(Res.string.livetv_tv_guide_preview_hint), Modifier.padding(8.dp),
+                fontSize = 12.sp, color = tokens.colors.textSecondary, textAlign = TextAlign.Center)
             state.failed -> Text(stringResource(Res.string.livetv_tv_guide_preview_unavailable),
                 Modifier.padding(8.dp), fontSize = 12.sp, color = tokens.colors.textSecondary, textAlign = TextAlign.Center)
             !state.pictureReady -> Text(stringResource(Res.string.livetv_tv_guide_preview_starting),
