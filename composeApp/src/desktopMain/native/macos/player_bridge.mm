@@ -75,6 +75,7 @@ static constexpr double kMaxVolumePercent = 200.0;
 @property(nonatomic, assign, readonly) GLint bufferDepth;
 /** HDR keeps the float buffer; SDR renders into an 8-bit layer (half the bytes per frame). */
 - (void)setExtendedRangeOutput:(BOOL)extended;
+- (void)setMinFrameInterval:(double)interval;
 - (instancetype)initWithOwner:(PlayerMetalView *)owner;
 - (void)setMpvRenderContext:(mpv_render_context *)renderContext;
 - (void)clearMpvRenderContext;
@@ -608,6 +609,9 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
     std::atomic_bool _forceDraw;
     std::atomic_bool _renderQueued;
     std::atomic_bool _eightBitOutput;
+    /** Guide preview: at most one frame per this many seconds (0 = every frame). */
+    double _minFrameInterval;
+    double _lastDisplayAt;
 }
 
 @synthesize nuvioLiveResize = _nuvioLiveResize;
@@ -794,9 +798,21 @@ static void *mpvOpenGLGetProcAddress(void *ctx, const char *name) {
     }
 
     dispatch_async(_renderQueue, ^{
+        // A guide preview draws at a capped rate: requests arriving while it waits coalesce into
+        // one draw, and mpv skips the frames in between.
+        double interval = self->_minFrameInterval;
+        if (interval > 0.0 && !self->_forceDraw.load()) {
+            double wait = self->_lastDisplayAt + interval - CACurrentMediaTime();
+            if (wait > 0.0) usleep((useconds_t)(wait * 1e6));
+        }
         self->_renderQueued.store(false);
         [self display];
+        self->_lastDisplayAt = CACurrentMediaTime();
     });
+}
+
+- (void)setMinFrameInterval:(double)interval {
+    _minFrameInterval = interval;
 }
 
 - (void)lockAndSetContext {
@@ -1077,6 +1093,7 @@ static void mpvRenderUpdateCallback(void *callbackContext) {
 }
 
 - (void)setPreviewLayerOrigin:(NSPoint)origin {
+    [_openGLLayer setMinFrameInterval:1.0 / 15.0];
     _hasLayerOrigin = YES;
     _layerOrigin = origin;
     [self updateMetalLayerLayout];

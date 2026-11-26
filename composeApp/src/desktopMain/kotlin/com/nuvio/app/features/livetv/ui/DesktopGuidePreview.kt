@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.livetv_tv_guide_preview_hint
+import nuvio.composeapp.generated.resources.livetv_tv_guide_preview_paused
 import nuvio.composeapp.generated.resources.livetv_tv_guide_preview_starting
 import nuvio.composeapp.generated.resources.livetv_tv_guide_preview_unavailable
 import org.jetbrains.compose.resources.stringResource
@@ -46,7 +47,8 @@ import org.jetbrains.compose.resources.stringResource
 internal object DesktopGuidePreviewSetting {
     private const val KEY = "guide_preview_enabled"
     private val store get() = DesktopStorage.store("livetv_desktop")
-    private val state = MutableStateFlow(runCatching { store.getBoolean(KEY) }.getOrNull() ?: true)
+    // Off unless turned on: a preview decodes the whole stream (4K channels too) beside the guide.
+    private val state = MutableStateFlow(runCatching { store.getBoolean(KEY) }.getOrNull() ?: false)
     val enabled: StateFlow<Boolean> = state.asStateFlow()
 
     fun set(enabled: Boolean) {
@@ -65,11 +67,14 @@ internal class DesktopGuidePreviewState {
         private set
     var failed by mutableStateOf(false)
     var pictureReady by mutableStateOf(false)
+    /** Stopped after a while with no mouse movement over the guide. */
+    var pausedIdle by mutableStateOf(false)
     internal var controller: PlayerEngineController? = null
 
     fun start(next: LiveChannel) {
         if (channel?.key == next.key) return
         release {}
+        pausedIdle = false
         failed = false
         pictureReady = false
         channel = next
@@ -119,7 +124,8 @@ internal fun DesktopGuidePreviewWindow(state: DesktopGuidePreviewState) {
             }
         }
         when {
-            channel == null -> Text(stringResource(Res.string.livetv_tv_guide_preview_hint), Modifier.padding(8.dp),
+            channel == null -> Text(stringResource(if (state.pausedIdle) Res.string.livetv_tv_guide_preview_paused
+                else Res.string.livetv_tv_guide_preview_hint), Modifier.padding(8.dp),
                 fontSize = 12.sp, color = tokens.colors.textSecondary, textAlign = TextAlign.Center)
             state.failed -> Text(stringResource(Res.string.livetv_tv_guide_preview_unavailable),
                 Modifier.padding(8.dp), fontSize = 12.sp, color = tokens.colors.textSecondary, textAlign = TextAlign.Center)

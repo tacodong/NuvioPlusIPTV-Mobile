@@ -116,6 +116,8 @@ import nuvio.composeapp.generated.resources.livetv_tv_guide_display_times
 import nuvio.composeapp.generated.resources.livetv_tv_guide_earlier
 import nuvio.composeapp.generated.resources.livetv_tv_guide_later
 import nuvio.composeapp.generated.resources.livetv_tv_guide_preview
+import nuvio.composeapp.generated.resources.livetv_tv_guide_preview_warning
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 
 // The Android TV guide (TiviMate style): a fixed two-hour window that fills the width and moves in
@@ -156,6 +158,7 @@ private fun windowCells(programs: List<EpgProgram>, start: Long, end: Long): Lis
     if (end - cursor > 60_000L) add(GuideCell(cursor, end))
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun DesktopTvGuide(
     channels: List<LiveChannel>,
@@ -191,6 +194,20 @@ internal fun DesktopTvGuide(
     val preview = remember { DesktopGuidePreviewState() }
     DisposableEffect(preview) { onDispose { preview.release {} } }
     LaunchedEffect(previewOn) { if (!previewOn) preview.release {} }
+    // Pause when idle: stop the preview after two minutes with no mouse movement over the guide.
+    val lastActivity = remember { longArrayOf(0L) }
+    LaunchedEffect(preview.channel) {
+        if (preview.channel == null) return@LaunchedEffect
+        lastActivity[0] = System.currentTimeMillis()
+        while (true) {
+            delay(10_000)
+            if (System.currentTimeMillis() - lastActivity[0] > 120_000) {
+                preview.release {}
+                preview.pausedIdle = true
+                break
+            }
+        }
+    }
     val playChannel: (LiveChannel) -> Unit = { channel -> preview.release { onPlay(channel) } }
     val channelClick: (LiveChannel) -> Unit = { channel ->
         if (previewOn && preview.channel?.key != channel.key) preview.start(channel) else playChannel(channel)
@@ -219,7 +236,8 @@ internal fun DesktopTvGuide(
     }
     val wheel = Modifier.onDesktopHorizontalWheel { hScroll.dispatchRawDelta(it) }
 
-    Box(modifier.fillMaxWidth().testTag("desktop-tv-guide")) {
+    Box(modifier.fillMaxWidth().testTag("desktop-tv-guide")
+        .onPointerEvent(PointerEventType.Move) { lastActivity[0] = System.currentTimeMillis() }) {
         GuideThemeGlow(Modifier.fillMaxWidth().height(230.dp))
         Column(Modifier.fillMaxSize()) {
             if (selectedChannel != null) {
@@ -330,6 +348,9 @@ private fun GuideHeaderActions(settings: LiveTvSettings, previewOn: Boolean, onO
             Text(stringResource(Res.string.livetv_tv_guide_display), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = tokens.colors.textSecondary)
             DisplayToggle(Res.string.livetv_tv_guide_preview, previewOn) { v -> DesktopGuidePreviewSetting.set(v) }
+            Text(stringResource(Res.string.livetv_tv_guide_preview_warning),
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp).width(260.dp),
+                fontSize = 12.sp, color = tokens.colors.warning)
             DisplayToggle(Res.string.livetv_tv_guide_display_numbers, settings.phoneChannelNumbers) { v ->
                 LiveTvPreferences.updateSettings { it.copy(phoneChannelNumbers = v) } }
             DisplayToggle(Res.string.livetv_tv_guide_display_logos, settings.phoneChannelLogos) { v ->

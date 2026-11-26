@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -168,13 +169,31 @@ internal fun DesktopTvGuideDetails(
  * The TV info panel's poster slot: the show's own image from the guide in a 2:3 frame, or the
  * channel's logo there when the guide has none.
  */
+private object GuidePosterCache {
+    val byTitle = java.util.concurrent.ConcurrentHashMap<String, String>()
+    val missing: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+}
+
 @Composable
 private fun GuidePoster(channel: LiveChannel, program: EpgProgram?) {
     val shape = RoundedCornerShape(10.dp)
+    // Like the TV guide: the guide's own image straight away; otherwise, after a short pause (so
+    // sweeping the mouse doesn't look up every show), the poster of a clear TMDB match.
+    val poster by produceState(program?.icon?.takeIf { it.isNotBlank() }, channel.key, program?.startMs) {
+        val p = program ?: return@produceState
+        if (!p.icon.isNullOrBlank()) return@produceState
+        val key = p.title.trim().lowercase()
+        GuidePosterCache.byTitle[key]?.let { value = it; return@produceState }
+        if (key.isEmpty() || key in GuidePosterCache.missing) return@produceState
+        delay(350)
+        val found = runCatching { NuvioTitleFind.clearMatch(p)?.poster }.getOrNull()
+        if (found.isNullOrBlank()) GuidePosterCache.missing += key
+        else { GuidePosterCache.byTitle[key] = found; value = found }
+    }
     Box(Modifier.fillMaxHeight().aspectRatio(2f / 3f).clip(shape).background(guideGlass(0.9f))
         .border(1.dp, Color.White.copy(alpha = 0.10f), shape), contentAlignment = Alignment.Center) {
         ChannelLogo(channel, width = 56.dp, height = 40.dp, inset = 4.dp)
-        program?.icon?.takeIf { it.isNotBlank() }?.let { icon ->
+        poster?.let { icon ->
             AsyncImage(model = icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         }
     }
