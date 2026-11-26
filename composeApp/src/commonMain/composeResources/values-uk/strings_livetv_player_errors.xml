@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Не вдалося відтворити це відео.</string>
+    <string name="livetv_error_renew">Провайдер не зміг оновити цей потік. Перевірте джерело й налаштування VPN.</string>
+    <string name="livetv_error_open_channel">Провайдер не зміг відкрити цей канал. Перевірте джерело й налаштування VPN.</string>
+    <string name="livetv_error_connection_lost">Зв\'язок із цим каналом наживо втрачено. Натисніть відтворення або виберіть інший канал.</string>
+    <string name="livetv_error_catchup">Не вдалося переглянути цю передачу ще раз. Можливо, її немає в архіві провайдера</string>
+    <string name="livetv_error_catchup_code">Не вдалося переглянути цю передачу ще раз. Можливо, її немає в архіві провайдера (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Провайдер відхилив потік (HTTP %1$d): ліміт облікового запису, термін минув або заблоковано</string>
+    <string name="livetv_error_not_found">Потік не знайдено (HTTP 404). Спробуйте інший формат потоку в налаштуваннях плейлиста</string>
+    <string name="livetv_error_too_many">Забагато підключень на цьому обліковому записі (HTTP %1$d)</string>
+    <string name="livetv_error_server">Помилка сервера провайдера (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Провайдер зараз неправильно передає цей канал</string>
+    <string name="livetv_error_unreachable">Провайдер зараз недоступний</string>
+    <string name="livetv_error_decoder">Цей телефон не зміг відтворити зображення або звук цього каналу</string>
+    <string name="livetv_error_drm">Цей канал захищений, і його не вдалося розблокувати</string>
+    <string name="livetv_error_not_playing">Цей канал зараз не транслюється</string>
+</resources>

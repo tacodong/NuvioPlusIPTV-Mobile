@@ -414,12 +414,15 @@ class StalkerClient(
                     }
                     return@withLock authenticated
                 } catch (_: EndpointMissing) {
-                    failure = StalkerException(StalkerError.UNSUPPORTED)
+                    if (failure?.error != StalkerError.AUTHENTICATION_FAILED) {
+                        failure = StalkerException(StalkerError.UNSUPPORTED)
+                    }
                 } catch (_: AuthenticationFailure) {
-                    throw StalkerException(StalkerError.AUTHENTICATION_FAILED)
+                    // A refused portal.php can coexist with a working server/load.php.
+                    failure = StalkerException(StalkerError.AUTHENTICATION_FAILED)
                 } catch (e: StalkerException) {
                     if (e.error !in setOf(StalkerError.INVALID_RESPONSE, StalkerError.UNSUPPORTED)) throw e
-                    failure = e
+                    if (failure?.error != StalkerError.AUTHENTICATION_FAILED) failure = e
                 }
             }
             throw failure ?: StalkerException(StalkerError.UNSUPPORTED)

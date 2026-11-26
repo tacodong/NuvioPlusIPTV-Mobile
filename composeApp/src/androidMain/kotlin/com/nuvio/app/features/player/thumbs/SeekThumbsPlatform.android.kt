@@ -37,6 +37,8 @@ actual object SeekThumbsPlatform {
     private const val MEMORY_BYTES = 3 * 1024 * 1024
     private const val APP_HEADROOM_BYTES = 24L * MB
     private const val SEEK_ACTIVE_MS = 8_000L
+    /** A saved recording: how long it plays smoothly before thumbnails start being made. */
+    private const val SETTLE_MS = 15_000L
     private const val FOUR_K = "4k|"
     /** Every COARSE-th picture is made first, so the whole bar soon has pictures to show. */
     private const val COARSE = 6
@@ -317,7 +319,14 @@ actual object SeekThumbsPlatform {
                     if (lowMemoryNoted) setMessage(SeekThumbMessages.MAKING)
                     val urgent = next == target || abs(next - target) <= 2 && seeking()
                     if (!make(next)) break
-                    if (!urgent) waitFor(if (playback.isPlaying()) 1_000 else 250)
+                    if (!urgent) waitFor(
+                        when {
+                            playback.isLoading() -> 1_000
+                            // A saved recording is read from the same storage as the video: gently.
+                            playback.isPlaying() -> if (playback.isRecording()) 2_000 else 1_000
+                            else -> 250
+                        }
+                    )
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "thumbnails stopped: ${t.javaClass.simpleName}")
@@ -335,6 +344,9 @@ actual object SeekThumbsPlatform {
 
         private fun seeking() = SystemClock.elapsedRealtime() - lastSeekAt < SEEK_ACTIVE_MS
 
+        /** Since when the video has been playing without stopping to load (0: not now). */
+        @Volatile private var steadySince = 0L
+
         private fun pick(): Int {
             val t = target
             if (t >= 0 && seeking()) {
@@ -344,7 +356,13 @@ actual object SeekThumbsPlatform {
                 }
             }
             val p = playback
+            // Loading or starting isn't paused: the video needs the storage and the decoder then.
+            if (p.isLoading()) { steadySince = 0L; return -1 }
             val paused = !p.isPlaying()
+            val now = SystemClock.elapsedRealtime()
+            if (paused) steadySince = 0L else if (steadySince == 0L) steadySince = now
+            // A saved recording: nothing made until it has played smoothly for a while.
+            if (p.isRecording() && !paused && now - steadySince < SETTLE_MS) return -1
             val allowed = when (mode) {
                 SeekThumbWhen.SEEKING -> paused || seeking()
                 SeekThumbWhen.WATCHING -> paused || seeking() || p.bufferedAheadMs() >= 30_000L
@@ -489,6 +507,9 @@ actual object SeekThumbsPlatform {
                     }
                 }
             }
+            // Android's reader uses the phone's video decoder, the one playing the video: only while
+            // paused, or on phones where the fast reader isn't there at all. Otherwise skipped.
+            if (NativeThumbs.available && (playback.isPlaying() || playback.isLoading())) return null
             val r = MediaMetadataRetriever()
             return try {
                 r.setDataSource(file.path)

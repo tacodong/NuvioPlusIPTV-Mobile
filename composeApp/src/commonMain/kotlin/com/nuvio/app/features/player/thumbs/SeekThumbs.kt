@@ -43,6 +43,10 @@ class SeekThumbPlayback(
     val positionMs: () -> Long,
     /** How far the player has loaded ahead of where it is. */
     val bufferedAheadMs: () -> Long,
+    /** Meant to play but waiting for video (starting or loading): not a pause. */
+    val isLoading: () -> Boolean = { false },
+    /** A saved recording: thumbnails wait for steady play and go gently. */
+    val isRecording: () -> Boolean = { false },
 )
 
 object SeekThumbMessages {

@@ -79,6 +79,77 @@ class PlayerEngineSwitchTrackPreferenceTest {
     }
 
     @Test
+    fun reopeningLivePlaybackRestoresPersistedAudioAndSubtitleChoices() {
+        val runtime = runtime().apply {
+            activeProviderAddonId = com.nuvio.app.features.livetv.player.LiveTvPlayback.PROVIDER_ID
+            activeVideoId = "live-channel"
+            trackPreferenceRestoreApplied = true
+            preferredAudioSelectionApplied = true
+            preferredSubtitleSelectionApplied = true
+            isUserExplicitAudioSelection = true
+            isUserExplicitSubtitleSelection = true
+        }
+        val selectedAudio = AudioTrack(index = 1, id = "english", label = "English", language = "en", isSelected = true)
+        runtime.persistAudioPreference(selectedAudio)
+        runtime.persistInternalSubtitlePreference(null)
+
+        runtime.reopenLiveSource()
+        val newEngine = FakeController(
+            playbackEngine = AndroidPlaybackEngine.ExoPlayer,
+            exposedAudioTracks = listOf(
+                AudioTrack(index = 0, id = "japanese", label = "Japanese", language = "ja", isSelected = true),
+                selectedAudio.copy(isSelected = false),
+            ),
+        )
+        runtime.playerController = newEngine
+        runtime.playbackSnapshot = PlayerPlaybackSnapshot(isLoading = false, isPlaying = true)
+        runtime.refreshTracks()
+
+        assertEquals(listOf(1), newEngine.audioSelections)
+        assertEquals(listOf(-1), newEngine.subtitleSelections)
+        assertTrue(runtime.trackPreferenceRestoreApplied)
+    }
+
+    @Test
+    fun reopenedLiveOwnerReappliesDefaultCaptionsButKeepsExplicitOff() {
+        val prefs = com.nuvio.app.features.livetv.data.LiveTvPreferences
+        val previous = prefs.rawData.value
+        try {
+            prefs.edit { it["captions_by_default"] = com.nuvio.app.features.livetv.data.PrefValue.Bool(true) }
+            val runtime = runtime().apply {
+                activeProviderAddonId = com.nuvio.app.features.livetv.player.LiveTvPlayback.PROVIDER_ID
+                activeVideoId = "default-captions-channel"
+            }
+            fun owner() = FakeController(
+                playbackEngine = AndroidPlaybackEngine.ExoPlayer,
+                exposedSubtitleTracks = listOf(SubtitleTrack(index = 3, id = "cc1", label = "Closed captions", language = "en")),
+            )
+            val first = owner()
+            runtime.playerController = first
+            runtime.subtitleTracks = first.exposedSubtitleTracks
+            runtime.applyLiveCaptionDefaults()
+            assertEquals(listOf(3), first.subtitleSelections)
+
+            runtime.reopenLiveSource()
+            val reopened = owner()
+            runtime.playerController = reopened
+            runtime.subtitleTracks = reopened.exposedSubtitleTracks
+            runtime.applyLiveCaptionDefaults()
+            assertEquals(listOf(3), reopened.subtitleSelections)
+
+            runtime.persistInternalSubtitlePreference(null)
+            runtime.reopenLiveSource()
+            val explicitlyOff = owner()
+            runtime.playerController = explicitlyOff
+            runtime.subtitleTracks = explicitlyOff.exposedSubtitleTracks
+            runtime.applyLiveCaptionDefaults()
+            assertEquals(emptyList(), explicitlyOff.subtitleSelections)
+        } finally {
+            prefs.edit { it.clear(); it.putAll(previous) }
+        }
+    }
+
+    @Test
     fun switchingEngineKeepsAddonSubtitlesForTheSameSource() {
         val runtime = runtime()
         runtime.resetIdentityStateIfNeeded()

@@ -22,17 +22,14 @@
 
 ## 🆕 New in this update
 
-- **🏆 A new Sports hub:** a search bar, a big swipe card, **Live on your channels**, leagues as folding groups, game cards in team colours, and a game page with the day's games, a scoreboard, a Watch button and replays first once a game ends. [More below](#-sports-hub).
-- **🎬 More highlights:** races, fights, golf, tennis, darts and more, from the sports' own YouTube channels, with **Show Highlights** and **Show Condensed Games** switches in Sports settings.
-- **⏺️ Recordings from your network folder:** the TVs' recordings on a NAS or shared folder show up on your phone and play from there. Set the folder up on the phone too. **Recorded, Scheduled and Series** tabs with posters, and **Fix Match** to pick the right show or movie.
-- **🏠 Home rows:** add Live TV, Sports and On Demand rows to Home, including Continue Watching for On Demand.
-- **🎯 Best quality auto-play:** your own **Quality rules** and a **Best quality first** source order, under Settings → Playback → Stream Auto-play.
-- **🖼️ Seek thumbnails** fill in much sooner.
-- **⚡ Live TV starts instantly:** your channel list shows straight away when you open the app.
-- **⭐ Favorite groups,** **Show on Profiles** for each playlist, and **Lock Playlist Logins** with your PIN.
-- **🔁 Backups button** over a playing channel lists the other channels showing the same game.
-- **🌍 Hide Non-English Titles** for On Demand, and a movies and series switch for M3U playlists.
-- **Handball** added, and college tables have conference tabs and real records.
+- **⏺️ Record to your network folder from the phone:** recordings are copied to your NAS or shared folder when they finish, so your TVs can watch them too. Each device keeps its own folder address.
+- **📝 Episode descriptions** in a recording's details, from TMDB when the guide has none, and the recording's poster in the player.
+- **🔁 Backups with headings:** grouped by playlist, add-on or quality, in the order you pick, shared with your TVs.
+- **📺 A steadier guide:** shows that already aired stay in the guide after an update, and **Find in Nuvio** opens the movie or series page straight away.
+- **🏆 Sports:** what you follow loads first when the app opens.
+- **⚡ Lighter:** big M3U playlists, On Demand updates and Sports use less memory.
+- **🇫🇷 French** for Live TV, the guide, On Demand, Recordings, the Calendar and Multiview.
+- **Built on Nuvio Mobile 1.1.0-beta.3,** with Traditional Chinese, better subtitles and better MKV, DTS and Blu-ray playback.
 
 ---
 
@@ -127,6 +124,8 @@ Protect what you watch without installing a separate VPN app. **Settings → VPN
 - **Best quality auto-play:** set your own **Quality rules** and put the best quality first (Settings → Playback → Stream Auto-play).
 - **Seek thumbnails:** preview pictures above the seek bar. Change them under **Settings → Playback → Video**.
 - **Catch-up:** watch past shows with a seek bar, or restart what's on now. The app remembers which kind of replay link your provider answers and tries it first.
+- **Backups:** the Backups button lists other channels showing the same game, your sports add-ons' streams and copies of the channel, under headings by playlist, add-on or quality (Settings → Live TV → Watching → Backups & Game Channels).
+- **Find in Nuvio:** tap a movie or show in the guide or the channel panel to open its page in Nuvio.
 - **Reminders** for upcoming shows, with a notification.
 
 ### 📡 Your sources, your way
@@ -134,10 +133,12 @@ Protect what you watch without installing a separate VPN app. **Settings → VPN
 - **Xtream logins,** with separate switches for TV channels and for movies & series.
 - **Stalker / Ministra portals** for Live TV and On Demand.
 - **Smart guide matching** (fine-tune any channel with **Assign EPG**), plus guide and catch-up time shifts (up to 24 hours) for providers that are off.
+- **Past shows stay put:** shows that already aired stay in the guide when a guide update stops listing them (up to your **Past Shows Kept** setting).
 
 ### ⏺️ Recordings
 - **Record a show, or a whole series,** from the guide, or a game from Sports, and watch it later in **Recordings**, in Recorded, Scheduled and Series tabs. Series recordings skip repeats and episodes you cancelled.
-- **Network folder (NAS or computer):** the TVs' recordings on a shared folder show in your phone's Recordings and play from there. Set the folder up on the phone or let it come over with Setup Sync.
+- **Network folder (NAS or computer):** the TVs' recordings on a shared folder show in your phone's Recordings and play from there. Set **Storage** to the network folder and the phone's own recordings are copied there when they finish, so your TVs can watch them too. Set the folder up on the phone or let it come over with Setup Sync; each device keeps its own address for it (a Tailscale address on the phone, say).
+- **Episode descriptions** in a recording's details, from TMDB when the guide had none.
 - **Fix Match:** long-press a recording or an On Demand title to search for the right show or movie. The pick syncs with your TVs.
 
 ### 🗂️ Channel management

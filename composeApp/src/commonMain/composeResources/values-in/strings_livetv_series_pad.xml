@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Mulai lebih awal</string>
+    <string name="livetv_rec_pad_after">Terus merekam setelahnya</string>
+    <string name="livetv_rec_pad_default">Default (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d mnt sebelum</string>
+    <string name="livetv_rec_pad_line_after">+%1$d mnt sesudah</string>
+    <string name="livetv_rec_pad_hint">Hanya untuk serial ini. Episode yang sudah diatur juga ikut berubah.</string>
+</resources>

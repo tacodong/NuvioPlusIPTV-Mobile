@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">提早開始</string>
+    <string name="livetv_rec_pad_after">結束後繼續錄製</string>
+    <string name="livetv_rec_pad_default">預設（%1$s）</string>
+    <string name="livetv_rec_pad_line_before">提前 %1$d 分鐘</string>
+    <string name="livetv_rec_pad_line_after">延後 %1$d 分鐘</string>
+    <string name="livetv_rec_pad_hint">僅適用於此系列。已排定的集數也會一併變更。</string>
+</resources>

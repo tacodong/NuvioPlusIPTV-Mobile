@@ -235,16 +235,22 @@ internal actual object LiveTvFiles {
         }
     }
 
-    actual fun readSmall(dir: String, name: String): String? =
-        file(dir, name).takeIf { it.isFile }?.let { runCatching {
-            val text = it.readText()
-            if (name == "cloud_base.json" || name == "drive_base.json") com.nuvio.vpn.android.VpnBackup.openCache(text) else text
-        }.getOrNull() }
+    actual fun readSmall(dir: String, name: String): String? {
+        val target = file(dir, name).takeIf { it.isFile } ?: return null
+        // Keep protected-cache reads strict; each sync owner handles an unreadable comparison
+        // copy as absent without weakening encryption or private preference exports.
+        if (name == "cloud_base.json" || name == "drive_base.json") {
+            return com.nuvio.vpn.android.VpnBackup.openCache(target.readText())
+        }
+        return runCatching { target.readText() }.getOrNull()
+    }
 
     actual fun writeSmall(dir: String, name: String, text: String) {
-        runCatching {
-            val stored = if (name == "cloud_base.json" || name == "drive_base.json") com.nuvio.vpn.android.VpnBackup.sealCache(text) else text
+        if (name == "cloud_base.json" || name == "drive_base.json") {
+            val stored = com.nuvio.vpn.android.VpnBackup.sealCache(text)
             file(dir, name).writeText(stored)
+        } else {
+            runCatching { file(dir, name).writeText(text) }
         }
     }
 

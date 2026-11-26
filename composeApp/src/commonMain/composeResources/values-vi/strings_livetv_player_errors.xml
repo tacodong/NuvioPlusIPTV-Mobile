@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Không thể phát nội dung này.</string>
+    <string name="livetv_error_renew">Nhà cung cấp không thể làm mới luồng này. Hãy kiểm tra nguồn và cài đặt VPN.</string>
+    <string name="livetv_error_open_channel">Nhà cung cấp không thể mở kênh này. Hãy kiểm tra nguồn và cài đặt VPN.</string>
+    <string name="livetv_error_connection_lost">Mất kết nối với kênh trực tiếp này. Nhấn phát hoặc chọn kênh khác.</string>
+    <string name="livetv_error_catchup">Không thể xem lại chương trình này. Nhà cung cấp có thể không có trong kho lưu trữ</string>
+    <string name="livetv_error_catchup_code">Không thể xem lại chương trình này. Nhà cung cấp có thể không có trong kho lưu trữ (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Nhà cung cấp đã từ chối luồng (HTTP %1$d): giới hạn tài khoản, hết hạn hoặc bị chặn</string>
+    <string name="livetv_error_not_found">Không tìm thấy luồng (HTTP 404). Hãy thử định dạng luồng khác trong cài đặt danh sách phát</string>
+    <string name="livetv_error_too_many">Quá nhiều kết nối trên tài khoản này (HTTP %1$d)</string>
+    <string name="livetv_error_server">Lỗi máy chủ của nhà cung cấp (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Nhà cung cấp hiện không gửi kênh này đúng cách</string>
+    <string name="livetv_error_unreachable">Hiện không thể kết nối với nhà cung cấp</string>
+    <string name="livetv_error_decoder">Điện thoại này không thể phát hình ảnh hoặc âm thanh của kênh này</string>
+    <string name="livetv_error_drm">Kênh này được bảo vệ và không thể mở khóa</string>
+    <string name="livetv_error_not_playing">Kênh này hiện không phát sóng</string>
+</resources>

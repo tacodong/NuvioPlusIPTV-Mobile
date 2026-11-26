@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">早めに開始</string>
+    <string name="livetv_rec_pad_after">終了後も録画を続ける</string>
+    <string name="livetv_rec_pad_default">デフォルト（%1$s）</string>
+    <string name="livetv_rec_pad_line_before">%1$d分前から</string>
+    <string name="livetv_rec_pad_line_after">%1$d分後まで</string>
+    <string name="livetv_rec_pad_hint">このシリーズのみ。予約済みのエピソードも変更されます。</string>
+</resources>

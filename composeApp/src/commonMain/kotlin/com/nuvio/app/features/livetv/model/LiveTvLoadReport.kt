@@ -62,6 +62,7 @@ object LiveTvLoadReport {
 internal object ReportShortener {
     private val TIME = Regex("""^\+(\d+)(?:\.(\d))?s\s+""")
     private val NUMBERS = Regex("""\d+(?:[.,]\d+)*""")
+    private val SAMPLE_READERS = Regex("""\bR\d+\{""")
     private val PROBLEM = Regex(
         """\b(fail|failed|couldn'?t|could not|error|timed? ?out|refused|won'?t|denied|missing|out of date|froze|crash|exception|not found|invalid|unreachable|no space|expired|expires|blocked|http [45]\d\d|[45]\d\d)\b""",
         RegexOption.IGNORE_CASE,
@@ -86,14 +87,16 @@ internal object ReportShortener {
                 else -> "${whole}s"
             }
             var text = if (m != null) raw.substring(m.value.length) else raw
-            if (text.length > 220) text = text.take(217) + "..."
+            val cap = if (text.startsWith("Multiview sample:") || text.startsWith("VPN: vpn_traffic:")) 700 else 220
+            if (text.length > cap) text = text.take(cap - 3) + "..."
             val prio = when {
                 PROBLEM.containsMatchIn(text) -> 0
                 NOISE.any { text.contains(it) } -> 3
                 TIMING.containsMatchIn(text) -> 1
                 else -> 2
             }
-            val key = NUMBERS.replace(text, "#")
+            val readerIds = if (text.startsWith("Multiview sample:")) SAMPLE_READERS.findAll(text).joinToString(",") { it.value } else ""
+            val key = readerIds + NUMBERS.replace(text, "#")
             val prev = byKey.remove(key)
             byKey[key] = Line(i, time, text, prio, (prev?.count ?: 0) + 1)
         }

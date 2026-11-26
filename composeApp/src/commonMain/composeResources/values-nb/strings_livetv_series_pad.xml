@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Start tidligere</string>
+    <string name="livetv_rec_pad_after">Fortsett opptak etterpå</string>
+    <string name="livetv_rec_pad_default">Standard (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d min før</string>
+    <string name="livetv_rec_pad_line_after">+%1$d min etter</string>
+    <string name="livetv_rec_pad_hint">Bare for denne serien. Episoder som allerede er satt opp, endres også.</string>
+</resources>

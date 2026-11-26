@@ -110,15 +110,20 @@ internal actual object OnDemandStore {
         return if (h == 0L) 1L else h
     }
 
+    /** A title already saved: its fingerprint, and whether the provider still lists it. */
+    private class ImportedItem(var fingerprint: Long, var seen: Boolean = false)
+
     actual fun replace(playlistId: String, kind: VodKind, categories: List<Pair<String, String>>, items: Sequence<VodItem>, publication: ((() -> Unit) -> Unit)?): Int {
         val db = writable
-        val existing = HashMap<String, Long>()
+        // One entry per title (no second set of every id alongside it).
+        val existing = HashMap<String, ImportedItem>()
         db.rawQuery("SELECT id, h FROM items WHERE pl = ? AND kind = ?", arrayOf(playlistId, kind.key)).use { c ->
-            while (c.moveToNext()) existing[c.getString(0)] = if (c.isNull(1)) 0L else c.getLong(1)
+            while (c.moveToNext()) existing[c.getString(0)] = ImportedItem(if (c.isNull(1)) 0L else c.getLong(1))
         }
         // The first import of a catalog writes with the search indexes off and builds them once
         // at the end, much quicker than keeping them up to date title by title.
         val bulk = existing.isEmpty()
+        var unseen = existing.size
         var count = 0
         tx(db, publication) {
             if (bulk) {
@@ -136,12 +141,15 @@ internal actual object OnDemandStore {
             val stmt = db.compileStatement(
                 "INSERT OR REPLACE INTO items (pl, kind, id, name, norm, icon, cat, ext, tmdb, year, rating, added, genre, h, url, stalker, stalker_variant, plot, duration) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             )
-            val seen = HashSet<String>(maxOf(16, existing.size))
             items.forEach { it ->
                 count++
-                seen.add(it.id)
+                val previous = existing[it.id]
+                if (previous != null && !previous.seen) {
+                    previous.seen = true
+                    unseen--
+                }
                 val h = fingerprint(it)
-                if (existing[it.id] == h) return@forEach
+                if (previous?.fingerprint == h) return@forEach
                 stmt.clearBindings()
                 stmt.bindString(1, playlistId)
                 stmt.bindString(2, kind.key)
@@ -163,13 +171,18 @@ internal actual object OnDemandStore {
                 it.plot?.let { v -> stmt.bindString(18, v) } ?: stmt.bindNull(18)
                 it.durationSecs?.let { v -> stmt.bindLong(19, v) } ?: stmt.bindNull(19)
                 stmt.executeInsert()
-                existing[it.id] = h
+                // A title listed twice is written once; a changed copy keeps the last one.
+                if (previous == null) existing[it.id] = ImportedItem(h, seen = true) else previous.fingerprint = h
             }
-            if (existing.size > seen.size) {
-                val del = db.compileStatement("DELETE FROM items WHERE pl = ? AND kind = ? AND id = ?")
-                existing.keys.filter { it !in seen }.forEach { id ->
-                    del.clearBindings(); del.bindString(1, playlistId); del.bindString(2, kind.key); del.bindString(3, id)
-                    del.executeUpdateDelete()
+            // Titles the provider no longer lists.
+            if (unseen > 0) {
+                db.compileStatement("DELETE FROM items WHERE pl = ? AND kind = ? AND id = ?").use { del ->
+                    existing.forEach { (id, state) ->
+                        if (!state.seen) {
+                            del.clearBindings(); del.bindString(1, playlistId); del.bindString(2, kind.key); del.bindString(3, id)
+                            del.executeUpdateDelete()
+                        }
+                    }
                 }
             }
             if (bulk) createIndices(db)

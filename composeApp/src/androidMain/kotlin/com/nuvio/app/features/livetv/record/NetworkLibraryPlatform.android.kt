@@ -109,6 +109,18 @@ internal actual object NetworkLibraryPlatform {
         Unit
     }
 
+    actual suspend fun publish(config: NetworkFolderConfig, rec: LiveTvRecording, localPath: String, onProgress: (Float) -> Unit): String =
+        withContext(Dispatchers.IO) {
+            // Copying runs at background priority so it never competes with what's on screen.
+            val previous = runCatching { android.os.Process.getThreadPriority(android.os.Process.myTid()) }.getOrNull()
+            runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) }
+            try {
+                NetworkPublish.publish(folderFor(config), rec, java.io.File(localPath), onProgress)
+            } finally {
+                if (previous != null) runCatching { android.os.Process.setThreadPriority(previous) }
+            }
+        }
+
     /** A whole (small) file from the folder. */
     internal fun SmbFolder.readAll(rel: String): ByteArray {
         val size = size(rel) ?: throw NetworkFolderException("Not on the network folder")

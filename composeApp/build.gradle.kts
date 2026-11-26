@@ -1263,6 +1263,7 @@ kotlin {
         }
         val androidHostTest by getting {
             dependencies {
+                implementation("io.mockk:mockk:1.13.12")
                 implementation("org.robolectric:robolectric:4.16")
                 implementation("androidx.compose.ui:ui-test-junit4:${libs.versions.composeMultiplatform.get()}")
                 implementation("androidx.compose.ui:ui-test-manifest:${libs.versions.composeMultiplatform.get()}")

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">முன்கூட்டியே தொடங்கு</string>
+    <string name="livetv_rec_pad_after">பிறகும் பதிவுசெய்</string>
+    <string name="livetv_rec_pad_default">இயல்புநிலை (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d நிமி முன்</string>
+    <string name="livetv_rec_pad_line_after">+%1$d நிமி பின்</string>
+    <string name="livetv_rec_pad_hint">இந்தத் தொடருக்கு மட்டும். ஏற்கனவே அமைத்த அத்தியாயங்களும் மாறும்.</string>
+</resources>

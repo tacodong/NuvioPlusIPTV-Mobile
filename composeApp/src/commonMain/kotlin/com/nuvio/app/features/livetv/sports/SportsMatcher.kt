@@ -525,10 +525,7 @@ internal class SportsMatcher(private val db: GuideSearch = GuideSearch.Store) {
         val out = List(slots.size) { ArrayList<Pair<String, EpgProgram>>() }
         if (slots.isEmpty()) return out
         // Every word looked for, by its first word, so a show only needs checking against the few that start like one of its own words.
-        val byFirst = HashMap<String, MutableList<String>>()
-        slots.flatMapTo(HashSet<String>()) { it.words }.forEach { w ->
-            byFirst.getOrPut(w.substringBefore(' ')) { ArrayList() } += w
-        }
+        val wordIndex = SportsGuideWords(slots.flatMapTo(HashSet<String>()) { it.words })
         val seen = List(slots.size) { HashSet<String>() }
         // Quiet reading: every 1000 shows, rest about as long as the last stretch of work took (at
         // most 80 ms), so the search uses about half a core instead of a whole one while nobody waits on it.
@@ -541,20 +538,7 @@ internal class SportsMatcher(private val db: GuideSearch = GuideSearch.Store) {
             }
             val nt = norm(title)
             val nd = if (descr.isNullOrEmpty()) "" else norm(descr)
-            var matched: HashSet<String>? = null
-            fun look(text: String) {
-                if (text.isEmpty()) return
-                for (tok in text.split(' ')) {
-                    if (tok.isEmpty()) continue
-                    val cands = byFirst[tok] ?: continue
-                    for (w in cands) {
-                        if (hasWord(nt, w) || hasWord(nd, w)) (matched ?: HashSet<String>().also { matched = it }).add(w)
-                    }
-                }
-            }
-            look(nt)
-            look(nd)
-            val m = matched ?: return@scanListings
+            val m = wordIndex.matched(nt, nd) ?: return@scanListings
             for (i in slots.indices) {
                 val s = slots[i]
                 if (start < s.fromMs || start >= s.toMs || stop <= s.minStopMs) continue

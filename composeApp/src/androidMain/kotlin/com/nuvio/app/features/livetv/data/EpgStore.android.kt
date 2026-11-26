@@ -67,6 +67,28 @@ internal actual object EpgStore {
     private val writable: SQLiteDatabase get() = (helper ?: error("EpgStore not initialized")).writableDatabase
     private val readable: SQLiteDatabase? get() = helper?.readableDatabase
 
+    /**
+     * Runs a read again when it fails part way: a big read comes back in pieces, and a guide update
+     * landing between pieces made the next piece fail ("Couldn't read row … from CursorWindow"),
+     * closing the app. After a few tries it gives [empty] for now rather than closing.
+     */
+    private inline fun <T> reread(empty: T, block: () -> T): T {
+        repeat(READ_TRIES) { attempt ->
+            try {
+                return block()
+            } catch (e: IllegalStateException) {
+            } catch (e: android.database.sqlite.SQLiteException) {
+            }
+            if (attempt < READ_TRIES - 1) Thread.sleep(READ_RETRY_MS)
+        }
+        return empty
+    }
+
+    private const val READ_TRIES = 3
+    private const val READ_RETRY_MS = 150L
+    /** Guide rows read per page when going through the whole guide. */
+    private const val SCAN_PAGE = 500
+
     private inline fun <T> tx(db: SQLiteDatabase, block: () -> T): T {
         db.beginTransaction()
         try {
@@ -148,7 +170,10 @@ internal actual object EpgStore {
         }
     }
 
-    actual fun range(fromMs: Long, toMs: Long, light: Boolean, channels: Collection<String>?): Map<String, List<EpgProgram>> {
+    actual fun range(fromMs: Long, toMs: Long, light: Boolean, channels: Collection<String>?): Map<String, List<EpgProgram>> =
+        reread(emptyMap()) { rangeOnce(fromMs, toMs, light, channels) }
+
+    private fun rangeOnce(fromMs: Long, toMs: Long, light: Boolean, channels: Collection<String>?): Map<String, List<EpgProgram>> {
         val db = readable ?: return emptyMap()
         val out = HashMap<String, ArrayList<EpgProgram>>()
         // A guide import normally has just one identity per provider, shared by all its rows.
@@ -203,7 +228,10 @@ internal actual object EpgStore {
     actual fun program(ch: String, startMs: Long): EpgProgram? =
         range(startMs, startMs + 1, light = false, channels = listOf(ch))[ch]?.firstOrNull { it.startMs == startMs }
 
-    actual fun findByWords(fromMs: Long, toMs: Long, minStopMs: Long, words: Collection<String>, inDescription: Boolean, limit: Int): List<Pair<String, EpgProgram>> {
+    actual fun findByWords(fromMs: Long, toMs: Long, minStopMs: Long, words: Collection<String>, inDescription: Boolean, limit: Int): List<Pair<String, EpgProgram>> =
+        reread(emptyList()) { findByWordsOnce(fromMs, toMs, minStopMs, words, inDescription, limit) }
+
+    private fun findByWordsOnce(fromMs: Long, toMs: Long, minStopMs: Long, words: Collection<String>, inDescription: Boolean, limit: Int): List<Pair<String, EpgProgram>> {
         val db = readable ?: return emptyList()
         val clean = words.map { it.trim() }.filter { it.length >= 3 }.distinct()
         if (clean.isEmpty()) return emptyList()
@@ -242,17 +270,36 @@ internal actual object EpgStore {
 
     actual fun scanListings(fromMs: Long, toMs: Long, minStopMs: Long, onRow: (ch: String, start: Long, stop: Long, title: String, descr: String?, cat: String?) -> Unit) {
         val db = readable ?: return
-        db.rawQuery(
-            "SELECT ch, start, stop, title, descr, cat FROM programs WHERE start >= ? AND start < ? AND stop > ?",
-            arrayOf(fromMs.toString(), toMs.toString(), minStopMs.toString())
-        ).use { c ->
-            while (c.moveToNext()) {
-                onRow(
-                    c.getString(0), c.getLong(1), c.getLong(2), c.getString(3),
-                    if (c.isNull(4)) null else c.getString(4),
-                    if (c.isNull(5)) null else c.getString(5)
-                )
+        // A page at a time, each small enough to come back in one go, so a guide update landing
+        // part way through can't make the rest of the read fail (and close the app).
+        // Pages follow the start-time index (start, then row), so no page has to sort the guide.
+        var lastStart = fromMs - 1
+        var lastRow = 0L
+        while (true) {
+            var read = 0
+            try {
+                db.rawQuery(
+                    "SELECT rowid, ch, start, stop, title, descr, cat FROM programs WHERE start >= ? AND start < ? AND stop > ?" +
+                        " AND (start > $lastStart OR (start = $lastStart AND rowid > $lastRow)) ORDER BY start, rowid LIMIT $SCAN_PAGE",
+                    arrayOf(fromMs.toString(), toMs.toString(), minStopMs.toString())
+                ).use { c ->
+                    while (c.moveToNext()) {
+                        lastRow = c.getLong(0)
+                        lastStart = c.getLong(2)
+                        read++
+                        onRow(
+                            c.getString(1), c.getLong(2), c.getLong(3), c.getString(4),
+                            if (c.isNull(5)) null else c.getString(5),
+                            if (c.isNull(6)) null else c.getString(6)
+                        )
+                    }
+                }
+            } catch (e: IllegalStateException) {
+                return
+            } catch (e: android.database.sqlite.SQLiteException) {
+                return
             }
+            if (read < SCAN_PAGE) return
         }
     }
 
@@ -269,7 +316,9 @@ internal actual object EpgStore {
         return out
     }
 
-    actual fun autoMatches(): Map<String, EpgAssignment> {
+    actual fun autoMatches(): Map<String, EpgAssignment> = reread(emptyMap()) { autoMatchesOnce() }
+
+    private fun autoMatchesOnce(): Map<String, EpgAssignment> {
         val db = readable ?: return emptyMap()
         val out = HashMap<String, EpgAssignment>()
         db.rawQuery("SELECT ch, source, xmltv FROM auto", null).use { c ->

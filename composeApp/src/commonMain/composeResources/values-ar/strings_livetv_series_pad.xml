@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">البدء مبكرًا</string>
+    <string name="livetv_rec_pad_after">متابعة التسجيل بعد</string>
+    <string name="livetv_rec_pad_default">الافتراضي (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d د قبل</string>
+    <string name="livetv_rec_pad_line_after">+%1$d د بعد</string>
+    <string name="livetv_rec_pad_hint">لهذا المسلسل فقط. تتغير الحلقات المجدولة أيضًا.</string>
+</resources>

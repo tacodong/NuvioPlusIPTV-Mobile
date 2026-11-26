@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_backups_same_channel">Ugyanaz a csatorna</string>
+    <string name="livetv_backups_addon_tag">Kiegészítő</string>
+    <string name="livetv_backups_playlist_tag">Lejátszási lista</string>
+    <string name="livetv_backups_quality_other">Egyéb minőség</string>
+    <string name="livetv_backup_order_title">Tartalékok és meccscsatornák</string>
+    <string name="livetv_backup_order_group_by">Csoportosítás</string>
+    <string name="livetv_backup_order_by_source">Lista / kiegészítő</string>
+    <string name="livetv_backup_order_by_quality">Minőség</string>
+    <string name="livetv_backup_order_no_headings">Nincs címsor</string>
+    <string name="livetv_backup_order_sources">Listák és kiegészítők sorrendje</string>
+    <string name="livetv_backup_order_sources_hint">a nyilak mozgatnak egyet; az újak a végére kerülnek</string>
+    <string name="livetv_backup_order_qualities">Minőségi sorrend</string>
+    <string name="livetv_backup_order_quality_unknown">A minőség nincs a névben</string>
+    <string name="livetv_backup_order_reset">Vissza az alapértelmezett sorrendhez</string>
+    <string name="livetv_backup_order_no_sources">Még nincs lista vagy kiegészítő</string>
+</resources>

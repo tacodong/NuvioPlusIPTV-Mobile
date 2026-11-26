@@ -151,6 +151,7 @@ internal fun PlayerScreenRuntime.resetIdentityStateIfNeeded() {
 
     val identity = activePlaybackKey
     if (lastResetPlaybackIdentity != identity) {
+        cancelLiveEndReconnect(resetAttempts = true)
         lastResetPlaybackIdentity = identity
         shouldPlay = true
         initialLoadCompleted = false

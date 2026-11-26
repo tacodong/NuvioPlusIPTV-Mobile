@@ -63,6 +63,7 @@ internal object LiveTvPreferencesDesktop {
                 is PrefValue.Int -> "int" to JsonPrimitive(value.value)
                 is PrefValue.Long -> "long" to JsonPrimitive(value.value)
                 is PrefValue.Str -> "string" to JsonPrimitive(value.value)
+                is PrefValue.UnavailableBackupSecret -> error("Unavailable source settings cannot be written as a portable value")
                 is PrefValue.StringSet -> "set" to JsonArray(value.value.map { JsonPrimitive(it) })
             }
             JsonArray(listOf(JsonPrimitive(tag), data))

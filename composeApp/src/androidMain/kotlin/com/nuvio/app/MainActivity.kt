@@ -90,6 +90,9 @@ open class MainActivity : AppCompatActivity() {
         SentrySettingsStorage.initialize(applicationContext)
         SentryInitializer.start(application)
         super.onCreate(savedInstanceState)
+        com.nuvio.app.features.streams.StreamNetworkRecovery.initialize(applicationContext)
+        // Before the Live TV hook: it reads the active server, which must see a saved custom server.
+        ServerConfigurationStorage.initialize(applicationContext)
         AutoSyncPreferencesAndroid.initialize(applicationContext) // AutoSync hook
         LiveTvPreferencesAndroid.initialize(applicationContext) // Live TV hook
         LiveTvStartup.start() // Live TV hook: background updates and Drive sync
@@ -99,7 +102,6 @@ open class MainActivity : AppCompatActivity() {
         AddonHttpClientProvider.initialize(applicationContext)
         AddonStorage.initialize(applicationContext)
         AuthStorage.initialize(applicationContext)
-        ServerConfigurationStorage.initialize(applicationContext)
         LibraryStorage.initialize(applicationContext)
         WatchedStorage.initialize(applicationContext)
         MetaScreenSettingsStorage.initialize(applicationContext)

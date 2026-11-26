@@ -68,4 +68,5 @@ internal fun useVodCacheForSource(
     youtubeChunked: Boolean,
     adaptive: Boolean,
     loopback: Boolean,
-): Boolean = vodCacheEnabled && !youtubeChunked && !adaptive && !loopback
+    continuousLive: Boolean = false,
+): Boolean = vodCacheEnabled && !youtubeChunked && !adaptive && !loopback && !continuousLive

@@ -81,11 +81,14 @@ internal fun FixMatchSheet(
     initialSeries: Boolean?,
     initialYear: Int? = null,
     onDismiss: () -> Unit,
+    /** Find in Nuvio: the sheet only picks a title (nothing saved as a fix), with this heading. */
+    heading: String? = null,
+    onPicked: ((TitleMatchFixes.Candidate) -> Unit)? = null,
 ) {
     val tokens = MaterialTheme.nuvio
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    val pick = remember(key) { TitleMatchFixes.get(key) }
+    val pick = remember(key) { if (onPicked != null) null else TitleMatchFixes.get(key) }
     var query by remember { mutableStateOf(pick?.name ?: initialQuery) }
     var yearText by remember { mutableStateOf(if (pick == null) initialYear?.toString().orEmpty() else "") }
     var series by remember { mutableStateOf(initialSeries) }
@@ -112,7 +115,7 @@ internal fun FixMatchSheet(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s8),
             verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
         ) {
-            Text(stringResource(Res.string.livetv_fix_match), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
+            Text(heading ?: stringResource(Res.string.livetv_fix_match), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
             Text("$title  ·  $scopeNote", style = MaterialTheme.typography.bodySmall, color = tokens.colors.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Row(horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
@@ -150,7 +153,7 @@ internal fun FixMatchSheet(
                 ) {
                     items(results, key = { (if (it.series) "tv" else "mv") + it.tmdbId }) { c ->
                         val current = pick != null && pick.name.equals(c.name, ignoreCase = true) && pick.year == c.year && pick.series == c.series
-                        MatchCard(c, current) { close { TitleMatchFixes.pick(key, c) } }
+                        MatchCard(c, current) { close { if (onPicked != null) onPicked(c) else TitleMatchFixes.pick(key, c) } }
                     }
                 }
             }

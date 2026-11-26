@@ -53,6 +53,7 @@ actual fun PlatformPlayerSurface(
     stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
+    continuousLive: Boolean,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -185,6 +186,7 @@ actual fun PlatformPlayerSurface(
                             language = trackLanguage,
                             trackId = trackId,
                         ),
+                        formatBadge = subtitleFormatBadgeForCodec(bridge.getSubtitleTrackCodec(i)),
                     )
                 }
                 Logger.d(TAG) { "getSubtitleTracks: found ${tracks.size} tracks" }
@@ -291,7 +293,7 @@ actual fun PlatformPlayerSurface(
                 bridge.setSubtitleDelayMs(delayMs.coerceIn(SUBTITLE_DELAY_MIN_MS, SUBTITLE_DELAY_MAX_MS))
             }
 
-            override fun applySubtitleStyle(style: SubtitleStyleState) {
+            override fun applySubtitleStyle(style: SubtitleStyleState, useLibass: Boolean) {
                 subtitleStyle = style
                 bridge.applySubtitleStyle(
                     textColor = style.textColor.toMpvColorString(),

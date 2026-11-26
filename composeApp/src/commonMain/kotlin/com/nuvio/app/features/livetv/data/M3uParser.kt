@@ -43,8 +43,14 @@ object M3uParser {
      * away instead of being fully read and then thrown away.
      */
     fun parse(lines: Sequence<String>, skip: ((String) -> Boolean)? = null): M3uPlaylist {
-        val epgUrls = mutableListOf<String>()
         val entries = ArrayList<M3uEntry>(4096)
+        val epgUrls = read(lines, skip) { entries += it }
+        return M3uPlaylist(epgUrls, entries)
+    }
+
+    /** Hands over each entry as soon as it's read, so a caller building channels keeps no second list. Returns the playlist's guide links. */
+    fun read(lines: Sequence<String>, skip: ((String) -> Boolean)? = null, onEntry: (M3uEntry) -> Unit): List<String> {
+        val epgUrls = mutableListOf<String>()
 
         var pendingInfo: String? = null
         var pendingGroup: String? = null
@@ -114,7 +120,7 @@ object M3uParser {
                                 if (k.isNotEmpty()) pendingHeaders[normalizeHeader(k)] = urlDecode(part.substringAfter('=', ""))
                             }
                         }
-                        entries.add(buildEntry(
+                        onEntry(buildEntry(
                             info, pendingGroup, line,
                             if (pendingHeaders.isEmpty()) emptyMap() else pendingHeaders.toMap(),
                             headerCatchup,
@@ -128,7 +134,7 @@ object M3uParser {
                 }
             }
         }
-        return M3uPlaylist(epgUrls.distinct(), entries)
+        return epgUrls.distinct()
     }
 
     /** Like java.net.URLDecoder: "+" is a space; a broken escape leaves the text as it was. */

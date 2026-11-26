@@ -123,6 +123,35 @@ import com.nuvio.app.features.livetv.ui.liveTvSideInsets
 import com.nuvio.app.features.livetv.ui.sports.MobileSportsGameStrip
 import com.nuvio.app.features.profiles.ProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import nuvio.composeapp.generated.resources.livetv_ui_all_groups
+import nuvio.composeapp.generated.resources.livetv_ui_back
+import nuvio.composeapp.generated.resources.livetv_ui_groups_label
+import nuvio.composeapp.generated.resources.livetv_ui_layout
+import nuvio.composeapp.generated.resources.livetv_ui_multiview
+import nuvio.composeapp.generated.resources.livetv_ui_mv_add_channel
+import nuvio.composeapp.generated.resources.livetv_ui_mv_broadcast_gone
+import nuvio.composeapp.generated.resources.livetv_ui_mv_cant_play
+import nuvio.composeapp.generated.resources.livetv_ui_mv_edit
+import nuvio.composeapp.generated.resources.livetv_ui_mv_empty_pane
+import nuvio.composeapp.generated.resources.livetv_ui_mv_next
+import nuvio.composeapp.generated.resources.livetv_ui_mv_no_available
+import nuvio.composeapp.generated.resources.livetv_ui_mv_no_match
+import nuvio.composeapp.generated.resources.livetv_ui_mv_no_other_stream
+import nuvio.composeapp.generated.resources.livetv_ui_mv_none_in
+import nuvio.composeapp.generated.resources.livetv_ui_mv_pane_n
+import nuvio.composeapp.generated.resources.livetv_ui_mv_reconnecting
+import nuvio.composeapp.generated.resources.livetv_ui_mv_search
+import nuvio.composeapp.generated.resources.livetv_ui_mv_search_group
+import nuvio.composeapp.generated.resources.livetv_ui_mv_show_controls
+import nuvio.composeapp.generated.resources.livetv_ui_mv_some_missing
+import nuvio.composeapp.generated.resources.livetv_ui_mv_tip
+import nuvio.composeapp.generated.resources.livetv_ui_mv_tip_sports
+import nuvio.composeapp.generated.resources.livetv_ui_mv_unavailable
+import nuvio.composeapp.generated.resources.livetv_ui_pane
+import nuvio.composeapp.generated.resources.livetv_ui_retry
+import nuvio.composeapp.generated.resources.livetv_ui_sports
+import nuvio.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * One Multiview for everything: the channel picker (with your groups) and the Sports games are
@@ -141,12 +170,17 @@ fun MultiviewScreen(
     val tokens = MaterialTheme.nuvio
     if (!isMultiviewSupported) {
         Column(modifier.fillMaxSize().background(tokens.colors.background).statusBarsPadding()) {
-            NuvioScreenHeader(title = "Multiview", onBack = onBack, includeStatusBarPadding = false)
-            Text("Multiview is unavailable on this device.", color = tokens.colors.textPrimary, modifier = Modifier.padding(NuvioTokens.Space.s16))
+            NuvioScreenHeader(title = stringResource(Res.string.livetv_ui_multiview), onBack = onBack, includeStatusBarPadding = false)
+            Text(stringResource(Res.string.livetv_ui_mv_unavailable), color = tokens.colors.textPrimary, modifier = Modifier.padding(NuvioTokens.Space.s16))
         }
         return
     }
     val selection by session.selection.collectAsStateWithLifecycle()
+    val someMissingText = stringResource(Res.string.livetv_ui_mv_some_missing)
+    val noOtherStreamText = stringResource(Res.string.livetv_ui_mv_no_other_stream)
+    val broadcastGoneText = stringResource(Res.string.livetv_ui_mv_broadcast_gone)
+    val tipSportsText = stringResource(Res.string.livetv_ui_mv_tip_sports)
+    val tipText = stringResource(Res.string.livetv_ui_mv_tip)
     // The Sports games come from the Sports watch model, made only once the Sports picker is used
     // (so plain channel Multiview doesn't pay for it).
     var sportsUsed by remember(session) { mutableStateOf(startOnSports) }
@@ -220,7 +254,7 @@ fun MultiviewScreen(
         // The first one (the channel you were watching) keeps the sound.
         session.focus(firstPane)
         audio.focus(session.selection.value.paneIds[firstPane])
-        if (queued.size > chosen.size) NuvioToastController.show("Some channels you added aren't available on this profile.")
+        if (queued.size > chosen.size) NuvioToastController.show(someMissingText)
     }
 
     // Now-showing titles for the pane labels, refreshed each minute from the guide in memory.
@@ -335,8 +369,8 @@ fun MultiviewScreen(
     LaunchedEffect(Unit) {
         if (LiveTvPreferences.rawDevice.value.bool(LiveTvKeys.multiviewHintShown) != true) {
             NuvioToastController.show(
-                if (showingSports) "Tap a pane, then tap a game to play it there. Hold a game for its other streams."
-                else "Tap a video to hear it. Hold a pane to change its channel."
+                if (showingSports) tipSportsText
+                else tipText
             )
             LiveTvPreferences.editDevice { it[LiveTvKeys.multiviewHintShown] = true }
         }
@@ -384,7 +418,7 @@ fun MultiviewScreen(
                             onNextStream = {
                                 val (eventId, candidates) = nextStreams(pane) ?: return@MultiviewPane
                                 if (candidates.none { playMatch(pane, eventId, it.channel.key) }) {
-                                    NuvioToastController.show("No other stream for this game right now.")
+                                    NuvioToastController.show(noOtherStreamText)
                                 }
                             },
                             onFocus = {
@@ -420,7 +454,7 @@ fun MultiviewScreen(
                     playMatch(target, game.event.id, null)
                 },
                 onStream = { game, channelKey ->
-                    if (!playMatch(target, game.event.id, channelKey)) NuvioToastController.show("This broadcast is no longer available.")
+                    if (!playMatch(target, game.event.id, channelKey)) NuvioToastController.show(broadcastGoneText)
                 },
                 onAdd = {
                     val count = session.selection.value.layout.paneCount
@@ -458,7 +492,7 @@ fun MultiviewScreen(
                 Modifier.fillMaxSize().clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClickLabel = "Show controls",
+                    onClickLabel = stringResource(Res.string.livetv_ui_mv_show_controls),
                 ) { overlayTick++ },
             )
         }
@@ -473,10 +507,10 @@ fun MultiviewScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 MultiviewCornerButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = tokens.colors.textPrimary)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.livetv_ui_back), tint = tokens.colors.textPrimary)
                 }
                 MultiviewCornerButton(onClick = { openPicker(permittedSelection.focusedPane ?: sportsTargetPane.takeIf { showingSports } ?: 0) }) {
-                    Icon(Icons.Filled.Tune, contentDescription = "Edit streams and layout", tint = tokens.colors.textPrimary)
+                    Icon(Icons.Filled.Tune, contentDescription = stringResource(Res.string.livetv_ui_mv_edit), tint = tokens.colors.textPrimary)
                 }
             }
         }
@@ -589,7 +623,7 @@ private fun MultiviewPane(
                 }
                 if (showReconnecting && state.isReconnecting) {
                     Text(
-                        "Reconnecting…",
+                        stringResource(Res.string.livetv_ui_mv_reconnecting),
                         style = MaterialTheme.typography.labelSmall,
                         color = tokens.colors.textSecondary,
                         modifier = Modifier.align(Alignment.TopStart).padding(NuvioTokens.Space.s8)
@@ -602,13 +636,13 @@ private fun MultiviewPane(
                         modifier = Modifier.align(Alignment.Center).padding(NuvioTokens.Space.s12).zIndex(1f),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(state.error ?: "Unable to play this channel", color = tokens.colors.textPrimary, style = MaterialTheme.typography.bodySmall)
+                        Text(state.error ?: stringResource(Res.string.livetv_ui_mv_cant_play), color = tokens.colors.textPrimary, style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s4)) {
-                            TextButton(onClick = { attempt++ }) { Text("Retry", color = tokens.colors.accent) }
+                            TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.livetv_ui_retry), color = tokens.colors.accent) }
                             // A game's stream: try the game's next stream in this pane.
                             nextStream()?.let { name ->
                                 TextButton(onClick = onNextStream) {
-                                    Text("Next: $name", color = tokens.colors.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(stringResource(Res.string.livetv_ui_mv_next, name), color = tokens.colors.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -630,7 +664,7 @@ private fun MultiviewPane(
             if (channel == null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8)) {
                     Icon(Icons.Filled.Add, contentDescription = null, tint = tokens.colors.accent)
-                    Text("Add channel", color = tokens.colors.textPrimary, style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(Res.string.livetv_ui_mv_add_channel), color = tokens.colors.textPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -663,7 +697,7 @@ private fun MultiviewPane(
             )
             Column(Modifier.weight(1f).padding(bottom = NuvioTokens.Space.s6)) {
                 Text(
-                    channel?.name ?: "Pane ${pane + 1}",
+                    channel?.name ?: stringResource(Res.string.livetv_ui_mv_pane_n, pane + 1),
                     style = MaterialTheme.typography.labelMedium,
                     color = tokens.colors.textPrimary,
                     maxLines = 1,
@@ -765,9 +799,9 @@ internal fun MultiviewControlsSheet(
                         Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(start = NuvioTokens.Space.s12),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Multiview", style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(Res.string.livetv_ui_multiview), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "${target + 1} · ${selection.channels[target]?.name ?: "Empty pane"}",
+                            "${target + 1} · ${selection.channels[target]?.name ?: stringResource(Res.string.livetv_ui_mv_empty_pane)}",
                             modifier = Modifier.weight(1f).padding(start = NuvioTokens.Space.s12),
                             style = MaterialTheme.typography.labelMedium,
                             color = tokens.colors.textMuted,
@@ -793,7 +827,7 @@ internal fun MultiviewControlsSheet(
                             .semantics { contentDescription = "Search channels for pane ${target + 1}" },
                         decorationBox = { field ->
                             Box(contentAlignment = Alignment.CenterStart) {
-                                if (query.isEmpty()) Text(groupTitle?.let { "Search $it for pane ${target + 1}" } ?: "Search channels for pane ${target + 1}", style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (query.isEmpty()) Text(groupTitle?.let { stringResource(Res.string.livetv_ui_mv_search_group, it, target + 1) } ?: stringResource(Res.string.livetv_ui_mv_search, target + 1), style = MaterialTheme.typography.bodyMedium, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 field()
                             }
                         },
@@ -802,7 +836,7 @@ internal fun MultiviewControlsSheet(
                 NuvioBottomSheetDivider()
                 LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                     if (matches.isEmpty()) {
-                        item { Text(if (channels.isEmpty()) "No available channels" else if (query.isBlank() && groupTitle != null) "No channels in $groupTitle" else "No matching channels", color = tokens.colors.textMuted, modifier = Modifier.padding(NuvioTokens.Space.s16)) }
+                        item { Text(if (channels.isEmpty()) stringResource(Res.string.livetv_ui_mv_no_available) else if (query.isBlank() && groupTitle != null) stringResource(Res.string.livetv_ui_mv_none_in, groupTitle) else stringResource(Res.string.livetv_ui_mv_no_match), color = tokens.colors.textMuted, modifier = Modifier.padding(NuvioTokens.Space.s16)) }
                     }
                     items(matches, key = { it.key }) { channel ->
                         NuvioBottomSheetActionRow(
@@ -844,12 +878,12 @@ private fun MultiviewPickerControls(
                 horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s4),
             ) {
                 Icon(Icons.Filled.SportsSoccer, contentDescription = null, tint = tokens.colors.textPrimary, modifier = Modifier.size(16.dp))
-                Text("Sports", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textPrimary)
+                Text(stringResource(Res.string.livetv_ui_sports), style = MaterialTheme.typography.labelMedium, color = tokens.colors.textPrimary)
             }
         }
         if (groups.isNotEmpty()) {
-            Text("Groups", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
-            Chip("All", selected = group == null, onClick = { onGroup(null) })
+            Text(stringResource(Res.string.livetv_ui_groups_label), style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
+            Chip(stringResource(Res.string.livetv_ui_all_groups), selected = group == null, onClick = { onGroup(null) })
             groups.forEach { g ->
                 Chip("${g.title} · ${g.channels.size}", selected = group == g.id, onClick = { onGroup(g.id) })
             }
@@ -857,13 +891,13 @@ private fun MultiviewPickerControls(
     }
     val hasSources = onSports != null || groups.isNotEmpty()
     val layouts: @Composable () -> Unit = {
-        Text("Layout", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
+        Text(stringResource(Res.string.livetv_ui_layout), style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
         MultiviewLayout.entries.filter { it.paneCount > 1 }.forEach { layout ->
             LayoutChip(layout, selected = selection.layout == layout, onClick = { onLayout(layout) })
         }
     }
     val panes: @Composable () -> Unit = {
-        Text("Pane", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
+        Text(stringResource(Res.string.livetv_ui_pane), style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted)
         repeat(selection.layout.paneCount) { pane ->
             Chip("${pane + 1}", selected = target == pane, onClick = { onTarget(pane) })
         }
@@ -874,7 +908,7 @@ private fun MultiviewPickerControls(
             horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showTitle) Text("Multiview", style = MaterialTheme.typography.labelLarge, color = tokens.colors.textPrimary)
+            if (showTitle) Text(stringResource(Res.string.livetv_ui_multiview), style = MaterialTheme.typography.labelLarge, color = tokens.colors.textPrimary)
             layouts()
             Spacer(Modifier.width(NuvioTokens.Space.s8))
             panes()

@@ -119,6 +119,7 @@ import com.nuvio.app.features.livetv.model.LiveTvClock
 import com.nuvio.app.features.livetv.ondemand.OnDemandRepository
 import com.nuvio.app.features.livetv.player.LiveTvCatchup
 import com.nuvio.app.features.livetv.record.LiveTvRecorder
+import com.nuvio.app.features.livetv.record.NetworkFolderConfig
 import com.nuvio.app.features.livetv.record.LiveTvRecordingScheduler
 import com.nuvio.app.features.livetv.sports.SportsLive
 import com.nuvio.app.features.livetv.sports.SportsRepository
@@ -151,6 +152,9 @@ import com.nuvio.app.core.ui.MenuItem
 import nuvio.composeapp.generated.resources.livetv_title
 import nuvio.composeapp.generated.resources.livetv_update_now
 import org.jetbrains.compose.resources.stringResource
+import nuvio.composeapp.generated.resources.livetv_ui_groups
+import nuvio.composeapp.generated.resources.livetv_ui_pick_favorites
+import org.jetbrains.compose.resources.pluralStringResource
 
 /**
  * The Live TV tab: channels grouped (favorites first), each with what's on now and how far
@@ -195,7 +199,11 @@ fun LiveTvScreen(
     val recordings by remember { LiveTvRecordingScheduler.start(); LiveTvRecorder.recordings }.collectAsStateWithLifecycle()
     val schedules by LiveTvRecordingScheduler.schedules.collectAsStateWithLifecycle()
     val seriesRules by LiveTvRecordingScheduler.series.collectAsStateWithLifecycle()
-    val showRecordings = recordings.isNotEmpty() || schedules.isNotEmpty() || seriesRules.isNotEmpty()
+    // A network folder set up: the TVs' recordings there show in Recordings, so the button shows
+    // even when nothing was recorded or set to record on this phone.
+    val networkFolderJson by LiveTvPreferences.networkFolderJson.collectAsStateWithLifecycle(LiveTvPreferences.currentNetworkFolderJson())
+    val networkFolderSetUp = remember(networkFolderJson) { NetworkFolderConfig.fromJson(networkFolderJson) != null }
+    val showRecordings = recordings.isNotEmpty() || schedules.isNotEmpty() || seriesRules.isNotEmpty() || networkFolderSetUp
     var manualRecording by remember { mutableStateOf<Pair<LiveChannel, Boolean>?>(null) }
     val sportsSettings by remember { SportsRepository.start(); SportsRepository.settings }.collectAsStateWithLifecycle()
     val sportsOn = sportsSettings.showInSidebar
@@ -242,13 +250,15 @@ fun LiveTvScreen(
     }
 
     // Playlist dropdown: only playlists that have groups here; hidden with fewer than two.
-    val playlistChoices = remember(state.sections, playlists) {
+    val playlistGroupCounts = remember(state.sections, playlists) {
         playlists.mapNotNull { p ->
             val n = state.sections.count { it.group.sourceId == p.id }
-            if (n > 0) PlaylistChoice(p.id, p.name, if (n == 1) "1 group" else "$n groups") else null
+            if (n > 0) p to n else null
         }
     }
+    val playlistChoices = playlistGroupCounts.map { (p, n) -> PlaylistChoice(p.id, p.name, pluralStringResource(Res.plurals.livetv_ui_groups, n, n)) }
     val playlistId = PlaylistFilter.effective(savedPlaylist, playlistChoices.map { it.id })
+    val hiddenPlaylists = rememberHiddenPlaylists(playlists, remember(playlistGroupCounts) { playlistGroupCounts.mapTo(HashSet()) { it.first.id } })
     val playlistNames = remember(playlists) { playlists.associate { it.id to it.name } }
     val sections = remember(state.sections, playlistId) {
         if (playlistId == null) state.sections
@@ -319,9 +329,11 @@ fun LiveTvScreen(
             PlaylistDropdown(
                 choices = playlistChoices,
                 selectedId = playlistId,
-                allDetail = (state.sections.count { it.group.sourceId != null }).let { if (it == 1) "1 group" else "$it groups" },
+                allDetail = state.sections.count { it.group.sourceId != null }.let { pluralStringResource(Res.plurals.livetv_ui_groups, it, it) },
                 onSelect = PlaylistFilter::select,
                 modifier = (if (wide) Modifier.widthIn(max = 380.dp) else Modifier).padding(bottom = NuvioTokens.Space.s8),
+                hidden = hiddenPlaylists,
+                onOpenHidden = { h -> if (h.profileHidden) onOpenSettings() else onOpenManage() },
             )
             AnimatedVisibility(visible = searching) {
                 NuvioInputField(
@@ -617,7 +629,7 @@ private fun GroupCard(
         if (!group.locked && onPickFavorites != null) {
             Icon(
                 imageVector = Icons.Filled.StarBorder,
-                contentDescription = "Pick favorites",
+                contentDescription = stringResource(Res.string.livetv_ui_pick_favorites),
                 tint = tokens.colors.textMuted,
                 modifier = Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onPickFavorites).padding(6.dp),
             )

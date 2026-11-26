@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Ce titre n\'a pas pu être lu.</string>
+    <string name="livetv_error_renew">Le fournisseur n\'a pas pu renouveler ce flux. Vérifiez la source et les réglages du VPN.</string>
+    <string name="livetv_error_open_channel">Le fournisseur n\'a pas pu ouvrir cette chaîne. Vérifiez la source et les réglages du VPN.</string>
+    <string name="livetv_error_connection_lost">Connexion perdue avec cette chaîne en direct. Appuyez sur lecture ou choisissez une autre chaîne.</string>
+    <string name="livetv_error_catchup">Impossible de revoir cette émission. Le fournisseur ne l\'a peut-être pas dans son replay</string>
+    <string name="livetv_error_catchup_code">Impossible de revoir cette émission. Le fournisseur ne l\'a peut-être pas dans son replay (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Le fournisseur a refusé le flux (HTTP %1$d) : limite du compte, abonnement expiré ou bloqué</string>
+    <string name="livetv_error_not_found">Flux introuvable (HTTP 404). Essayez un autre format de flux dans les réglages de la playlist</string>
+    <string name="livetv_error_too_many">Trop de connexions sur ce compte (HTTP %1$d)</string>
+    <string name="livetv_error_server">Erreur du serveur du fournisseur (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Le fournisseur n\'envoie pas correctement cette chaîne pour le moment</string>
+    <string name="livetv_error_unreachable">Impossible de joindre le fournisseur pour le moment</string>
+    <string name="livetv_error_decoder">Ce téléphone n\'a pas pu lire l\'image ou le son de cette chaîne</string>
+    <string name="livetv_error_drm">Cette chaîne est protégée et n\'a pas pu être déverrouillée</string>
+    <string name="livetv_error_not_playing">Cette chaîne n\'est pas diffusée pour le moment</string>
+</resources>

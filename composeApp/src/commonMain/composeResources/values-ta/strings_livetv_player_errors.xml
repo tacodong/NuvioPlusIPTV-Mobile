@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">இந்தத் தலைப்பை இயக்க முடியவில்லை.</string>
+    <string name="livetv_error_renew">வழங்குநரால் இந்த ஸ்ட்ரீமைப் புதுப்பிக்க முடியவில்லை. மூலத்தையும் VPN அமைப்புகளையும் சரிபார்க்கவும்.</string>
+    <string name="livetv_error_open_channel">வழங்குநரால் இந்த சேனலைத் திறக்க முடியவில்லை. மூலத்தையும் VPN அமைப்புகளையும் சரிபார்க்கவும்.</string>
+    <string name="livetv_error_connection_lost">இந்த நேரலை சேனலுடனான இணைப்பு துண்டிக்கப்பட்டது. இயக்கு என்பதைத் தட்டவும் அல்லது வேறு சேனலைத் தேர்ந்தெடுக்கவும்.</string>
+    <string name="livetv_error_catchup">இந்த நிகழ்ச்சியை மீண்டும் பார்க்க முடியவில்லை. வழங்குநரின் காப்பகத்தில் இது இல்லாமல் இருக்கலாம்</string>
+    <string name="livetv_error_catchup_code">இந்த நிகழ்ச்சியை மீண்டும் பார்க்க முடியவில்லை. வழங்குநரின் காப்பகத்தில் இது இல்லாமல் இருக்கலாம் (HTTP %1$d)</string>
+    <string name="livetv_error_refused">வழங்குநர் ஸ்ட்ரீமை மறுத்தார் (HTTP %1$d): கணக்கு வரம்பு, காலாவதியானது அல்லது தடுக்கப்பட்டது</string>
+    <string name="livetv_error_not_found">ஸ்ட்ரீம் கிடைக்கவில்லை (HTTP 404). பிளேலிஸ்ட் அமைப்புகளில் வேறு ஸ்ட்ரீம் வடிவத்தை முயற்சிக்கவும்</string>
+    <string name="livetv_error_too_many">இந்தக் கணக்கில் மிக அதிகமான இணைப்புகள் (HTTP %1$d)</string>
+    <string name="livetv_error_server">வழங்குநரின் சர்வர் பிழை (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">வழங்குநர் இப்போது இந்த சேனலைச் சரியாக அனுப்பவில்லை</string>
+    <string name="livetv_error_unreachable">இப்போது வழங்குநரை அணுக முடியவில்லை</string>
+    <string name="livetv_error_decoder">இந்த ஃபோனால் இந்த சேனலின் படம் அல்லது ஒலியை இயக்க முடியவில்லை</string>
+    <string name="livetv_error_drm">இந்த சேனல் பாதுகாக்கப்பட்டுள்ளது, திறக்க முடியவில்லை</string>
+    <string name="livetv_error_not_playing">இந்த சேனல் இப்போது ஒளிபரப்பாகவில்லை</string>
+</resources>

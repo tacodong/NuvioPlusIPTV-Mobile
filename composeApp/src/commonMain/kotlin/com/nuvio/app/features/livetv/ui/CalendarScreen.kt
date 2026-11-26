@@ -127,6 +127,11 @@ import nuvio.composeapp.generated.resources.livetv_calendar_upcoming_tab
 import nuvio.composeapp.generated.resources.livetv_calendar_watched
 import nuvio.composeapp.generated.resources.livetv_calendar_week
 import org.jetbrains.compose.resources.stringResource
+import nuvio.composeapp.generated.resources.livetv_ui_cal_always_for
+import nuvio.composeapp.generated.resources.livetv_ui_cal_always_use
+import nuvio.composeapp.generated.resources.livetv_ui_cal_always_using
+import nuvio.composeapp.generated.resources.livetv_ui_cal_forget
+import nuvio.composeapp.generated.resources.livetv_ui_cal_forgotten
 
 private enum class CalTab { UPCOMING, AIRING, RECENT, FOLLOWING }
 private enum class CalFilter { ALL, SHOWS, MOVIES, SPORTS, ON_TV }
@@ -786,21 +791,23 @@ private fun EntrySheet(e: CalendarEntry, followed: Boolean, hits: List<CalendarG
                 }
             }
             val saved = remember(tick, hits) { CalendarRepository.savedChoice(e) }
+            val forgottenText = stringResource(Res.string.livetv_ui_cal_forgotten)
             if (saved != null) {
                 Text(saved.first, style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted,
                     modifier = Modifier.padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s4))
                 NuvioBottomSheetActionRow(
-                    title = "Forget the saved channel", icon = Icons.Filled.VisibilityOff,
-                    onClick = { CalendarRepository.forgetSaved(saved.second); notice = "Saved channel forgotten" },
+                    title = stringResource(Res.string.livetv_ui_cal_forget), icon = Icons.Filled.VisibilityOff,
+                    onClick = { CalendarRepository.forgetSaved(saved.second); notice = forgottenText },
                 )
             }
             if (choosing) {
-                Text("Always use one of these for ${e.title}", style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted,
+                Text(stringResource(Res.string.livetv_ui_cal_always_for, e.title), style = MaterialTheme.typography.labelMedium, color = tokens.colors.textMuted,
                     modifier = Modifier.padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s4))
                 hits.forEach { h ->
+                    val alwaysText = stringResource(Res.string.livetv_ui_cal_always_using, h.channelName, e.title)
                     NuvioBottomSheetActionRow(
-                        title = "Always use " + h.channelName, icon = Icons.Filled.Notifications, selected = h.mine,
-                        onClick = { CalendarRepository.setAlways(e, h); notice = "Always using ${h.channelName} for ${e.title}" },
+                        title = stringResource(Res.string.livetv_ui_cal_always_use, h.channelName), icon = Icons.Filled.Notifications, selected = h.mine,
+                        onClick = { CalendarRepository.setAlways(e, h); notice = alwaysText },
                     )
                 }
             }

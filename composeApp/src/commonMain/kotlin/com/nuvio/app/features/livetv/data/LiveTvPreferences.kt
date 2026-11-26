@@ -51,6 +51,10 @@ sealed class PrefValue {
     data class Long(val value: kotlin.Long) : PrefValue()
     data class StringSet(val value: Set<String>) : PrefValue()
     data class Str(val value: String) : PrefValue()
+    /** Original local value retained when it cannot be protected or opened; never portable. */
+    data class UnavailableBackupSecret(val stored: String) : PrefValue() {
+        override fun toString(): String = "UnavailableBackupSecret"
+    }
 }
 
 /** Every key the TV app stores, by the exact DataStore name, so stored data is interchangeable. */
@@ -119,6 +123,12 @@ internal object LiveTvKeys {
     const val lockLogins = "lock_logins"
     /** The network folder (NAS / shared folder) set up on a TV for recordings, synced so the phone can watch them. */
     const val networkFolder = "network_folder"
+    /**
+     * This device's own network folder (JSON; "" = removed here), once one was saved here: kept
+     * on this device only, so a phone reaching home through Tailscale and a TV on the home
+     * network can each use their own address. Null: this device uses the synced one.
+     */
+    const val networkFolderOwn = "network_folder_own"
     const val showQualityBadges = "show_quality_badges"
     const val showFrameRate = "show_frame_rate"
     const val matchFrameRate = "match_frame_rate"
@@ -169,6 +179,9 @@ internal object LiveTvKeys {
     const val showPosters = "show_posters"
     const val vodMergeDuplicates = "vod_merge_duplicates"
     const val vodHideNonEnglish = "vod_hide_non_english"
+    const val backupGroupBy = "backup_group_by"
+    const val backupSourceOrder = "backup_source_order"
+    const val backupQualityOrder = "backup_quality_order"
     const val vodDefaultSort = "vod_default_sort"
     const val recordingStorage = "recording_storage"
     const val recordingSpaceRule = "recording_space_rule"
@@ -212,8 +225,6 @@ internal object LiveTvKeys {
     const val reminders = "reminders"
     /** Phone only (not a TV key): minutes before a show its reminder rings. */
     const val reminderLead = "reminder_lead_minutes"
-    /** Phone only (not a TV key): whether live channels show in Home's Continue Watching. */
-    const val continueWatchingLive = "continue_watching_live"
     const val channelQuality = "channel_quality"
     const val channelAudio = "channel_audio"
     const val vodHiddenCategories = "vod_hidden_categories"
@@ -258,7 +269,7 @@ internal object LiveTvKeys {
     /** Per-device keys that sync never copies. */
     private val SYNC_EXCLUDED_BASE = setOf(
         "last_channel", "previous_channel", "last_group", "recent", "on_demand_imports",
-        "channel_quality", "developer_tools", "recording_storage",
+        "channel_quality", "developer_tools", "recording_storage", "network_folder_own",
         "phone_channel_logos", "phone_channel_names", "phone_channel_numbers"
     )
     internal val PROFILE_SUFFIX = Regex("""_p\d+$""")
@@ -762,12 +773,19 @@ internal open class LiveTvPreferencesStore {
 
     /** Changes the main store atomically and saves it. */
     fun edit(block: (MutableMap<String, PrefValue>) -> Unit) {
-        val saved: Map<String, PrefValue>? = synchronized(lock) {
+        synchronized(lock) {
             val m = _data.value.toMutableMap()
             block(m)
-            if (m == _data.value) null else { _data.value = m; m }
+            // An unrelated edit or an older backup must not erase an unreadable opaque secret.
+            _data.value.forEach { (key, value) ->
+                if (value is PrefValue.UnavailableBackupSecret && key !in m) m[key] = value
+            }
+            if (m != _data.value) {
+                // A failed protected backup write must leave the last saved setup exportable.
+                savePersisted?.invoke(m)
+                _data.value = m
+            }
         }
-        if (saved != null) savePersisted?.invoke(saved)
     }
 
     /** Changes the per-device store atomically and saves it. */
@@ -992,6 +1010,9 @@ internal open class LiveTvPreferencesStore {
             showPosters = p.bool(LiveTvKeys.showPosters) ?: d.showPosters,
             vodMergeDuplicates = p.bool(LiveTvKeys.vodMergeDuplicates) ?: d.vodMergeDuplicates,
             vodHideNonEnglish = p.bool(LiveTvKeys.vodHideNonEnglish) ?: d.vodHideNonEnglish,
+            backupGroupBy = p.str(LiveTvKeys.backupGroupBy) ?: d.backupGroupBy,
+            backupSourceOrder = p.str(LiveTvKeys.backupSourceOrder) ?: d.backupSourceOrder,
+            backupQualityOrder = p.str(LiveTvKeys.backupQualityOrder) ?: d.backupQualityOrder,
             vodDefaultSort = p.str(LiveTvKeys.vodDefaultSort) ?: d.vodDefaultSort,
             recordingStorage = p.str(LiveTvKeys.recordingStorage) ?: d.recordingStorage,
             recordingSpaceRule = p.str(LiveTvKeys.recordingSpaceRule) ?: d.recordingSpaceRule,
@@ -1282,6 +1303,9 @@ internal open class LiveTvPreferencesStore {
         p[LiveTvKeys.showPosters] = s.showPosters
         p[LiveTvKeys.vodMergeDuplicates] = s.vodMergeDuplicates
         p[LiveTvKeys.vodHideNonEnglish] = s.vodHideNonEnglish
+        p[LiveTvKeys.backupGroupBy] = s.backupGroupBy
+        p[LiveTvKeys.backupSourceOrder] = s.backupSourceOrder
+        p[LiveTvKeys.backupQualityOrder] = s.backupQualityOrder
         p[LiveTvKeys.vodDefaultSort] = s.vodDefaultSort
         p[LiveTvKeys.recordingStorage] = s.recordingStorage
         p[LiveTvKeys.recordingSpaceRule] = s.recordingSpaceRule
@@ -1418,13 +1442,42 @@ internal open class LiveTvPreferencesStore {
 
     // ---------- Network folder (set up on a TV, for recordings) ----------
 
-    /** The network folder as JSON (the TV app's format); "" when it was removed; null when never set up. */
-    val networkFolderJson: Flow<String?> = _data.map { it.str(LiveTvKeys.networkFolder) }.distinctUntilChanged()
+    /**
+     * The network folder this device uses, as JSON (the TV app's format): its own one once it was
+     * saved here, else the synced one. "" when it was removed; null when never set up.
+     */
+    val networkFolderJson: Flow<String?> = _data.map { networkFolderOf(it) }.distinctUntilChanged()
 
-    fun currentNetworkFolderJson(): String? = _data.value.str(LiveTvKeys.networkFolder)
+    fun currentNetworkFolderJson(): String? = networkFolderOf(_data.value)
 
-    /** [json] "" removes it (and tells the other devices so). */
-    fun setNetworkFolderJson(json: String) = edit { it[LiveTvKeys.networkFolder] = json }
+    private fun networkFolderOf(m: Map<String, PrefValue>): String? =
+        m.str(LiveTvKeys.networkFolderOwn) ?: m.str(LiveTvKeys.networkFolder)
+
+    /**
+     * Saves the folder on this device only ([json] "" removes it here). The synced copy is only
+     * there to start new devices off: the first folder saved anywhere goes into it, and removing
+     * the folder it holds empties it. Another device's address never replaces this one's.
+     */
+    fun setNetworkFolderJson(json: String) = edit { m ->
+        val synced = m.str(LiveTvKeys.networkFolder)
+        val before = networkFolderOf(m)
+        m[LiveTvKeys.networkFolderOwn] = json
+        if (json.isNotBlank()) {
+            if (synced.isNullOrBlank()) m[LiveTvKeys.networkFolder] = json
+        } else if (!synced.isNullOrBlank() && sameNetworkFolder(synced, before)) {
+            m[LiveTvKeys.networkFolder] = ""
+        }
+    }
+
+    /** The same shared folder (address, share and folder; the login can differ). */
+    private fun sameNetworkFolder(a: String?, b: String?): Boolean {
+        fun key(s: String?): String? = runCatching {
+            val o = parseObject(s ?: return null)
+            listOf("host", "share", "path").joinToString("|") { o.optString(it).trim().lowercase() }
+        }.getOrNull()
+        val ka = key(a)
+        return ka != null && ka == key(b)
+    }
 
     // ---------- Sports ----------
 
@@ -1474,12 +1527,6 @@ internal open class LiveTvPreferencesStore {
         .distinctUntilChanged().stateIn(scope, SharingStarted.Eagerly, DEFAULT_REMINDER_LEAD)
 
     fun setReminderLeadMinutes(minutes: Int) = edit { it[LiveTvKeys.reminderLead] = minutes.coerceIn(0, 120) }
-
-    /** Whether live channels and catch-up replays show in Home's Continue Watching (off by default). */
-    val showInContinueWatching: StateFlow<Boolean> = _data.map { it.bool(LiveTvKeys.continueWatchingLive) ?: false }
-        .distinctUntilChanged().stateIn(scope, SharingStarted.Eagerly, false)
-
-    fun setShowInContinueWatching(on: Boolean) = edit { it[LiveTvKeys.continueWatchingLive] = on }
 
     /** Drops reminders for shows that started more than [graceMs] ago. */
     fun pruneReminders(now: Long, graceMs: Long = 30 * 60_000L) = edit { p ->
@@ -1652,6 +1699,9 @@ internal open class LiveTvPreferencesStore {
             p[my(LiveTvKeys.hiddenPlaylists, profileId)] = if (shown) cur - playlistId else cur + playlistId
         }
     }
+
+    /** Shows playlist [playlistId] on the profile in use (for when it's hidden there with no other profiles to pick). */
+    fun showPlaylistOnThisProfile(playlistId: String) = setPlaylistShownOn(playlistId, currentProfile, true)
 
     /** Stars a group (or takes the star off), for this profile. */
     fun setGroupFavorite(groupId: String, favorite: Boolean) = edit { p ->

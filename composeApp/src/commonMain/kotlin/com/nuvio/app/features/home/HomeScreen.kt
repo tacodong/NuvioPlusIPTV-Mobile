@@ -81,6 +81,7 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesUiState
 import com.nuvio.app.features.watchprogress.ContinueWatchingItem
 import com.nuvio.app.features.watchprogress.ContinueWatchingSortMode
 import com.nuvio.app.features.watchprogress.isMalformedNextUpSeedContentId
+import com.nuvio.app.features.watchprogress.isLiveTvEntry
 import com.nuvio.app.features.watchprogress.isSeriesTypeForContinueWatching
 import com.nuvio.app.features.watchprogress.nextUpDismissKey
 import com.nuvio.app.features.watchprogress.parseReleaseDateToEpochMs
@@ -179,6 +180,13 @@ fun HomeScreen(
     val fullyWatchedSeriesKeys by WatchedRepository.fullyWatchedSeriesKeys.collectAsStateWithLifecycle()
     val watchProgressUiState by WatchProgressRepository.uiState.collectAsStateWithLifecycle()
     val effectiveWatchProgressSource = watchProgressUiState.source
+    // Live TV channels saved by older versions (or synced in from them) are cleared out.
+    val hasLiveTvProgress = remember(watchProgressUiState.entries) {
+        watchProgressUiState.entries.any { entry -> entry.isLiveTvEntry() }
+    }
+    LaunchedEffect(hasLiveTvProgress) {
+        if (hasLiveTvProgress) WatchProgressRepository.removeLiveTvProgress()
+    }
     val cloudLibraryUiState by CloudLibraryRepository.uiState.collectAsStateWithLifecycle()
     val networkStatusUiState by NetworkStatusRepository.uiState.collectAsStateWithLifecycle()
     val trackingSettingsUiState by remember {

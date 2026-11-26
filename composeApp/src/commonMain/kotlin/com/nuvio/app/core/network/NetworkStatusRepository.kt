@@ -128,6 +128,9 @@ object NetworkStatusRepository {
         }
 
         _uiState.value = NetworkStatusUiState(condition = nextCondition)
+        if (previousCondition.isOfflineLike() && nextCondition == NetworkCondition.Online) {
+            com.nuvio.app.features.streams.StreamSourceRecovery.networkRecovered()
+        }
     }
 
     private suspend fun probeCondition(): NetworkCondition {

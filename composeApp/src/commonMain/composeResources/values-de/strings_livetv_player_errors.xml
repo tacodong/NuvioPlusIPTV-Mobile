@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Dieser Titel konnte nicht abgespielt werden.</string>
+    <string name="livetv_error_renew">Der Anbieter konnte diesen Stream nicht erneuern. Prüfe die Quelle und die VPN-Einstellungen.</string>
+    <string name="livetv_error_open_channel">Der Anbieter konnte diesen Sender nicht öffnen. Prüfe die Quelle und die VPN-Einstellungen.</string>
+    <string name="livetv_error_connection_lost">Verbindung zu diesem Live-Sender verloren. Tippe auf Abspielen oder wähle einen anderen Sender.</string>
+    <string name="livetv_error_catchup">Diese Sendung konnte nicht erneut abgespielt werden. Der Anbieter hat sie eventuell nicht im Catch-up</string>
+    <string name="livetv_error_catchup_code">Diese Sendung konnte nicht erneut abgespielt werden. Der Anbieter hat sie eventuell nicht im Catch-up (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Der Anbieter hat den Stream abgelehnt (HTTP %1$d): Kontolimit, abgelaufen oder gesperrt</string>
+    <string name="livetv_error_not_found">Stream nicht gefunden (HTTP 404). Probiere in den Playlist-Einstellungen ein anderes Stream-Format</string>
+    <string name="livetv_error_too_many">Zu viele Verbindungen auf diesem Konto (HTTP %1$d)</string>
+    <string name="livetv_error_server">Serverfehler beim Anbieter (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Der Anbieter sendet diesen Sender gerade nicht richtig</string>
+    <string name="livetv_error_unreachable">Der Anbieter ist gerade nicht erreichbar</string>
+    <string name="livetv_error_decoder">Dieses Handy konnte Bild oder Ton dieses Senders nicht wiedergeben</string>
+    <string name="livetv_error_drm">Dieser Sender ist geschützt und konnte nicht entsperrt werden</string>
+    <string name="livetv_error_not_playing">Dieser Sender läuft gerade nicht</string>
+</resources>

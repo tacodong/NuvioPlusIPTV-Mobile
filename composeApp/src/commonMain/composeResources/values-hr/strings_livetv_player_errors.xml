@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Ovaj naslov nije moguće reproducirati.</string>
+    <string name="livetv_error_renew">Pružatelj nije mogao obnoviti ovaj stream. Provjerite izvor i postavke VPN-a.</string>
+    <string name="livetv_error_open_channel">Pružatelj nije mogao otvoriti ovaj kanal. Provjerite izvor i postavke VPN-a.</string>
+    <string name="livetv_error_connection_lost">Veza s ovim kanalom uživo je izgubljena. Dodirnite reprodukciju ili odaberite drugi kanal.</string>
+    <string name="livetv_error_catchup">Ovu emisiju nije moguće ponovno pogledati. Pružatelj je možda nema u arhivi</string>
+    <string name="livetv_error_catchup_code">Ovu emisiju nije moguće ponovno pogledati. Pružatelj je možda nema u arhivi (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Pružatelj je odbio stream (HTTP %1$d): ograničenje računa, isteklo ili blokirano</string>
+    <string name="livetv_error_not_found">Stream nije pronađen (HTTP 404). Isprobajte drugi format streama u postavkama playliste</string>
+    <string name="livetv_error_too_many">Previše veza na ovom računu (HTTP %1$d)</string>
+    <string name="livetv_error_server">Greška poslužitelja pružatelja (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Pružatelj trenutno ne šalje ovaj kanal ispravno</string>
+    <string name="livetv_error_unreachable">Pružatelj trenutno nije dostupan</string>
+    <string name="livetv_error_decoder">Ovaj telefon nije mogao reproducirati sliku ili zvuk ovog kanala</string>
+    <string name="livetv_error_drm">Ovaj kanal je zaštićen i nije ga bilo moguće otključati</string>
+    <string name="livetv_error_not_playing">Ovaj kanal trenutno se ne emitira</string>
+</resources>

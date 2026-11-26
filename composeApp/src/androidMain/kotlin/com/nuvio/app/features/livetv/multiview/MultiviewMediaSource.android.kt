@@ -24,8 +24,13 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.extractor.ts.TsExtractor
 import com.nuvio.app.features.livetv.model.LiveChannel
 import com.nuvio.app.features.livetv.player.LivePlayRequest
+import com.nuvio.app.features.livetv.player.LiveTvPlayback
+import com.nuvio.app.features.livetv.player.continuousTsTransport
+import com.nuvio.app.features.livetv.sports.SportsAddonSource
+import com.nuvio.app.features.livetv.sports.SportsVideos
 import com.nuvio.app.features.player.PlayerPlaybackNetworking
 import com.nuvio.app.features.player.playbackMediaItemFromUrl
+import com.nuvio.stalker.StalkerContentKind
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -67,7 +72,14 @@ internal fun multiviewMediaSource(
             DefaultHlsExtractorFactory(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES, true),
         )
     } else {
-        DefaultMediaSourceFactory(protectedDataSourceFactory, extractors)
+        val continuousLive = channel.sourceId != SportsAddonSource.SOURCE_ID &&
+            channel.sourceId != SportsVideos.SOURCE_ID &&
+            (channel.stalker?.kind ?: StalkerContentKind.LIVE) == StalkerContentKind.LIVE &&
+            !LiveTvPlayback.isCatchup(request.url) && !LiveTvPlayback.isRecording(request.url)
+        val transport = continuousTsTransport(
+            protectedDataSourceFactory, request.url, item.build().localConfiguration?.mimeType, continuousLive,
+        )
+        DefaultMediaSourceFactory(transport, extractors)
     }
 
     if (protection != null) {

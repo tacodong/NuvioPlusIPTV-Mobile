@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Това заглавие не може да бъде пуснато.</string>
+    <string name="livetv_error_renew">Доставчикът не успя да поднови този поток. Проверете източника и настройките на VPN.</string>
+    <string name="livetv_error_open_channel">Доставчикът не успя да отвори този канал. Проверете източника и настройките на VPN.</string>
+    <string name="livetv_error_connection_lost">Връзката с този канал на живо е загубена. Натиснете пускане или изберете друг канал.</string>
+    <string name="livetv_error_catchup">Това предаване не може да бъде пуснато отново. Доставчикът може да няма запис</string>
+    <string name="livetv_error_catchup_code">Това предаване не може да бъде пуснато отново. Доставчикът може да няма запис (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Доставчикът отказа потока (HTTP %1$d): лимит на акаунта, изтекъл или блокиран</string>
+    <string name="livetv_error_not_found">Потокът не е намерен (HTTP 404). Опитайте друг формат на потока в настройките на плейлиста</string>
+    <string name="livetv_error_too_many">Твърде много връзки в този акаунт (HTTP %1$d)</string>
+    <string name="livetv_error_server">Грешка в сървъра на доставчика (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Доставчикът в момента не изпраща този канал правилно</string>
+    <string name="livetv_error_unreachable">Доставчикът не е достъпен в момента</string>
+    <string name="livetv_error_decoder">Този телефон не можа да възпроизведе картината или звука на този канал</string>
+    <string name="livetv_error_drm">Този канал е защитен и не можа да бъде отключен</string>
+    <string name="livetv_error_not_playing">Този канал не се излъчва в момента</string>
+</resources>

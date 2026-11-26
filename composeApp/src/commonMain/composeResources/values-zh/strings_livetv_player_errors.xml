@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">无法播放此内容。</string>
+    <string name="livetv_error_renew">提供商无法续订此直播流。请检查来源和 VPN 设置。</string>
+    <string name="livetv_error_open_channel">提供商无法打开此频道。请检查来源和 VPN 设置。</string>
+    <string name="livetv_error_connection_lost">与此直播频道的连接已断开。请点按播放或选择其他频道。</string>
+    <string name="livetv_error_catchup">无法回看此节目。提供商的回看中可能没有它</string>
+    <string name="livetv_error_catchup_code">无法回看此节目。提供商的回看中可能没有它 (HTTP %1$d)</string>
+    <string name="livetv_error_refused">提供商拒绝了此直播流 (HTTP %1$d)：账户限制、已过期或被封禁</string>
+    <string name="livetv_error_not_found">未找到直播流 (HTTP 404)。请在播放列表设置中尝试其他流格式</string>
+    <string name="livetv_error_too_many">此账户的连接过多 (HTTP %1$d)</string>
+    <string name="livetv_error_server">提供商服务器错误 (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">提供商目前未正确发送此频道</string>
+    <string name="livetv_error_unreachable">目前无法连接到提供商</string>
+    <string name="livetv_error_decoder">此手机无法播放此频道的画面或声音</string>
+    <string name="livetv_error_drm">此频道受保护，无法解锁</string>
+    <string name="livetv_error_not_playing">此频道目前没有播出</string>
+</resources>

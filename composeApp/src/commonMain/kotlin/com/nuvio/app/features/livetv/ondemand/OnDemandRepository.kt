@@ -230,7 +230,7 @@ internal object OnDemandRepository {
                 emptyList()
             }.associateTo(LinkedHashMap()) { it.id to it.name }
             val raw = client.movies().filterNot { it.isSeries }
-            raw.forEach { categoryNames.putIfAbsent(it.categoryId.orEmpty(), "Uncategorized") }
+            raw.forEach { categoryNames.getOrPut(it.categoryId.orEmpty()) { "Uncategorized" } }
             val categories = categoryNames.toList()
             val items = raw.asSequence().map { movie ->
                 VodItem(pl.id, kind, movie.id, movie.title, movie.poster, movie.categoryId.orEmpty(),
@@ -250,7 +250,7 @@ internal object OnDemandRepository {
                 if (error.error != StalkerError.UNSUPPORTED) throw error
             }
             val raw = client.series()
-            raw.forEach { categoryNames.putIfAbsent("${it.variant.name}:${it.categoryId.orEmpty()}", "Uncategorized") }
+            raw.forEach { categoryNames.getOrPut("${it.variant.name}:${it.categoryId.orEmpty()}") { "Uncategorized" } }
             val categories = categoryNames.toList()
             val items = raw.asSequence().map { series ->
                 // Classic-series and VOD-series namespaces can reuse the same portal ID.
@@ -372,7 +372,7 @@ internal object OnDemandRepository {
                 if (!LiveTvRepository.isVodEntry(e.url) || episodeName(e.name, e.url) != null) continue
                 val group = groupOf(e)
                 val catId = stableHash(group)
-                categories.putIfAbsent(catId, group)
+                categories.getOrPut(catId) { group }
                 items += VodItem(
                     playlistId = pl.id, kind = VodKind.MOVIE, id = stableHash(e.url), name = e.name,
                     icon = e.logo?.takeIf { it.startsWith("http") }, categoryId = catId, ext = extOf(e.url), tmdbId = null,
@@ -399,7 +399,7 @@ internal object OnDemandRepository {
             val catId = stableHash(group)
             val id = M3U_ID + stableHash(VodTitles.normalize(ep.show).ifEmpty { ep.show.lowercase() } + "|" + group)
             if (id !in shows) {
-                categories.putIfAbsent(catId, group)
+                categories.getOrPut(catId) { group }
                 shows[id] = VodItem(
                     playlistId = pl.id, kind = VodKind.SERIES, id = id, name = ep.show,
                     icon = e.logo?.takeIf { it.startsWith("http") }, categoryId = catId, ext = null, tmdbId = null,
@@ -559,7 +559,7 @@ internal object OnDemandRepository {
             if (title.isNotBlank()) {
                 runCatching { OnDemandStore.byTitle(kind, title) }.getOrDefault(emptyList())
                     .filter { year == null || it.year == null || kotlin.math.abs(it.year - year) <= 1 }
-                    .forEach { candidates.putIfAbsent(it.uid, it) }
+                    .forEach { candidates.getOrPut(it.uid) { it } }
             }
             val core = VodTitles.coreKey(title)
             if (candidates.isEmpty() && title.isNotBlank() && core.length >= 3) {
@@ -573,7 +573,7 @@ internal object OnDemandRepository {
                         withYears.filter { it.second != null && kotlin.math.abs(it.second!! - year) <= 1 }.map { it.first }
                     else -> withYears.filter { it.second == null }.map { it.first }
                 }
-                picked.forEach { candidates.putIfAbsent(it.uid, it) }
+                picked.forEach { candidates.getOrPut(it.uid) { it } }
             }
             val user = prefs.currentUserState()
             val settings = prefs.currentSettings()

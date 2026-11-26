@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Erken başla</string>
+    <string name="livetv_rec_pad_after">Sonrasında kayda devam et</string>
+    <string name="livetv_rec_pad_default">Varsayılan (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d dk önce</string>
+    <string name="livetv_rec_pad_line_after">+%1$d dk sonra</string>
+    <string name="livetv_rec_pad_hint">Yalnızca bu dizi için. Zaten ayarlanmış bölümler de değişir.</string>
+</resources>

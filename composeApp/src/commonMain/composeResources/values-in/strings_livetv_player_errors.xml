@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Judul ini tidak dapat diputar.</string>
+    <string name="livetv_error_renew">Penyedia tidak dapat memperbarui streaming ini. Periksa sumber dan pengaturan VPN.</string>
+    <string name="livetv_error_open_channel">Penyedia tidak dapat membuka saluran ini. Periksa sumber dan pengaturan VPN.</string>
+    <string name="livetv_error_connection_lost">Koneksi ke saluran langsung ini terputus. Ketuk putar atau pilih saluran lain.</string>
+    <string name="livetv_error_catchup">Acara ini tidak dapat diputar ulang. Penyedia mungkin tidak memilikinya di arsip</string>
+    <string name="livetv_error_catchup_code">Acara ini tidak dapat diputar ulang. Penyedia mungkin tidak memilikinya di arsip (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Penyedia menolak streaming (HTTP %1$d): batas akun, kedaluwarsa, atau diblokir</string>
+    <string name="livetv_error_not_found">Streaming tidak ditemukan (HTTP 404). Coba format streaming lain di pengaturan playlist</string>
+    <string name="livetv_error_too_many">Terlalu banyak koneksi di akun ini (HTTP %1$d)</string>
+    <string name="livetv_error_server">Kesalahan server penyedia (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Penyedia tidak mengirim saluran ini dengan benar saat ini</string>
+    <string name="livetv_error_unreachable">Penyedia tidak dapat dijangkau saat ini</string>
+    <string name="livetv_error_decoder">Ponsel ini tidak dapat memutar gambar atau suara saluran ini</string>
+    <string name="livetv_error_drm">Saluran ini dilindungi dan tidak dapat dibuka</string>
+    <string name="livetv_error_not_playing">Saluran ini sedang tidak tayang</string>
+</resources>

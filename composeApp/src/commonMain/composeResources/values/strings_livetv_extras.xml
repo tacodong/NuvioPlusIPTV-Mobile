@@ -4,6 +4,7 @@
     <string name="livetv_remove_favorite_group">Remove from favorite groups</string>
     <string name="livetv_show_on_profiles">Show on Profiles</string>
     <string name="livetv_show_on_profiles_value">Show on Profiles: %1$s</string>
+    <string name="livetv_show_on_this_profile">Show on this profile</string>
     <string name="livetv_show_on_profiles_all">All</string>
     <string name="livetv_show_on_profiles_count">%1$d of %2$d</string>
     <string name="livetv_show_on_profiles_description">Profiles switched off here get no channels, On Demand or Sports from %1$s. The playlist itself stays for everyone</string>

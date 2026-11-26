@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_backups_same_channel">القناة نفسها</string>
+    <string name="livetv_backups_addon_tag">إضافة</string>
+    <string name="livetv_backups_playlist_tag">قائمة تشغيل</string>
+    <string name="livetv_backups_quality_other">جودة أخرى</string>
+    <string name="livetv_backup_order_title">البدائل وقنوات المباراة</string>
+    <string name="livetv_backup_order_group_by">التجميع حسب</string>
+    <string name="livetv_backup_order_by_source">قائمة التشغيل / الإضافة</string>
+    <string name="livetv_backup_order_by_quality">الجودة</string>
+    <string name="livetv_backup_order_no_headings">بلا عناوين</string>
+    <string name="livetv_backup_order_sources">ترتيب قوائم التشغيل والإضافات</string>
+    <string name="livetv_backup_order_sources_hint">تنقل الأسهم عنصرًا؛ الجديدة تذهب إلى الأسفل</string>
+    <string name="livetv_backup_order_qualities">ترتيب الجودة</string>
+    <string name="livetv_backup_order_quality_unknown">الجودة غير مذكورة في الاسم</string>
+    <string name="livetv_backup_order_reset">العودة إلى الترتيب الافتراضي</string>
+    <string name="livetv_backup_order_no_sources">لا توجد قوائم تشغيل أو إضافات بعد</string>
+</resources>

@@ -41,11 +41,14 @@ internal fun PlayerScreenRuntime.BindSeekThumbs() {
 /** The player's state at the last look, for the thumbnail maker's own thread. */
 private class SeekThumbSeen {
     @Volatile var playing = false
+    @Volatile var loading = false
+    @Volatile var recording = false
     @Volatile var positionMs = 0L
     @Volatile var aheadMs = 0L
 
     fun read(s: PlayerPlaybackSnapshot) {
         playing = s.isPlaying
+        loading = s.isLoading && !s.isPlaying && !s.isEnded
         positionMs = s.positionMs.coerceAtLeast(0L)
         aheadMs = (s.bufferedPositionMs - s.positionMs).coerceAtLeast(0L)
     }
@@ -54,6 +57,8 @@ private class SeekThumbSeen {
         isPlaying = { playing },
         positionMs = { positionMs },
         bufferedAheadMs = { aheadMs },
+        isLoading = { loading },
+        isRecording = { recording },
     )
 }
 
@@ -64,6 +69,7 @@ private fun PlayerScreenRuntime.updateSeekThumbs(seen: SeekThumbSeen) {
     // A live channel: nothing to seek through.
     if (isLiveTv && !LiveTvPlayback.isCatchup(url)) { SeekThumbsPlatform.close(); return }
     if (url.isBlank() || snapshot.durationMs <= 0L) return
+    seen.recording = LiveTvPlayback.isRecording(url)
     val path = url.substringBefore('#').substringBefore('?').trimEnd('/').lowercase()
     val hls = activeStreamType.equals("hls", ignoreCase = true) || path.endsWith(".m3u8") || path.endsWith(".m3u")
     val dash = activeStreamType.equals("dash", ignoreCase = true) || path.endsWith(".mpd") || path.endsWith(".ism") || path.endsWith(".ism/manifest")

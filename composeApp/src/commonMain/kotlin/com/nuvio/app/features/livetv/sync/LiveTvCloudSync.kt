@@ -205,7 +205,7 @@ internal object LiveTvCloudSync {
                         LiveTvFiles.delete(LiveTvDirs.STATE, BASE_FILE)
                         "Deleted your saved Live TV setup from the cloud. This device keeps its own setup."
                     } else failText(reply.code)
-                }.getOrElse { NETWORK_TEXT }
+                }.getOrElse(::failureText)
                 _state.value = _state.value.copy(busy = false, enabled = isEnabled(uid), message = message)
             }
         }
@@ -231,7 +231,7 @@ internal object LiveTvCloudSync {
                             }
                         }
                     }
-                }.getOrElse { NETWORK_TEXT }
+                }.getOrElse(::failureText)
                 _state.value = _state.value.copy(busy = false, lastSyncMs = store.getLong(KEY_LAST_SYNC), message = message)
             }
         }
@@ -291,7 +291,7 @@ internal object LiveTvCloudSync {
                             else -> putText(result)
                         }
                     }
-                }.getOrElse { NETWORK_TEXT }
+                }.getOrElse(::failureText)
                 _state.value = _state.value.copy(
                     busy = false,
                     enabled = isEnabled(uid),
@@ -355,7 +355,7 @@ internal object LiveTvCloudSync {
             }
             Unit
         }.onFailure {
-            if (explicit) _state.value = _state.value.copy(message = NETWORK_TEXT)
+            if (explicit) _state.value = _state.value.copy(message = failureText(it))
         }
     }
 
@@ -375,7 +375,10 @@ internal object LiveTvCloudSync {
     }
 
     private suspend fun syncIfChanged() {
-        val hash = store.sha256(localView().toString())
+        val hash = runCatching { localHash() }.getOrElse {
+            _state.value = _state.value.copy(message = LOCAL_SETTINGS_TEXT)
+            return
+        }
         if (hash == store.getString(KEY_LOCAL_HASH)) return
         mutex.withLock {
             val uid = userId ?: return@withLock
@@ -390,7 +393,7 @@ internal object LiveTvCloudSync {
         _state.value = _state.value.copy(
             busy = false,
             lastSyncMs = store.getLong(KEY_LAST_SYNC),
-            message = result.fold(onSuccess = { it ?: doneMessage }, onFailure = { NETWORK_TEXT }),
+            message = result.fold(onSuccess = { it ?: doneMessage }, onFailure = ::failureText),
         )
     }
 
@@ -449,6 +452,19 @@ internal object LiveTvCloudSync {
     /** This device's setup without the parts Setup Sync is switched off for. */
     private fun localView(): JsonObject = SyncParts.strip(prefs.exportForSync())
 
+    /** Local preparation failures can happen before a request or while recording its success. */
+    private fun localHash(): String = try {
+        store.sha256(localView().toString())
+    } catch (_: Exception) {
+        // Do not expose source settings or key errors in the status/report message.
+        throw LocalSettingsFailure()
+    }
+
+    private class LocalSettingsFailure : IllegalStateException(LOCAL_SETTINGS_TEXT)
+
+    private fun failureText(failure: Throwable): String =
+        if (failure is LocalSettingsFailure) LOCAL_SETTINGS_TEXT else NETWORK_TEXT
+
     /**
      * A saved setup counts when it has a playlist or guide. When this device leaves playlists out,
      * any saved setup counts: another device's copy may be the only one that has them.
@@ -476,10 +492,16 @@ internal object LiveTvCloudSync {
 
     /** Remembers what both sides now agree on: the starting point for the next combine. */
     private fun saved(uid: String, data: JsonObject, removedHere: Set<String>) {
-        runCatching { LiveTvFiles.writeSmall(LiveTvDirs.STATE, BASE_FILE, SyncParts.strip(data).toString()) }
-        store.putString(KEY_BASE_USER, uid)
+        // Invalidate the old account/cache before writing: failed encryption can leave its
+        // file untouched. Cache persistence is optional after a successful reconciliation.
+        store.putString(KEY_BASE_USER, null)
+        val written = runCatching {
+            LiveTvFiles.writeSmall(LiveTvDirs.STATE, BASE_FILE, SyncParts.strip(data).toString())
+        }.isSuccess
+        if (!written) runCatching { LiveTvFiles.delete(LiveTvDirs.STATE, BASE_FILE) }
+        if (written) store.putString(KEY_BASE_USER, uid)
         store.putLong(KEY_LAST_SYNC, LiveTvClock.nowMs())
-        store.putString(KEY_LOCAL_HASH, store.sha256(localView().toString()))
+        store.putString(KEY_LOCAL_HASH, localHash())
         SyncParts.clearFresh()
         if (removedHere.isNotEmpty()) prefs.forgetRemovedSources(removedHere)
     }
@@ -487,7 +509,9 @@ internal object LiveTvCloudSync {
     /** What both sides last agreed on, but only if it was for this account. */
     private fun readBase(uid: String): JsonObject? {
         if (store.getString(KEY_BASE_USER) != uid) return null
-        return LiveTvFiles.readSmall(LiveTvDirs.STATE, BASE_FILE)?.let { runCatching { parseObject(it) }.getOrNull() }
+        return runCatching {
+            LiveTvFiles.readSmall(LiveTvDirs.STATE, BASE_FILE)?.let { parseObject(it) }
+        }.getOrNull()
     }
 
     // ------------------------------------------------------------------ the service
@@ -580,6 +604,7 @@ internal object LiveTvCloudSync {
     /** Our own small service (the livetv-cloud Worker), the same one the TV app uses. */
     const val CLOUD_URL = "https://livetv-cloud.nuvioplusiptv.workers.dev"
     private const val UPDATED_TEXT = "Updated from your other device."
+    private const val LOCAL_SETTINGS_TEXT = "Couldn't prepare this phone's Live TV settings for sync. Try again."
     private const val NETWORK_TEXT = "Couldn't reach sync. Will try again."
     private const val BASE_FILE = "cloud_base.json"
     private const val KEY_ENABLED = "cloud_enabled_"

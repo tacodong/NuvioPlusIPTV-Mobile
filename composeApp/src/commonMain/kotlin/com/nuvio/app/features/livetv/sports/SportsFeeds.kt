@@ -1287,7 +1287,7 @@ internal object OtherFeeds {
     /** A franchise league's seasons that touch [span] (ESPN labels them by the year they start or end). */
     private suspend fun cricketSeason(id: String, span: Pair<String, String>, get: suspend (String) -> String): List<JSONObject> {
         val default = runCatching { keep("cricket:$id", 30 * 60_000L) { JSONObject(get("${ESPN}cricket/$id/scoreboard")) } }.getOrNull()
-        val years = sortedSetOf(span.first.take(4).toInt(), span.second.take(4).toInt())
+        val years = mutableSetOf(span.first.take(4).toInt(), span.second.take(4).toInt())
         default?.optJSONArray("leagues")?.optJSONObject(0)?.let { l ->
             l.optJSONObject("season")?.optInt("year", 0)?.takeIf { it > 2000 }?.let { years += it }
             l.optJSONArray("links")?.let { links ->
@@ -1306,7 +1306,7 @@ internal object OtherFeeds {
             }
         }
         add(default)
-        for (y in years) {
+        for (y in years.sorted()) {
             add(runCatching { keep("cricket:$id:$y", 4 * 60_000L) { JSONObject(get("${ESPN}cricket/$id/scoreboard?season=$y")) } }.getOrNull())
         }
         return out.values.toList()

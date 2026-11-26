@@ -13,6 +13,7 @@ import coil3.request.crossfade
 import coil3.svg.SvgDecoder
 import com.nuvio.app.core.network.NetworkErrorInterceptor
 import com.nuvio.app.core.poster.CustomPosterFallbackInterceptor
+import com.nuvio.app.core.ui.imageConnectivityChecker
 import com.nuvio.app.features.servers.plex.PlexArtworkInterceptor
 import com.nuvio.app.features.servers.silo.SiloArtworkInterceptor
 import io.ktor.client.HttpClient
@@ -46,6 +47,7 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
                             }
                         },
                         cacheStrategy = { CacheControlCacheStrategy() },
+                        connectivityChecker = ::imageConnectivityChecker,
                     ),
                 )
                 if (Build.VERSION.SDK_INT >= 28) {

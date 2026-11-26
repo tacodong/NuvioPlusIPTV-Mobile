@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_backups_same_channel">Gleicher Sender</string>
+    <string name="livetv_backups_addon_tag">Add-on</string>
+    <string name="livetv_backups_playlist_tag">Playlist</string>
+    <string name="livetv_backups_quality_other">Andere Qualität</string>
+    <string name="livetv_backup_order_title">Ersatzsender &amp; Spielsender</string>
+    <string name="livetv_backup_order_group_by">Gruppieren nach</string>
+    <string name="livetv_backup_order_by_source">Playlist / Add-on</string>
+    <string name="livetv_backup_order_by_quality">Qualität</string>
+    <string name="livetv_backup_order_no_headings">Keine Überschriften</string>
+    <string name="livetv_backup_order_sources">Reihenfolge von Playlists &amp; Add-ons</string>
+    <string name="livetv_backup_order_sources_hint">die Pfeile verschieben einen Eintrag; neue kommen ans Ende</string>
+    <string name="livetv_backup_order_qualities">Reihenfolge der Qualität</string>
+    <string name="livetv_backup_order_quality_unknown">Qualität nicht im Namen</string>
+    <string name="livetv_backup_order_reset">Standardreihenfolge wiederherstellen</string>
+    <string name="livetv_backup_order_no_sources">Noch keine Playlists oder Add-ons</string>
+</resources>

@@ -38,8 +38,8 @@ data class LiveTvListState(
 /**
  * Builds the grouped channel list from the repository's channels and your preferences, the TV
  * app's rules: hidden channels and groups left out, your own groups first, then the playlist's
- * groups in your order (or by name), channels sorted as the Channel Sort setting says, with
- * your "Reorder channels" order on top.
+ * groups in your order (or by name), channels sorted as the Channel Sort setting says (your
+ * "Reorder channels" order shows with Playlist order).
  */
 internal object LiveTvViewState {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -85,11 +85,12 @@ internal object LiveTvViewState {
         fun sorted(list: List<LiveChannel>): List<LiveChannel> = when (s.channelSort) {
             ChannelSort.PLAYLIST -> list
             ChannelSort.NUMBER -> list.sortedBy { it.number }
-            ChannelSort.NAME -> list.sortedBy { it.name.lowercase() }
+            ChannelSort.NAME -> ChannelNameSort.sort(list)
         }
 
+        // Your "Reorder channels" order shows with Playlist order; Name and Number sort every group.
         fun ordered(groupId: String, list: List<LiveChannel>): List<LiveChannel> {
-            val order = user.channelOrder[groupId] ?: return sorted(list)
+            val order = user.channelOrder[groupId]?.takeIf { s.channelSort == ChannelSort.PLAYLIST } ?: return sorted(list)
             val here = list.associateBy { it.key }
             val placed = order.mapNotNull { here[it] }
             val placedKeys = placed.mapTo(HashSet()) { it.key }

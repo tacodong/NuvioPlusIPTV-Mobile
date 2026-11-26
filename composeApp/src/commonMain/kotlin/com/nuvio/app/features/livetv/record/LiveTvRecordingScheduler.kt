@@ -88,6 +88,15 @@ internal object LiveTvRecordingScheduler {
         return s.recordPreMinutes.coerceAtLeast(0) * 60_000L to s.recordPostMinutes.coerceAtLeast(0) * 60_000L
     }
 
+    /** Extra time for an episode of series [seriesId]: its own times, else the Recordings setting. */
+    private fun paddingFor(seriesId: String?): Pair<Long, Long> {
+        val (defPre, defPost) = padding()
+        val rule = seriesId?.let { id -> _series.value.firstOrNull { it.id == id } }
+        val pre = rule?.preMin?.takeIf { it >= 0 }?.let { it * 60_000L } ?: defPre
+        val post = rule?.postMin?.takeIf { it >= 0 }?.let { it * 60_000L } ?: defPost
+        return pre to post
+    }
+
     fun isScheduled(channelKey: String, program: EpgProgram): Boolean = RecordingRules.isScheduled(_schedules.value, channelKey, program)
 
     fun seriesFor(channelKey: String, title: String): SeriesRule? {
@@ -184,7 +193,7 @@ internal object LiveTvRecordingScheduler {
      */
     private fun prepare(channel: LiveChannel, program: EpgProgram, seriesId: String?): Pair<RecordingSchedule?, String> {
         val now = LiveTvClock.nowMs()
-        val (preMs, postMs) = padding()
+        val (preMs, postMs) = paddingFor(seriesId)
         val useCatchup = channel.catchup != null && channel.catchup.days > 0 &&
             (channel.stalker == null || (!program.stalkerProgramId.isNullOrBlank() && program.stalkerSourceIdentity != null &&
                 program.stalkerSourceIdentity == channel.stalker.sourceIdentity))
@@ -295,6 +304,26 @@ internal object LiveTvRecordingScheduler {
                 save()
             }
             if (!newOnly) expandSeries()
+        }
+    }
+
+    /**
+     * A series' own extra time before / after each episode, in minutes (-1 = the Recordings
+     * setting). Episodes it has already set that haven't started yet move to the new times.
+     */
+    fun setPadding(seriesId: String, preMin: Int, postMin: Int) {
+        scope.launch {
+            val moved = mutex.withLock {
+                _series.value = _series.value.map { if (it.id == seriesId) it.copy(preMin = preMin, postMin = postMin) else it }
+                val (pre, post) = paddingFor(seriesId)
+                val updated = _schedules.value
+                    .filter { it.seriesId == seriesId && (it.preMs != pre || it.postMs != post) }
+                    .associate { it.id to it.copy(preMs = pre, postMs = post) }
+                if (updated.isNotEmpty()) _schedules.value = _schedules.value.map { updated[it.id] ?: it }
+                save()
+                updated.values.toList()
+            }
+            moved.forEach { RecordingPlatform.cancelAlarm(it.id); arm(it) }
         }
     }
 

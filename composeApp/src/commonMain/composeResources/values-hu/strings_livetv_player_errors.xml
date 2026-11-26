@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Ezt a címet nem sikerült lejátszani.</string>
+    <string name="livetv_error_renew">A szolgáltató nem tudta megújítani ezt a streamet. Ellenőrizd a forrást és a VPN beállításait.</string>
+    <string name="livetv_error_open_channel">A szolgáltató nem tudta megnyitni ezt a csatornát. Ellenőrizd a forrást és a VPN beállításait.</string>
+    <string name="livetv_error_connection_lost">Megszakadt a kapcsolat ezzel az élő csatornával. Koppints a lejátszásra, vagy válassz másik csatornát.</string>
+    <string name="livetv_error_catchup">Ezt a műsort nem sikerült visszanézni. Lehet, hogy a szolgáltató archívumában nincs meg</string>
+    <string name="livetv_error_catchup_code">Ezt a műsort nem sikerült visszanézni. Lehet, hogy a szolgáltató archívumában nincs meg (HTTP %1$d)</string>
+    <string name="livetv_error_refused">A szolgáltató elutasította a streamet (HTTP %1$d): fióklimit, lejárt vagy letiltva</string>
+    <string name="livetv_error_not_found">A stream nem található (HTTP 404). Próbálj másik streamformátumot a lejátszási lista beállításaiban</string>
+    <string name="livetv_error_too_many">Túl sok kapcsolat ezen a fiókon (HTTP %1$d)</string>
+    <string name="livetv_error_server">Szerverhiba a szolgáltatónál (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">A szolgáltató most nem küldi megfelelően ezt a csatornát</string>
+    <string name="livetv_error_unreachable">A szolgáltató most nem érhető el</string>
+    <string name="livetv_error_decoder">Ez a telefon nem tudta lejátszani a csatorna képét vagy hangját</string>
+    <string name="livetv_error_drm">Ez a csatorna védett, és nem sikerült feloldani</string>
+    <string name="livetv_error_not_playing">Ez a csatorna most nem sugároz</string>
+</resources>

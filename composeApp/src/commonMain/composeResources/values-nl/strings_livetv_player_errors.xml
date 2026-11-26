@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Deze titel kon niet worden afgespeeld.</string>
+    <string name="livetv_error_renew">De provider kon deze stream niet vernieuwen. Controleer de bron en de VPN-instellingen.</string>
+    <string name="livetv_error_open_channel">De provider kon deze zender niet openen. Controleer de bron en de VPN-instellingen.</string>
+    <string name="livetv_error_connection_lost">Verbinding met deze livezender verloren. Tik op afspelen of kies een andere zender.</string>
+    <string name="livetv_error_catchup">Dit programma kon niet opnieuw worden afgespeeld. De provider heeft het mogelijk niet in de catch-up</string>
+    <string name="livetv_error_catchup_code">Dit programma kon niet opnieuw worden afgespeeld. De provider heeft het mogelijk niet in de catch-up (HTTP %1$d)</string>
+    <string name="livetv_error_refused">De provider weigerde de stream (HTTP %1$d): accountlimiet, verlopen of geblokkeerd</string>
+    <string name="livetv_error_not_found">Stream niet gevonden (HTTP 404). Probeer een ander streamformaat in de instellingen van de playlist</string>
+    <string name="livetv_error_too_many">Te veel verbindingen op dit account (HTTP %1$d)</string>
+    <string name="livetv_error_server">Serverfout bij de provider (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">De provider stuurt deze zender op dit moment niet goed door</string>
+    <string name="livetv_error_unreachable">De provider is op dit moment niet bereikbaar</string>
+    <string name="livetv_error_decoder">Deze telefoon kon het beeld of geluid van deze zender niet afspelen</string>
+    <string name="livetv_error_drm">Deze zender is beveiligd en kon niet worden ontgrendeld</string>
+    <string name="livetv_error_not_playing">Deze zender speelt op dit moment niet</string>
+</resources>

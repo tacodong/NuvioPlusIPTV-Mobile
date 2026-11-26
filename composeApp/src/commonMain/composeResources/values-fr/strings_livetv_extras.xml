@@ -4,6 +4,7 @@
     <string name="livetv_remove_favorite_group">Retirer des groupes favoris</string>
     <string name="livetv_show_on_profiles">Afficher sur les profils</string>
     <string name="livetv_show_on_profiles_value">Afficher sur les profils : %1$s</string>
+    <string name="livetv_show_on_this_profile">Afficher sur ce profil</string>
     <string name="livetv_show_on_profiles_all">Tous</string>
     <string name="livetv_show_on_profiles_count">%1$d sur %2$d</string>
     <string name="livetv_show_on_profiles_description">Les profils désactivés ici ne reçoivent ni chaînes, ni On Demand, ni Sports de %1$s. La playlist reste pour tout le monde</string>

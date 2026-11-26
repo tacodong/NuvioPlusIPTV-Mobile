@@ -536,6 +536,17 @@ internal object SportsRepository {
             }.getOrDefault(emptySet())
             val t0 = LiveTvClock.nowMs()
             runCatching { withContext(Dispatchers.Default) { leagueData.update { it + readSavedScores(first) } } }
+            // Everything you follow, as last saved (weeks ahead and seasons of your leagues, last
+            // week's results, your teams' seasons): My Sports rows like UFC's or F1's show at once.
+            runCatching {
+                withContext(Dispatchers.Default) {
+                    val mine = SportsFollows.fromJson(prefs.sportsMineJson.first())
+                    val saved = readSavedAhead(mine)
+                    // Anything fetched meanwhile is newer than the saved copy.
+                    if (saved.isNotEmpty()) aheadData.update { saved + it }
+                    readSavedMine(mine)
+                }
+            }
             val tFirst = LiveTvClock.nowMs()
             runCatching { withContext(Dispatchers.Default) { loadCache(skip = first) } }
             cacheReady.value = true
@@ -650,9 +661,12 @@ internal object SportsRepository {
             // own clock while they're still going.
             if (full && extrasJob?.isActive != true) extrasJob = scope.launch {
                 val force = forceExtras.also { forceExtras = false }
-                runCatching { updateWeek(LiveTvClock.nowMs(), force) }
+                // Your own leagues' rows (weeks ahead, the season, recent results) first: the week
+                // for every league takes a while, and rows like UFC's or F1's (nothing this week)
+                // stayed missing until it was done.
                 runCatching { updateAhead(LiveTvClock.nowMs(), force) }
                 runCatching { updatePast(LiveTvClock.nowMs()) }
+                runCatching { updateWeek(LiveTvClock.nowMs(), force) }
                 runCatching { updateTsdb(LiveTvClock.nowMs(), force) }
                 runCatching { updateSchedules(LiveTvClock.nowMs(), force) }
                 if (LiveTvClock.nowMs() - lastTv > 4 * HOUR) {
@@ -884,11 +898,16 @@ internal object SportsRepository {
         val noSchedule = f.teams.flatMap { listOf(it.leagueId) + SportsCatalog.relatedLeagues(it.leagueId) }
             .filter { it.startsWith("rugby/") || it.startsWith("rugby-league/") || it.startsWith("australian-football/") }
         val ids = (f.pins + f.leagues + noSchedule).toSet()
-        if (aheadData.value.keys.any { it.removePrefix(SEASON_KEY) !in ids }) aheadData.update { m -> m.filterKeys { it.removePrefix(SEASON_KEY) in ids } }
+        val dropped = aheadData.value.keys.filter { it.removePrefix(SEASON_KEY) !in ids }
+        if (dropped.isNotEmpty()) {
+            aheadData.update { m -> m.filterKeys { it.removePrefix(SEASON_KEY) in ids } }
+            dropped.forEach { k -> runCatching { LiveTvFiles.delete(DIR, aheadFile(k)) } }
+        }
         val due = ids.mapNotNull { SportsCatalog.league(it) }.filter { l ->
             l.espnPath != null && now - (aheadData.value[l.id]?.fetchedAt ?: 0L) > (if (force) HOUR else 6 * HOUR)
         }
-        if (due.isEmpty()) return
+        // Nothing due here still checks the seasons (they have their own clock, and may not be saved yet).
+        if (due.isEmpty()) { updateSeasonPast(now, ids); return }
         // ESPN takes a whole month ("202611") though not a range of days: the months ahead, and
         // the months the last [LEAGUE_BACK_DAYS] days touch, for their results.
         val wanted = listOf(now - LEAGUE_BACK_DAYS * DAY, now, now + (DAYS_AHEAD + 1) * DAY, now + 35 * DAY).map { SportsDates.monthKey(it) }.distinct()
@@ -913,6 +932,7 @@ internal object SportsRepository {
                     list.filter { it.startMs >= keepFrom || it.startMs >= newest - 4 * DAY }
                 }
             aheadData.update { it + (l.id to LeagueData(parsed, at, null)) }
+            saveGames(aheadFile(l.id), at, parsed)
         }
         updateSeasonPast(now, ids)
     }
@@ -942,6 +962,7 @@ internal object SportsRepository {
                 .filter { it.startMs in from until now - DAY && it.state != GameState.PRE }
                 .distinctBy { it.id }
             aheadData.update { it + (SEASON_KEY + l.id to LeagueData(parsed, at, null)) }
+            saveGames(aheadFile(SEASON_KEY + l.id), at, parsed)
         }
     }
 
@@ -979,6 +1000,8 @@ internal object SportsRepository {
                 val at = LiveTvClock.nowMs()
                 val parsed = raws.flatMap { raw -> runCatching { SportsFeeds.parseScoreboard(l, raw) }.getOrDefault(emptyList()) }.distinctBy { it.id }
                 weekData.update { it + ("p|" + l.id to LeagueData(parsed, if (raws.isEmpty()) at - HOUR else at, null)) }
+                // A league with a My Sports row: kept for next time (see readSavedMine).
+                if (raws.isNotEmpty() && l.id in rowLeagues) saveGames(pastFile(l.id), at, parsed)
             }
         }
     }
@@ -1269,6 +1292,80 @@ internal object SportsRepository {
         }.getOrNull()
     }
 
+    /** Where a followed league's weeks ahead ("ah_") or season ("as_", [SEASON_KEY]) are saved. */
+    private fun aheadFile(key: String): String =
+        if (key.startsWith(SEASON_KEY)) "as_${safe(key.removePrefix(SEASON_KEY))}.json" else "ah_${safe(key)}.json"
+
+    /** Where a followed league's last week of results (2 to 7 days back) is saved. */
+    private fun pastFile(leagueId: String): String = "pa_${safe(leagueId)}.json"
+
+    private fun saveGames(name: String, at: Long, games: List<SportsEvent>) {
+        runCatching { LiveTvFiles.writeSmall(DIR, name, "$at\n" + GAMES_MARK + SportsEventCodec.encode(games)) }
+    }
+
+    /** A saved file's games and when they were fetched (null when missing or older than [maxAgeMs]). */
+    private fun readSavedFile(l: League, name: String, now: Long, maxAgeMs: Long): LeagueData? {
+        val text = LiveTvFiles.readSmall(DIR, name) ?: return null
+        return runCatching {
+            val nl = text.indexOf('\n')
+            val at = text.substring(0, nl).toLong()
+            if (now - at > maxAgeMs) return@runCatching null
+            LeagueData(savedGames(l, text.substring(nl + 1)), at, null)
+        }.getOrNull()
+    }
+
+    /** A league's week ahead as last saved (left out when over 3 days old). */
+    private fun readSavedWeek(l: League, now: Long): LeagueData? = readSavedFile(l, "wk_${safe(l.id)}.json", now, 3 * DAY)
+
+    /**
+     * Your leagues' weeks ahead and seasons as last saved, so their My Sports rows (UFC, F1,
+     * golf: nothing this week) show as soon as the page opens instead of after every league's
+     * week has been fetched. Kept at their saved time, so they're fetched again when due.
+     */
+    private fun readSavedAhead(f: SportsFollows): Map<String, LeagueData> {
+        val now = LiveTvClock.nowMs()
+        val out = HashMap<String, LeagueData>()
+        for (id in (f.pins + f.leagues).toSet()) {
+            val l = SportsCatalog.league(id)?.takeIf { it.espnPath != null } ?: continue
+            for (key in listOf(id, SEASON_KEY + id)) readSavedFile(l, aheadFile(key), now, 7 * DAY)?.let { out[key] = it }
+        }
+        return out
+    }
+
+    /**
+     * Everything you follow, as last saved, read straight away so My Sports has it when the
+     * page opens: your leagues' week ahead and last week's results, and your teams' seasons
+     * (these used to wait for the slower read of everything else, and last week's results
+     * weren't saved at all).
+     */
+    private fun readSavedMine(f: SportsFollows) {
+        val now = LiveTvClock.nowMs()
+        val wk = HashMap<String, LeagueData>()
+        for (l in followedLeagueIds(f).mapNotNull { SportsCatalog.league(it) }.filter { it.espnPath != null }) {
+            readSavedWeek(l, now)?.let { wk[l.id] = it }
+        }
+        // Last week's results, for the leagues with a row of their own.
+        for (id in (f.pins + f.leagues).toSet()) {
+            val l = SportsCatalog.league(id)?.takeIf { it.espnPath != null } ?: continue
+            readSavedFile(l, pastFile(id), now, 2 * DAY)?.let { wk["p|$id"] = it }
+        }
+        if (wk.isNotEmpty()) weekData.update { wk + it }
+        val sched = HashMap<String, LeagueData>()
+        for (t in f.teams) {
+            val text = LiveTvFiles.readSmall(DIR, "ts_${safe(t.key)}.json") ?: continue
+            runCatching {
+                val nl = text.indexOf('\n')
+                val at = text.substring(0, nl).toLong()
+                val raws = text.substring(nl + 1).split(RAW_SEP).mapNotNull { part ->
+                    val tab = part.indexOf('\t')
+                    if (tab <= 0) null else SportsCatalog.league(part.substring(0, tab))?.let { it to part.substring(tab + 1) }
+                }
+                if (raws.isNotEmpty()) sched[t.key] = LeagueData(mergeSchedule(raws), at, null)
+            }
+        }
+        if (sched.isNotEmpty()) scheduleData.update { sched + it }
+    }
+
     /** Everything else saved last time ([skip]: leagues whose scores were already read). */
     private fun loadCache(skip: Set<String> = emptySet()) {
         val now = LiveTvClock.nowMs()
@@ -1291,33 +1388,15 @@ internal object SportsRepository {
         // Added to the page's own leagues, read first (see start).
         leagueData.update { it + m }
         fixtureData.value = fx
+        // (Your own leagues' weeks and your teams' seasons were read first, see start.)
         val wk = HashMap<String, LeagueData>()
         for (l in SportsCatalog.leagues) {
-            if (l.espnPath == null) continue
-            val text = LiveTvFiles.readSmall(DIR, "wk_${safe(l.id)}.json") ?: continue
-            runCatching {
-                val nl = text.indexOf('\n')
-                val at = text.substring(0, nl).toLong()
-                if (now - at > 3 * DAY) return@runCatching
-                wk[l.id] = LeagueData(savedGames(l, text.substring(nl + 1)), at, null)
-            }
+            if (l.espnPath == null || l.id in weekData.value) continue
+            readSavedWeek(l, now)?.let { wk[l.id] = it }
         }
-        weekData.value = wk
+        // Added to what's there: anything already in is yours, or newer.
+        weekData.update { wk + it }
         val f = follows.value
-        val sched = HashMap<String, LeagueData>()
-        for (t in f.teams) {
-            val text = LiveTvFiles.readSmall(DIR, "ts_${safe(t.key)}.json") ?: continue
-            runCatching {
-                val nl = text.indexOf('\n')
-                val at = text.substring(0, nl).toLong()
-                val raws = text.substring(nl + 1).split(RAW_SEP).mapNotNull { part ->
-                    val tab = part.indexOf('\t')
-                    if (tab <= 0) null else SportsCatalog.league(part.substring(0, tab))?.let { it to part.substring(tab + 1) }
-                }
-                if (raws.isNotEmpty()) sched[t.key] = LeagueData(mergeSchedule(raws), at, null)
-            }
-        }
-        scheduleData.value = sched
         val ts = HashMap<String, LeagueData>()
         for (id in (followedLeagueIds(f).filter { it.startsWith("tsdb/") } + tsdbAlias.keys).distinct()) {
             val l = SportsCatalog.league(id) ?: continue

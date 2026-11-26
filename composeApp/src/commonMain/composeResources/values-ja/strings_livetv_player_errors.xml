@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">このタイトルを再生できませんでした。</string>
+    <string name="livetv_error_renew">プロバイダーがこのストリームを更新できませんでした。ソースと VPN の設定を確認してください。</string>
+    <string name="livetv_error_open_channel">プロバイダーがこのチャンネルを開けませんでした。ソースと VPN の設定を確認してください。</string>
+    <string name="livetv_error_connection_lost">このライブチャンネルとの接続が切れました。再生をタップするか、別のチャンネルを選んでください。</string>
+    <string name="livetv_error_catchup">この番組を見逃し再生できませんでした。プロバイダーのアーカイブにない可能性があります</string>
+    <string name="livetv_error_catchup_code">この番組を見逃し再生できませんでした。プロバイダーのアーカイブにない可能性があります (HTTP %1$d)</string>
+    <string name="livetv_error_refused">プロバイダーがストリームを拒否しました (HTTP %1$d): アカウントの上限、期限切れ、またはブロック</string>
+    <string name="livetv_error_not_found">ストリームが見つかりません (HTTP 404)。プレイリストの設定で別のストリーム形式を試してください</string>
+    <string name="livetv_error_too_many">このアカウントの接続数が多すぎます (HTTP %1$d)</string>
+    <string name="livetv_error_server">プロバイダーのサーバーエラー (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">プロバイダーが現在このチャンネルを正しく送信していません</string>
+    <string name="livetv_error_unreachable">現在プロバイダーに接続できません</string>
+    <string name="livetv_error_decoder">このスマートフォンではこのチャンネルの映像または音声を再生できませんでした</string>
+    <string name="livetv_error_drm">このチャンネルは保護されていて解除できませんでした</string>
+    <string name="livetv_error_not_playing">このチャンネルは現在放送していません</string>
+</resources>

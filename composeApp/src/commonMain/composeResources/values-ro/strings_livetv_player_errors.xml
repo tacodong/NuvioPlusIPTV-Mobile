@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Acest titlu nu a putut fi redat.</string>
+    <string name="livetv_error_renew">Furnizorul nu a putut reînnoi acest flux. Verifică sursa și setările VPN.</string>
+    <string name="livetv_error_open_channel">Furnizorul nu a putut deschide acest canal. Verifică sursa și setările VPN.</string>
+    <string name="livetv_error_connection_lost">S-a pierdut conexiunea cu acest canal live. Apasă redare sau alege alt canal.</string>
+    <string name="livetv_error_catchup">Această emisiune nu a putut fi reluată. Furnizorul poate să nu o aibă în arhivă</string>
+    <string name="livetv_error_catchup_code">Această emisiune nu a putut fi reluată. Furnizorul poate să nu o aibă în arhivă (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Furnizorul a refuzat fluxul (HTTP %1$d): limită de cont, expirat sau blocat</string>
+    <string name="livetv_error_not_found">Flux negăsit (HTTP 404). Încearcă alt format de flux în setările listei</string>
+    <string name="livetv_error_too_many">Prea multe conexiuni pe acest cont (HTTP %1$d)</string>
+    <string name="livetv_error_server">Eroare de server la furnizor (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Furnizorul nu trimite corect acest canal în acest moment</string>
+    <string name="livetv_error_unreachable">Furnizorul nu poate fi contactat în acest moment</string>
+    <string name="livetv_error_decoder">Acest telefon nu a putut reda imaginea sau sunetul acestui canal</string>
+    <string name="livetv_error_drm">Acest canal este protejat și nu a putut fi deblocat</string>
+    <string name="livetv_error_not_playing">Acest canal nu emite în acest moment</string>
+</resources>

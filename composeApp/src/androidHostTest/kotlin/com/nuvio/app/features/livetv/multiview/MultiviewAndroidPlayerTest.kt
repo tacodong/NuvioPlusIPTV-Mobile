@@ -247,6 +247,7 @@ class MultiviewAndroidPlayerTest {
                     assertEquals(0f, fake.volume)
                     assertTrue(fake.stopped)
                     assertTrue(fake.mediaCleared)
+                    assertEquals(1, fake.analyticsRemovals)
                     assertNull(fake.texture)
                     assertEquals(0, server.requestCount)
                 } finally {
@@ -369,6 +370,7 @@ class MultiviewAndroidPlayerTest {
         var volume = 1f
         var stopped = false
         var mediaCleared = false
+        var analyticsRemovals = 0
         var texture: TextureView? = null
         var surface: SurfaceView? = null
         val player = Proxy.newProxyInstance(ExoPlayer::class.java.classLoader, arrayOf(ExoPlayer::class.java), this) as ExoPlayer
@@ -376,6 +378,7 @@ class MultiviewAndroidPlayerTest {
         override fun invoke(proxy: Any, method: Method, args: Array<out Any?>?): Any? = when (method.name) {
             "addListener" -> { listeners += args!![0] as Player.Listener; null }
             "removeListener" -> { listeners -= args!![0] as Player.Listener; null }
+            "removeAnalyticsListener" -> { analyticsRemovals++; null }
             "getVideoSize" -> VideoSize(1920, 1080)
             "setVideoTextureView" -> { texture = args!![0] as TextureView; null }
             "clearVideoTextureView" -> { texture = null; null }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Začít dříve</string>
+    <string name="livetv_rec_pad_after">Nahrávat ještě po konci</string>
+    <string name="livetv_rec_pad_default">Výchozí (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d min před</string>
+    <string name="livetv_rec_pad_line_after">+%1$d min po</string>
+    <string name="livetv_rec_pad_hint">Jen pro tento seriál. Změní se i už naplánované díly.</string>
+</resources>

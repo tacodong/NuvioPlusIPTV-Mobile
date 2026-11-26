@@ -33,6 +33,8 @@ object StreamsRepository {
 
     private var activeJob: Job? = null
     private var activeRequestKey: String? = null
+    private val recovery = ActiveStreamRecovery(scope) { ProfileRepository.activeProfileId }
+    private var armRecovery: (() -> Unit)? = null
 
     fun requestToken(
         type: String,
@@ -69,7 +71,9 @@ object StreamsRepository {
         )
     }
 
-    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean) {
+    private fun load(type: String, videoId: String, parentMetaId: String?, season: Int?, episode: Int?, manualSelection: Boolean, forceRefresh: Boolean, recovering: Boolean = false) {
+        val profile = ProfileRepository.activeProfileId
+        val recoveryRevision = StreamSourceRecovery.revision.value
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -86,24 +90,27 @@ object StreamsRepository {
         val requestKey = "$requestToken::pluginsGrouped=${pluginUiState.groupStreamsByRepository}"
         val currentState = _uiState.value
         if (
-            !forceRefresh &&
+            !forceRefresh && !recovering &&
             activeRequestKey == requestKey &&
             (currentState.groups.isNotEmpty() || currentState.emptyStateReason != null || currentState.isAnyLoading)
         ) {
+            armRecovery?.invoke()
             log.d { "Skipping stream reload for unchanged request type=$type id=$videoId" }
             return
         }
 
         activeRequestKey = requestKey
+        recovery.cancel()
+        armRecovery = null
         activeJob?.cancel()
-        _uiState.value = StreamsUiState(requestToken = requestToken)
+        if (!recovering) _uiState.value = StreamsUiState(requestToken = requestToken)
 
         PlayerSettingsRepository.ensureLoaded()
         val playerSettings = PlayerSettingsRepository.uiState.value
         val debridSettings = DebridSettingsRepository.snapshot()
         val streamBadgeRules = StreamBadgeSettingsRepository.snapshot()
         val autoPlayMode = playerSettings.streamAutoPlayMode
-        val isAutoPlayEnabled = !manualSelection && autoPlayMode != StreamAutoPlayMode.MANUAL &&
+        val isAutoPlayEnabled = !recovering && !manualSelection && autoPlayMode != StreamAutoPlayMode.MANUAL &&
             !(autoPlayMode == StreamAutoPlayMode.REGEX_MATCH &&
                 !StreamAutoPlayPolicy.isRegexSelectionConfigured(playerSettings.streamAutoPlayRegex))
 
@@ -123,7 +130,7 @@ object StreamsRepository {
 
         // Enable direct auto-play flow if normal auto-play is enabled,
         // OR if we have a persisted binge group in MANUAL mode
-        val bingeGroupDirectFlow = !manualSelection &&
+        val bingeGroupDirectFlow = !recovering && !manualSelection &&
             persistedBingeGroup != null &&
             autoPlayMode == StreamAutoPlayMode.MANUAL
         val isDirectAutoPlayFlow = isAutoPlayEnabled || bingeGroupDirectFlow
@@ -235,8 +242,17 @@ object StreamsRepository {
                 isLoading = true,
             )
         } + serverSources.map { it.loadingGroup() }, installedAddonOrder, preferredGroupIds)
+            .let { if (recovering) it.recoveringGroups(currentState) else it }
         val isInitiallyLoading = initialGroups.any { it.isLoading }
-        _uiState.value = StreamsUiState(
+        _uiState.value = if (recovering) currentState.copy(
+            groups = initialGroups,
+            isAnyLoading = isInitiallyLoading,
+            emptyStateReason = null,
+            autoPlayStream = null,
+            autoPlayCandidates = emptyList(),
+            isDirectAutoPlayFlow = false,
+            showDirectAutoPlayOverlay = false,
+        ) else StreamsUiState(
             requestToken = requestToken,
             groups = initialGroups,
             activeAddonIds = initialGroups.map { it.addonId }.toSet(),
@@ -427,14 +443,15 @@ object StreamsRepository {
             }
 
             StreamSearchSessions.search(
-                profileId = ProfileRepository.activeProfileId,
+                profileId = profile,
                 targets = searchTargets,
                 forceRefresh = forceRefresh,
             ).collect { completion ->
+                if (activeRequestKey != requestKey || ProfileRepository.activeProfileId != profile) return@collect
                 when (completion) {
                     is StreamLoadCompletion.Addon -> {
                         val result = completion.group
-                        publishAddonGroup(presentStreamGroup(result))
+                        if (!recovering || !completion.reused) publishAddonGroup(presentStreamGroup(result))
                     }
 
                     is StreamLoadCompletion.PluginScraper -> {
@@ -450,7 +467,7 @@ object StreamsRepository {
                                     if (group.addonId != completion.addonId) {
                                         group
                                     } else {
-                                        val mergedStreams = if (completion.streams.isEmpty()) {
+                                        val mergedStreams = if (completion.streams.isEmpty() || (recovering && completion.reused)) {
                                             group.streams
                                         } else {
                                             (group.streams + completion.streams).sortedForGroupedDisplay()
@@ -518,6 +535,13 @@ object StreamsRepository {
             }
             timeoutJob?.cancel()
         }
+        val request = ActiveStreamRecovery.Request(profile, checkNotNull(activeJob), recoveryRevision,
+            hasFailures = { _uiState.value.hasSourceFailures() || StreamSearchSessions.hasFailures(profile, searchTargets) },
+            retry = { load(type, videoId, parentMetaId, season, episode, manualSelection, forceRefresh = false, recovering = true) })
+        armRecovery = {
+            if (activeRequestKey == requestKey && ProfileRepository.activeProfileId == profile) recovery.watch(request)
+        }
+        armRecovery?.invoke()
     }
 
     fun selectFilter(addonId: String?) {
@@ -525,6 +549,8 @@ object StreamsRepository {
     }
 
     fun consumeAutoPlay() {
+        recovery.cancel()
+        armRecovery = null
         activeRequestKey = null
         _uiState.update {
             it.copy(
@@ -558,6 +584,7 @@ object StreamsRepository {
     }
 
     fun cancelLoading() {
+        recovery.cancel()
         PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null
@@ -582,6 +609,8 @@ object StreamsRepository {
     }
 
     fun clear() {
+        recovery.cancel()
+        armRecovery = null
         PluginRepository.setLocalPluginSearchPaused(true)
         activeJob?.cancel()
         activeJob = null

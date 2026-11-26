@@ -225,12 +225,17 @@ data class SeriesRule(
     val seen: List<String> = emptyList(),
     /** Only airings the guide marks as new ("NEW", "(New)", or the guide's own new tag). */
     val newOnly: Boolean = false,
+    /** This series' own extra time before / after each episode, in minutes (-1 = the Recordings setting). */
+    val preMin: Int = -1,
+    val postMin: Int = -1,
 ) {
     val norm: String get() = RecordingRules.normalizeTitle(title)
+    val hasOwnTimes: Boolean get() = preMin >= 0 || postMin >= 0
 
     fun toJson(): JsonObject = buildJsonObject {
         put("id", id); put("channel", channel.toJson()); put("title", title); put("keepLast", keepLast)
         put("seen", buildJsonArray { seen.forEach { add(it) } }); put("newOnly", newOnly)
+        put("preMin", preMin); put("postMin", postMin)
     }
 
     companion object {
@@ -238,7 +243,9 @@ data class SeriesRule(
             o.optString("id"), ChannelSnapshot.fromJson(o.optJSONObject("channel") ?: JsonObject(emptyMap())),
             o.optString("title"), o.optInt("keepLast"),
             o.optJSONArray("seen")?.strings()?.filter { it.isNotBlank() }.orEmpty(),
-            o.optBoolean("newOnly", false)
+            o.optBoolean("newOnly", false),
+            o.optInt("preMin", -1),
+            o.optInt("postMin", -1),
         )
     }
 }

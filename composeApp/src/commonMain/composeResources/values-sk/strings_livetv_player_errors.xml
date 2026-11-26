@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Tento titul sa nepodarilo prehrať.</string>
+    <string name="livetv_error_renew">Poskytovateľ nemohol obnoviť tento stream. Skontrolujte zdroj a nastavenia VPN.</string>
+    <string name="livetv_error_open_channel">Poskytovateľ nemohol otvoriť tento kanál. Skontrolujte zdroj a nastavenia VPN.</string>
+    <string name="livetv_error_connection_lost">Spojenie s týmto živým kanálom sa stratilo. Ťuknite na prehrať alebo vyberte iný kanál.</string>
+    <string name="livetv_error_catchup">Tento program sa nepodarilo prehrať znova. Poskytovateľ ho možno nemá v archíve</string>
+    <string name="livetv_error_catchup_code">Tento program sa nepodarilo prehrať znova. Poskytovateľ ho možno nemá v archíve (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Poskytovateľ stream odmietol (HTTP %1$d): limit účtu, vypršané alebo zablokované</string>
+    <string name="livetv_error_not_found">Stream sa nenašiel (HTTP 404). Skúste v nastaveniach playlistu iný formát streamu</string>
+    <string name="livetv_error_too_many">Príliš veľa pripojení na tomto účte (HTTP %1$d)</string>
+    <string name="livetv_error_server">Chyba servera poskytovateľa (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Poskytovateľ teraz tento kanál neposiela správne</string>
+    <string name="livetv_error_unreachable">Poskytovateľ je teraz nedostupný</string>
+    <string name="livetv_error_decoder">Tento telefón nedokázal prehrať obraz alebo zvuk tohto kanála</string>
+    <string name="livetv_error_drm">Tento kanál je chránený a nepodarilo sa ho odomknúť</string>
+    <string name="livetv_error_not_playing">Tento kanál sa teraz nevysiela</string>
+</resources>

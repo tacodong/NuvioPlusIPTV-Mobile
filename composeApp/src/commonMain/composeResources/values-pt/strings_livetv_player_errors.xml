@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Não foi possível reproduzir este título.</string>
+    <string name="livetv_error_renew">O fornecedor não conseguiu renovar esta transmissão. Verifique a fonte e as definições da VPN.</string>
+    <string name="livetv_error_open_channel">O fornecedor não conseguiu abrir este canal. Verifique a fonte e as definições da VPN.</string>
+    <string name="livetv_error_connection_lost">A ligação a este canal em direto perdeu-se. Toque em reproduzir ou escolha outro canal.</string>
+    <string name="livetv_error_catchup">Não foi possível rever este programa. O fornecedor pode não o ter no catch-up</string>
+    <string name="livetv_error_catchup_code">Não foi possível rever este programa. O fornecedor pode não o ter no catch-up (HTTP %1$d)</string>
+    <string name="livetv_error_refused">O fornecedor recusou a transmissão (HTTP %1$d): limite da conta, expirada ou bloqueada</string>
+    <string name="livetv_error_not_found">Transmissão não encontrada (HTTP 404). Experimente outro formato de transmissão nas definições da lista</string>
+    <string name="livetv_error_too_many">Demasiadas ligações nesta conta (HTTP %1$d)</string>
+    <string name="livetv_error_server">Erro no servidor do fornecedor (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">O fornecedor não está a enviar este canal corretamente neste momento</string>
+    <string name="livetv_error_unreachable">Não é possível contactar o fornecedor neste momento</string>
+    <string name="livetv_error_decoder">Este telemóvel não conseguiu reproduzir a imagem ou o som deste canal</string>
+    <string name="livetv_error_drm">Este canal está protegido e não foi possível desbloqueá-lo</string>
+    <string name="livetv_error_not_playing">Este canal não está a ser transmitido neste momento</string>
+</resources>

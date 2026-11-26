@@ -452,6 +452,8 @@ expect fun PlatformPlayerSurface(
     stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy? = null,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
     streamType: String? = null,
+    /** Current source intent; URLs remembered from an earlier live launch are insufficient. */
+    continuousLive: Boolean = false,
     useYoutubeChunkedPlayback: Boolean = false,
     modifier: Modifier = Modifier,
     playWhenReady: Boolean = true,

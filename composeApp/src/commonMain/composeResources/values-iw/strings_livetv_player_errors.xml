@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">לא ניתן היה להפעיל את הכותר הזה.</string>
+    <string name="livetv_error_renew">הספק לא הצליח לחדש את השידור הזה. בדקו את המקור ואת הגדרות ה-VPN.</string>
+    <string name="livetv_error_open_channel">הספק לא הצליח לפתוח את הערוץ הזה. בדקו את המקור ואת הגדרות ה-VPN.</string>
+    <string name="livetv_error_connection_lost">החיבור לערוץ החי הזה אבד. הקישו על הפעלה או בחרו ערוץ אחר.</string>
+    <string name="livetv_error_catchup">לא ניתן היה לצפות שוב בתוכנית הזו. ייתכן שהיא לא נמצאת בארכיון של הספק</string>
+    <string name="livetv_error_catchup_code">לא ניתן היה לצפות שוב בתוכנית הזו. ייתכן שהיא לא נמצאת בארכיון של הספק (HTTP %1$d)</string>
+    <string name="livetv_error_refused">הספק דחה את השידור (HTTP %1$d): מגבלת חשבון, פג תוקף או חסום</string>
+    <string name="livetv_error_not_found">השידור לא נמצא (HTTP 404). נסו פורמט שידור אחר בהגדרות רשימת ההשמעה</string>
+    <string name="livetv_error_too_many">יותר מדי חיבורים בחשבון הזה (HTTP %1$d)</string>
+    <string name="livetv_error_server">שגיאת שרת אצל הספק (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">הספק לא שולח את הערוץ הזה כראוי כרגע</string>
+    <string name="livetv_error_unreachable">לא ניתן להתחבר לספק כרגע</string>
+    <string name="livetv_error_decoder">הטלפון הזה לא הצליח להפעיל את התמונה או הצליל של הערוץ</string>
+    <string name="livetv_error_drm">הערוץ הזה מוגן ולא ניתן היה לפתוח אותו</string>
+    <string name="livetv_error_not_playing">הערוץ הזה לא משדר כרגע</string>
+</resources>

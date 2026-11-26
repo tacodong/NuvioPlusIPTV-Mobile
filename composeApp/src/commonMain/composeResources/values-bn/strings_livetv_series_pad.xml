@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">আগে শুরু করুন</string>
+    <string name="livetv_rec_pad_after">পরে রেকর্ডিং চালিয়ে যান</string>
+    <string name="livetv_rec_pad_default">ডিফল্ট (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d মিনিট আগে</string>
+    <string name="livetv_rec_pad_line_after">+%1$d মিনিট পরে</string>
+    <string name="livetv_rec_pad_hint">শুধু এই সিরিজের জন্য। আগে থেকে সেট করা পর্বগুলিও বদলাবে।</string>
+</resources>

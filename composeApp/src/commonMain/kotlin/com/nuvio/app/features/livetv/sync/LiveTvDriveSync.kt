@@ -6,6 +6,7 @@ import com.nuvio.app.features.livetv.data.LiveTvDirs
 import com.nuvio.app.features.livetv.data.LiveTvFiles
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
 import com.nuvio.app.features.livetv.data.LiveTvRepository
+import com.nuvio.app.features.livetv.data.UsenetBackupCompatibility
 import com.nuvio.app.features.livetv.data.asString
 import com.nuvio.app.features.livetv.data.exportForSync
 import com.nuvio.app.features.livetv.data.liveTvJson
@@ -407,19 +408,27 @@ internal object LiveTvDriveSync {
         if (base == null) {
             val (first, second) = if (localWinsWithoutBase) local to remote else remote to local
             val out = first.toMutableMap()
+            // A device that lacks TV source settings (it can't open its copy, or never had them)
+            // must not erase the copy the other side holds on the first combine.
+            second.forEach { (key, value) -> if (UsenetBackupCompatibility.isKey(key) && key !in out) out[key] = value }
             for (k in SOURCE_LISTS) {
                 val a = first.optJSONObject(k)
                 val b = second.optJSONObject(k)
-                if (b == null) continue
-                if (a == null) { out[k] = b; continue }
-                runCatching { unionSources(a.optString("v"), b.optString("v"), removedHere) }.getOrNull()
-                    ?.let { out[k] = withValue(a, it) }
+                val shell = a ?: b ?: continue
+                runCatching { unionSources(a?.optString("v") ?: "[]", b?.optString("v") ?: "[]", removedHere, local.optJSONObject(k)?.optString("v")) }.getOrNull()
+                    ?.let { out[k] = withValue(shell, it) }
             }
             return JsonObject(out)
         }
         val out = remote.toMutableMap()
         val keys = (local.keys + base.keys).toSet()
         keys.forEach { k ->
+            if (UsenetBackupCompatibility.isKey(k)) {
+                // As on the TV: absence alone is never a deletion (the phone only carries these, and
+                // may have lost the key to its copy). An explicit empty configuration still resets them.
+                if (!local.containsKey(k)) return@forEach
+                if (!remote.containsKey(k)) { out[k] = local.getValue(k); return@forEach }
+            }
             val l = local[k]?.toString()
             val b = base[k]?.toString()
             if (l != b) {
@@ -579,19 +588,33 @@ internal object LiveTvDriveSync {
         return out
     }
 
-    private fun unionSources(firstRaw: String, secondRaw: String, removedHere: Set<String>): String {
+    private fun unionSources(firstRaw: String, secondRaw: String, removedHere: Set<String>, localRaw: String?): String {
         val first = readSources(firstRaw)
-        val result = ArrayList<JsonElement>(first.values)
+        val presentHere = readSources(localRaw).keys
+        val result = ArrayList<JsonElement>()
+        // A missing baseline must not resurrect an explicit removal when the remote side
+        // wins settings. A source already re-added locally still wins its stale tombstone.
+        first.forEach { (id, source) -> if (id !in removedHere || id in presentHere) result += source }
         for ((id, o) in readSources(secondRaw)) {
-            if (id !in first && id !in removedHere) result += o
+            if (id !in first && (id !in removedHere || id in presentHere)) result += o
         }
         return JsonArray(result).toString()
     }
 
-    private fun readBase(): JsonObject? = LiveTvFiles.readSmall(LiveTvDirs.STATE, BASE_FILE)?.let { runCatching { parseObject(it) }.getOrNull() }
+    private fun readBase(): JsonObject? {
+        if (!store.getBoolean(KEY_BASE_VALID, true)) return null
+        return runCatching {
+            LiveTvFiles.readSmall(LiveTvDirs.STATE, BASE_FILE)?.let { parseObject(it) }
+        }.getOrNull()
+    }
 
     private fun writeBase(data: JsonObject) {
-        LiveTvFiles.writeSmall(LiveTvDirs.STATE, BASE_FILE, data.toString())
+        // A failed seal/write must not leave an older cache eligible for the next merge,
+        // even if storage also refuses its deletion. Existing caches remain valid by default.
+        store.putBoolean(KEY_BASE_VALID, false)
+        val written = runCatching { LiveTvFiles.writeSmall(LiveTvDirs.STATE, BASE_FILE, data.toString()) }.isSuccess
+        store.putBoolean(KEY_BASE_VALID, written)
+        if (!written) runCatching { LiveTvFiles.delete(LiveTvDirs.STATE, BASE_FILE) }
     }
 
     // ------------------------------------------------------------------ Google plumbing
@@ -687,6 +710,7 @@ internal object LiveTvDriveSync {
     private const val KEY_AUTO = "auto_sync"
     private const val KEY_FILE_ID = "file_id"
     private const val KEY_LAST_HASH = "last_hash"
+    private const val KEY_BASE_VALID = "base_valid"
     private const val KEY_LAST_SYNC = "last_sync"
     private const val KEY_APPLIED_AT = "applied_at"
     private const val KEY_LOCAL_CHANGED_AT = "local_changed_at"

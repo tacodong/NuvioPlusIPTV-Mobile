@@ -78,6 +78,7 @@ import nuvio.composeapp.generated.resources.livetv_watch_from_start
 import org.jetbrains.compose.resources.stringResource
 import com.nuvio.app.features.livetv.multiview.MultiviewQueue
 import com.nuvio.app.features.livetv.multiview.isMultiviewSupported
+import nuvio.composeapp.generated.resources.livetv_ui_add_multiview
 
 /** Long-press options for a channel. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,7 +124,7 @@ internal fun ChannelActionsSheet(
             }
             if (isMultiviewSupported) {
                 NuvioBottomSheetActionRow(
-                    title = "Add to Multiview",
+                    title = stringResource(Res.string.livetv_ui_add_multiview),
                     icon = Icons.Filled.GridView,
                     onClick = { MultiviewQueue.addAndAnnounce(channel.key); close() },
                 )

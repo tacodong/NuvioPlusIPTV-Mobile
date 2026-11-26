@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">This title could not be played.</string>
+    <string name="livetv_error_renew">The provider could not renew this stream. Check the source and VPN settings.</string>
+    <string name="livetv_error_open_channel">The provider could not open this channel. Check the source and VPN settings.</string>
+    <string name="livetv_error_connection_lost">Lost the connection to this live channel. Select play or choose another channel.</string>
+    <string name="livetv_error_catchup">This show couldn\'t be replayed. The provider may not have it in its catch-up</string>
+    <string name="livetv_error_catchup_code">This show couldn\'t be replayed. The provider may not have it in its catch-up (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Provider refused the stream (HTTP %1$d): account limit, expired, or blocked</string>
+    <string name="livetv_error_not_found">Stream not found (HTTP 404). Try another stream format in the playlist\'s settings</string>
+    <string name="livetv_error_too_many">Too many connections on this account (HTTP %1$d)</string>
+    <string name="livetv_error_server">Provider\'s server error (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">The provider isn\'t sending this channel properly right now</string>
+    <string name="livetv_error_unreachable">Can\'t reach the provider right now</string>
+    <string name="livetv_error_decoder">This phone couldn\'t play this channel\'s picture or sound</string>
+    <string name="livetv_error_drm">This channel is protected and couldn\'t be unlocked</string>
+    <string name="livetv_error_not_playing">This channel isn\'t playing right now</string>
+</resources>

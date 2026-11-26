@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Bu içerik oynatılamadı.</string>
+    <string name="livetv_error_renew">Sağlayıcı bu yayını yenileyemedi. Kaynağı ve VPN ayarlarını kontrol edin.</string>
+    <string name="livetv_error_open_channel">Sağlayıcı bu kanalı açamadı. Kaynağı ve VPN ayarlarını kontrol edin.</string>
+    <string name="livetv_error_connection_lost">Bu canlı kanalla bağlantı koptu. Oynat\'a dokunun veya başka bir kanal seçin.</string>
+    <string name="livetv_error_catchup">Bu program tekrar izlenemedi. Sağlayıcının arşivinde olmayabilir</string>
+    <string name="livetv_error_catchup_code">Bu program tekrar izlenemedi. Sağlayıcının arşivinde olmayabilir (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Sağlayıcı yayını reddetti (HTTP %1$d): hesap sınırı, süresi dolmuş veya engellenmiş</string>
+    <string name="livetv_error_not_found">Yayın bulunamadı (HTTP 404). Çalma listesi ayarlarında başka bir yayın biçimi deneyin</string>
+    <string name="livetv_error_too_many">Bu hesapta çok fazla bağlantı var (HTTP %1$d)</string>
+    <string name="livetv_error_server">Sağlayıcının sunucu hatası (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Sağlayıcı bu kanalı şu anda düzgün göndermiyor</string>
+    <string name="livetv_error_unreachable">Sağlayıcıya şu anda ulaşılamıyor</string>
+    <string name="livetv_error_decoder">Bu telefon bu kanalın görüntüsünü veya sesini oynatamadı</string>
+    <string name="livetv_error_drm">Bu kanal korumalı ve kilidi açılamadı</string>
+    <string name="livetv_error_not_playing">Bu kanal şu anda yayında değil</string>
+</resources>

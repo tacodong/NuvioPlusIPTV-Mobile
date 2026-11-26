@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Pornește mai devreme</string>
+    <string name="livetv_rec_pad_after">Continuă înregistrarea după</string>
+    <string name="livetv_rec_pad_default">Implicit (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d min înainte</string>
+    <string name="livetv_rec_pad_line_after">+%1$d min după</string>
+    <string name="livetv_rec_pad_hint">Doar pentru acest serial. Se schimbă și episoadele deja programate.</string>
+</resources>

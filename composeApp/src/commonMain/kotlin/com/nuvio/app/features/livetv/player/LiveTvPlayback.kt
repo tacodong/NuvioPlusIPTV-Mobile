@@ -21,6 +21,9 @@ import com.nuvio.stalker.StalkerError
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.withTimeoutOrNull
+import nuvio.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
 
 /** One stream the player is told to open: the link, its headers and what kind of stream it is. */
 internal data class LivePlayRequest(
@@ -216,6 +219,9 @@ internal object LiveTvPlayback {
 
     fun noteRecording(url: String) { synchronized(lock) { recordings += url } }
 
+    /** A recording handed to the player (read from the same storage as the video). */
+    fun isRecording(url: String): Boolean = synchronized(lock) { url in recordings }
+
     /**
      * Whether the player should look for closed captions hidden inside the video: live channels,
      * catch-up and recordings (not Sports highlight clips).
@@ -232,6 +238,15 @@ internal object LiveTvPlayback {
     /** An official highlight or condensed game from Sports (a clip: when it ends, the player closes). */
     fun isSportsClip(url: String): Boolean =
         synchronized(lock) { playing[url] }?.sourceId == com.nuvio.app.features.livetv.sports.SportsVideos.SOURCE_ID
+
+    /** Only actual continuous channels: replays, saved recordings and highlight clips end normally. */
+    fun isContinuousLive(providerAddonId: String?, url: String): Boolean = owns(providerAddonId) && synchronized(lock) {
+        val channel = playing[url]
+        channel != null && url !in catchups && url !in recordings &&
+            channel.sourceId != com.nuvio.app.features.livetv.sports.SportsVideos.SOURCE_ID &&
+            // Add-on channels also represent completed-game replays without catch-up metadata.
+            channel.sourceId != com.nuvio.app.features.livetv.sports.SportsAddonSource.SOURCE_ID
+    }
 
     // ---------------------------------------------------------------- catch-up
 
@@ -485,33 +500,39 @@ internal object LiveTvPlayback {
         }
     }
 
-    /** A plain-English reason for the player's error text, the TV app's wording where it fits. */
-    fun describeError(message: String?, url: String? = null): String {
+    /**
+     * A plain reason for the player's error text, the TV app's wording where it fits. On screen in the phone's language; the Start-Up Report keeps English so it reads the same for everyone.
+     */
+    suspend fun describeError(message: String?, url: String? = null): String {
         val m = message.orEmpty()
         val code = Regex("""\b(4\d\d|5\d\d|884)\b""").find(m)?.value?.toIntOrNull()
         val catchup = url != null && synchronized(lock) { catchups.containsKey(url) }
         val name = url?.let { synchronized(lock) { playing[it] } }?.name
-        return describe(m, code, catchup).also { shown ->
-            // The player's own text, without links (they hold the login).
-            val raw = m.replace(Regex("""\w+://\S+"""), "<link>").take(160)
-            com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Player error on ${name ?: "a Live TV stream"}: $shown" + if (raw.isNotBlank()) " ($raw)" else "")
-        }
+        val reason = describe(m, code, catchup)
+        // The player's own text, without links (they hold the login).
+        val raw = m.replace(Regex("""\w+://\S+"""), "<link>").take(160)
+        com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Player error on ${name ?: "a Live TV stream"}: ${reason.english}" + if (raw.isNotBlank()) " ($raw)" else "")
+        return runCatching { if (reason.code != null) getString(reason.text, reason.code) else getString(reason.text) }
+            .getOrDefault(reason.english)
     }
 
-    private fun describe(m: String, code: Int?, catchup: Boolean): String {
+    private class ErrorReason(val english: String, val text: StringResource, val code: Int? = null)
+
+    private fun describe(m: String, code: Int?, catchup: Boolean): ErrorReason {
         return when {
-            catchup -> "This show couldn't be replayed. The provider may not have it in its catch-up" + (code?.let { " (HTTP $it)" } ?: "")
-            code == 401 || code == 403 -> "Provider refused the stream (HTTP $code): account limit, expired, or blocked"
-            code == 404 -> "Stream not found (HTTP 404). Try another stream format in the playlist's settings"
-            code == 429 || code == 456 || code == 458 || code == 509 -> "Too many connections on this account (HTTP $code)"
-            code != null && code >= 500 -> "Provider's server error (HTTP $code)"
+            catchup -> if (code != null) ErrorReason("This show couldn't be replayed. The provider may not have it in its catch-up (HTTP $code)", Res.string.livetv_error_catchup_code, code)
+                else ErrorReason("This show couldn't be replayed. The provider may not have it in its catch-up", Res.string.livetv_error_catchup)
+            code == 401 || code == 403 -> ErrorReason("Provider refused the stream (HTTP $code): account limit, expired, or blocked", Res.string.livetv_error_refused, code)
+            code == 404 -> ErrorReason("Stream not found (HTTP 404). Try another stream format in the playlist's settings", Res.string.livetv_error_not_found)
+            code == 429 || code == 456 || code == 458 || code == 509 -> ErrorReason("Too many connections on this account (HTTP $code)", Res.string.livetv_error_too_many, code)
+            code != null && code >= 500 -> ErrorReason("Provider's server error (HTTP $code)", Res.string.livetv_error_server, code)
             m.contains("malformed", true) || m.contains("parsing", true) || m.contains("manifest", true) ->
-                "The provider isn't sending this channel properly right now"
+                ErrorReason("The provider isn't sending this channel properly right now", Res.string.livetv_error_bad_stream)
             m.contains("timeout", true) || m.contains("Unable to connect", true) || m.contains("network", true) ->
-                "Can't reach the provider right now"
-            m.contains("decoder", true) || m.contains("codec", true) -> "This phone couldn't play this channel's picture or sound"
-            m.contains("drm", true) || m.contains("license", true) -> "This channel is protected and couldn't be unlocked"
-            else -> "This channel isn't playing right now"
+                ErrorReason("Can't reach the provider right now", Res.string.livetv_error_unreachable)
+            m.contains("decoder", true) || m.contains("codec", true) -> ErrorReason("This phone couldn't play this channel's picture or sound", Res.string.livetv_error_decoder)
+            m.contains("drm", true) || m.contains("license", true) -> ErrorReason("This channel is protected and couldn't be unlocked", Res.string.livetv_error_drm)
+            else -> ErrorReason("This channel isn't playing right now", Res.string.livetv_error_not_playing)
         }
     }
 

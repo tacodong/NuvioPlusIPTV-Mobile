@@ -42,6 +42,17 @@ import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.action_cancel
 import nuvio.composeapp.generated.resources.action_save
 import org.jetbrains.compose.resources.stringResource
+import nuvio.composeapp.generated.resources.livetv_ui_channels_n
+import nuvio.composeapp.generated.resources.livetv_ui_clear
+import nuvio.composeapp.generated.resources.livetv_ui_favs_added
+import nuvio.composeapp.generated.resources.livetv_ui_favs_in_group
+import nuvio.composeapp.generated.resources.livetv_ui_favs_removed
+import nuvio.composeapp.generated.resources.livetv_ui_n_picked
+import nuvio.composeapp.generated.resources.livetv_ui_pick_favorites
+import nuvio.composeapp.generated.resources.livetv_ui_select_all
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.getPluralString
 
 /**
  * Pick favorites (several at once): a group's channels with a star on each, Select all / Clear,
@@ -68,20 +79,20 @@ internal fun PickFavoritesSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Pick favorites", style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.livetv_ui_pick_favorites), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary, fontWeight = FontWeight.SemiBold)
                 Text(
-                    groupTitle + " · " + channels.size + (if (channels.size == 1) " channel" else " channels"),
+                    groupTitle + " · " + pluralStringResource(Res.plurals.livetv_ui_channels_n, channels.size, channels.size),
                     style = MaterialTheme.typography.bodySmall, color = tokens.colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("${picked.size} picked", style = MaterialTheme.typography.labelLarge, color = tokens.colors.accent)
+            Text(stringResource(Res.string.livetv_ui_n_picked, picked.size), style = MaterialTheme.typography.labelLarge, color = tokens.colors.accent)
         }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = NuvioTokens.Space.s16, vertical = NuvioTokens.Space.s4),
             horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s8),
         ) {
-            DialogButton(text = "Select all", style = DialogButtonStyle.Secondary, onClick = { picked = channels.map { it.key }.toSet() })
-            DialogButton(text = "Clear", style = DialogButtonStyle.Secondary, onClick = { picked = emptySet() })
+            DialogButton(text = stringResource(Res.string.livetv_ui_select_all), style = DialogButtonStyle.Secondary, onClick = { picked = channels.map { it.key }.toSet() })
+            DialogButton(text = stringResource(Res.string.livetv_ui_clear), style = DialogButtonStyle.Secondary, onClick = { picked = emptySet() })
         }
         NuvioBottomSheetDivider()
         LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)) {
@@ -116,13 +127,15 @@ internal fun PickFavoritesSheet(
                     val before = channels.count { it.key in favoriteKeys }
                     val after = picked.size
                     LiveTvPreferences.setFavoritesIn(channels.map { it.key }, picked)
-                    NuvioToastController.show(
-                        when {
-                            after == before -> "$after ${if (after == 1) "favorite" else "favorites"} in this group"
-                            after > before -> "Added ${after - before} to Favorites"
-                            else -> "Removed ${before - after} from Favorites"
-                        },
-                    )
+                    scope.launch {
+                        NuvioToastController.show(
+                            when {
+                                after == before -> getPluralString(Res.plurals.livetv_ui_favs_in_group, after, after)
+                                after > before -> getString(Res.string.livetv_ui_favs_added, after - before)
+                                else -> getString(Res.string.livetv_ui_favs_removed, before - after)
+                            },
+                        )
+                    }
                     close()
                 },
             )

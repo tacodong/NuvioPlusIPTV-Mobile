@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">تعذر تشغيل هذا العنوان.</string>
+    <string name="livetv_error_renew">تعذر على المزود تجديد هذا البث. تحقق من المصدر وإعدادات VPN.</string>
+    <string name="livetv_error_open_channel">تعذر على المزود فتح هذه القناة. تحقق من المصدر وإعدادات VPN.</string>
+    <string name="livetv_error_connection_lost">انقطع الاتصال بهذه القناة المباشرة. اضغط تشغيل أو اختر قناة أخرى.</string>
+    <string name="livetv_error_catchup">تعذرت إعادة مشاهدة هذا البرنامج. قد لا يتوفر في أرشيف المزود</string>
+    <string name="livetv_error_catchup_code">تعذرت إعادة مشاهدة هذا البرنامج. قد لا يتوفر في أرشيف المزود (HTTP %1$d)</string>
+    <string name="livetv_error_refused">رفض المزود البث (HTTP %1$d): حد الحساب، أو انتهت صلاحيته، أو محظور</string>
+    <string name="livetv_error_not_found">لم يتم العثور على البث (HTTP 404). جرّب تنسيق بث آخر في إعدادات قائمة التشغيل</string>
+    <string name="livetv_error_too_many">اتصالات كثيرة جدًا على هذا الحساب (HTTP %1$d)</string>
+    <string name="livetv_error_server">خطأ في خادم المزود (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">المزود لا يرسل هذه القناة بشكل صحيح الآن</string>
+    <string name="livetv_error_unreachable">لا يمكن الوصول إلى المزود الآن</string>
+    <string name="livetv_error_decoder">لم يتمكن هذا الهاتف من تشغيل صورة هذه القناة أو صوتها</string>
+    <string name="livetv_error_drm">هذه القناة محمية وتعذر فتحها</string>
+    <string name="livetv_error_not_playing">هذه القناة لا تبث الآن</string>
+</resources>

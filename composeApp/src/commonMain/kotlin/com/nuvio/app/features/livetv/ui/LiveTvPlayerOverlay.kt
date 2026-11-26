@@ -1,5 +1,7 @@
 package com.nuvio.app.features.livetv.ui
 
+import com.nuvio.app.features.livetv.model.BackupOrder
+import com.nuvio.app.features.livetv.model.BackupSection
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -85,6 +87,14 @@ import nuvio.composeapp.generated.resources.action_close
 import nuvio.composeapp.generated.resources.livetv_player_channels
 import nuvio.composeapp.generated.resources.livetv_player_guide
 import org.jetbrains.compose.resources.stringResource
+import nuvio.composeapp.generated.resources.livetv_ui_addon_stream
+import nuvio.composeapp.generated.resources.livetv_ui_also_showing
+import nuvio.composeapp.generated.resources.livetv_ui_backups
+import nuvio.composeapp.generated.resources.livetv_ui_multiview
+import nuvio.composeapp.generated.resources.livetv_backups_addon_tag
+import nuvio.composeapp.generated.resources.livetv_backups_quality_other
+import nuvio.composeapp.generated.resources.livetv_backups_same_channel
+import nuvio.composeapp.generated.resources.livetv_ui_this_game
 
 private const val HOUR_MS = 60L * 60L * 1000L
 private const val SLOT_MS = 30L * 60L * 1000L
@@ -163,6 +173,15 @@ internal fun LiveTvPlayerOverlay(
             .filter { it.key !in taken && !lockedAway(it, user, liveSettings, unlocked) }
         PlayerBackups(game?.event?.id, game?.event?.title, gameRows, copies)
     }
+    // Under headings (by playlist / add-on, or by quality) in the order chosen in Settings ›
+    // Live TV › Watching › Backups & Game Channels; headings only when there are two or more.
+    val otherQuality = stringResource(Res.string.livetv_backups_quality_other)
+    val playlistNames = remember(playlists) { playlists.associate { it.id to it.name } }
+    val backupSections = remember(backups, liveSettings.backupGroupBy, liveSettings.backupSourceOrder, liveSettings.backupQualityOrder, playlistNames, otherQuality) {
+        val all = (backups.gameChannels.map { it.first } + backups.copies).distinctBy { it.key }
+        val sections = BackupOrder.organize(all, liveSettings, playlistNames) { q -> BackupOrder.qualityHeading(q, otherQuality) }
+        if (sections.size < 2) listOf(BackupSection("all", "", false, sections.firstOrNull()?.channels ?: all)) else sections
+    }
     // While a game plays: ask your sports addons for its streams now and then (the repository
     // limits how often), so they turn up in the list.
     LaunchedEffect(backups.eventId, enabled) {
@@ -230,7 +249,7 @@ internal fun LiveTvPlayerOverlay(
                 horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
             ) {
                 Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = Color.White, modifier = Modifier.size(NuvioTokens.Icon.md))
-                Text("Backups", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                Text(stringResource(Res.string.livetv_ui_backups), style = MaterialTheme.typography.labelLarge, color = Color.White)
             }
             if (onOpenMultiview != null) Row(
                 modifier = Modifier.clip(RoundedCornerShape(NuvioTokens.Radius.full))
@@ -242,7 +261,7 @@ internal fun LiveTvPlayerOverlay(
                 horizontalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
             ) {
                 Icon(Icons.Filled.GridView, contentDescription = null, tint = Color.White, modifier = Modifier.size(NuvioTokens.Icon.md))
-                Text("Multiview", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                Text(stringResource(Res.string.livetv_ui_multiview), style = MaterialTheme.typography.labelLarge, color = Color.White)
             }
             Row(
                 modifier = Modifier
@@ -296,7 +315,7 @@ internal fun LiveTvPlayerOverlay(
                     .padding(top = NuvioTokens.Space.s8),
             ) {
                 if (backupsView) {
-                    BackupsPanel(backups, currentKey, onClose = { panelOpen = false }) { c ->
+                    BackupsPanel(backups, backupSections, currentKey, onClose = { panelOpen = false }) { c ->
                         onSwitch(c, if (c.sourceId == SportsAddonSource.SOURCE_ID) backups.gameTitle else nowTitle(c))
                     }
                 } else {
@@ -484,7 +503,18 @@ private fun MiniGuide(channels: List<LiveChannel>, currentKey: String?, now: Lon
         }
     }
     detail?.let { (c, p) ->
-        ProgramDetailsDialog(c, p, now, onDismiss = { detail = null }, onPlay = { detail = null; onSwitch(c, p.title) }, onReplay = null)
+        val openTitle = com.nuvio.app.features.livetv.multiview.LocalOpenNuvioTitle.current
+        val onOpenTitle: ((String, Int, String) -> Unit)? = if (openTitle == null) null else { type, id, name ->
+            detail = null
+            openTitle(type, id, name)
+        }
+        ProgramDetailsDialog(
+            channel = c, program = p, now = now,
+            onDismiss = { detail = null },
+            onPlay = { detail = null; onSwitch(c, p.title) },
+            onReplay = null,
+            onOpenTitle = onOpenTitle,
+        )
     }
 }
 
@@ -568,14 +598,31 @@ private fun lockedAway(
 }
 
 @Composable
-private fun BackupsPanel(backups: PlayerBackups, currentKey: String?, onClose: () -> Unit, onPick: (LiveChannel) -> Unit) {
+private fun BackupsPanel(
+    backups: PlayerBackups,
+    sections: List<BackupSection>,
+    currentKey: String?,
+    onClose: () -> Unit,
+    onPick: (LiveChannel) -> Unit,
+) {
     val tokens = MaterialTheme.nuvio
+    // Add-on streams' line ("Add-on stream · HighFly"), and the playing channel's own copies
+    // ("Same channel") when the game's other channels share the list.
+    val addonLines = remember(backups) { backups.gameChannels.filter { it.second != null }.mapTo(HashSet()) { it.first.key } }
+    val sameChannel = remember(backups) { if (backups.gameChannels.isEmpty()) emptySet() else backups.copies.mapTo(HashSet()) { it.key } }
+    val gameKeys = remember(backups) { backups.gameChannels.mapTo(HashSet()) { it.first.key } }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(start = NuvioTokens.Space.s14, end = NuvioTokens.Space.s8, bottom = NuvioTokens.Space.s6),
     ) {
-        Text("Backups", style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary,
-            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(stringResource(Res.string.livetv_ui_backups), style = MaterialTheme.typography.titleMedium, color = tokens.colors.textPrimary,
+                fontWeight = FontWeight.SemiBold)
+            if (backups.gameChannels.isNotEmpty()) {
+                Text(stringResource(Res.string.livetv_ui_also_showing, backups.gameTitle ?: stringResource(Res.string.livetv_ui_this_game)),
+                    style = MaterialTheme.typography.bodySmall, color = tokens.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         Box(
             modifier = Modifier.size(34.dp).clip(CircleShape).background(tokens.colors.surface).clickable(onClick = onClose),
             contentAlignment = Alignment.Center,
@@ -583,23 +630,26 @@ private fun BackupsPanel(backups: PlayerBackups, currentKey: String?, onClose: (
             Icon(Icons.Filled.Close, contentDescription = stringResource(Res.string.action_close), tint = tokens.colors.textPrimary, modifier = Modifier.size(NuvioTokens.Icon.sm))
         }
     }
+    val addonTag = stringResource(Res.string.livetv_backups_addon_tag)
+    val sameTag = stringResource(Res.string.livetv_backups_same_channel)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = NuvioTokens.Space.s10, end = NuvioTokens.Space.s10, bottom = NuvioTokens.Space.s12),
         verticalArrangement = Arrangement.spacedBy(NuvioTokens.Space.s6),
     ) {
-        if (backups.gameChannels.isNotEmpty()) {
-            item(key = "h:game") { BackupsHeading("Also showing " + (backups.gameTitle ?: "this game")) }
-            items(backups.gameChannels, key = { "g:" + it.first.key }) { (c, addonLine) ->
-                BackupRow(c, subtitle = if (addonLine != null) "Add-on stream · " + c.sourceName else c.group,
-                    playing = c.key == currentKey) { onPick(c) }
+        for (section in sections) {
+            if (section.title.isNotBlank()) item(key = "h:" + section.key) {
+                val parts = listOfNotNull(section.title, section.channels.size.toString(), addonTag.takeIf { section.addon })
+                BackupsHeading(parts.joinToString(" · "))
             }
-        }
-        if (backups.copies.isNotEmpty()) {
-            item(key = "h:copies") { BackupsHeading("Same channel, other streams") }
-            items(backups.copies, key = { "c:" + it.key }) { c ->
-                BackupRow(c, subtitle = listOf(c.sourceName, c.group).filter { it.isNotBlank() }.distinct().joinToString(" · "),
-                    playing = c.key == currentKey) { onPick(c) }
+            items(section.channels, key = { section.key + "|" + it.key }) { c ->
+                val subtitle = when {
+                    c.key in addonLines -> stringResource(Res.string.livetv_ui_addon_stream, c.sourceName)
+                    c.key in gameKeys -> c.group
+                    else -> listOfNotNull(sameTag.takeIf { c.key in sameChannel }, c.sourceName, c.group)
+                        .filter { it.isNotBlank() }.distinct().joinToString(" · ")
+                }
+                BackupRow(c, subtitle = subtitle, playing = c.key == currentKey) { onPick(c) }
             }
         }
     }

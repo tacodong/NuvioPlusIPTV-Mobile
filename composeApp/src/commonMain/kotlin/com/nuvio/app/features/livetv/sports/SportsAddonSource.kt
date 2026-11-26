@@ -59,6 +59,18 @@ internal object SportsAddonSource {
     private class Cached(val at: Long, val list: List<AddonGame>)
 
     private val cache = HashMap<String, Cached>()
+
+    /**
+     * Your switched-on add-ons that can give live game streams (the ones [find] gets streams from),
+     * by name: the playlist / add-on order in Backups & Game Channels.
+     */
+    fun liveStreamAddonNames(): List<String> =
+        AddonRepository.uiState.value.addons.filter { it.isActive }.distinctBy { it.manifestUrl }
+            .filter { a ->
+                val cats = a.manifest?.catalogs.orEmpty()
+                cats.any { isLiveCatalog(it) } || cats.any { it.type.equals("sport", true) && !isVodCatalog(it) && !needsGenre(it) }
+            }
+            .map { it.displayTitle }.distinct()
     private val cacheLock = Mutex()
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 

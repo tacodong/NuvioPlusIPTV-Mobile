@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Eerder starten</string>
+    <string name="livetv_rec_pad_after">Na afloop doorgaan</string>
+    <string name="livetv_rec_pad_default">Standaard (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d min ervoor</string>
+    <string name="livetv_rec_pad_line_after">+%1$d min erna</string>
+    <string name="livetv_rec_pad_hint">Alleen voor deze serie. Al geplande afleveringen veranderen ook mee.</string>
+</resources>

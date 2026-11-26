@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Начинать раньше</string>
+    <string name="livetv_rec_pad_after">Продолжать запись после</string>
+    <string name="livetv_rec_pad_default">По умолчанию (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d мин до</string>
+    <string name="livetv_rec_pad_line_after">+%1$d мин после</string>
+    <string name="livetv_rec_pad_hint">Только для этого сериала. Уже запланированные серии тоже изменятся.</string>
+</resources>

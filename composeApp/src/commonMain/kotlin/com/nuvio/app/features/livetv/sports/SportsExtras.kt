@@ -104,7 +104,7 @@ internal object SportsExtras {
             fun add(o: JSONObject) {
                 val name = o.s("name") ?: return
                 val value = o.s("displayValue") ?: return
-                out.putIfAbsent(name, (o.s("label") ?: o.s("displayName") ?: name) to value)
+                out.getOrPut(name) { (o.s("label") ?: o.s("displayName") ?: name) to value }
             }
             t.optJSONArray("statistics").objs().forEach { o ->
                 val inner = o.optJSONArray("stats")
@@ -218,9 +218,9 @@ internal object SportsExtras {
         // either side of this game's teams (in table order), within [limit] rows.
         fun cut(rows: List<TableRow>, limit: Int): List<TableRow> {
             if (rows.size <= limit) return rows
-            val keep = sortedSetOf(0, 1, 2)
+            val keep = mutableSetOf(0, 1, 2)
             rows.forEachIndexed { i, r -> if (r.mine) { keep += i - 1; keep += i; keep += i + 1 } }
-            return keep.filter { it in rows.indices }.map { rows[it] }.take(limit)
+            return keep.filter { it in rows.indices }.sorted().map { rows[it] }.take(limit)
         }
         val limit = if (mineGroups.size > 1) 5 else 8
         val slice = mineGroups.flatMapIndexed { gi, g ->

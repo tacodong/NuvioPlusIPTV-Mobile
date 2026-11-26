@@ -78,6 +78,7 @@ import com.nuvio.app.features.livetv.record.NetworkSearchState
 import com.nuvio.app.features.livetv.record.SmbShare
 import com.nuvio.app.features.livetv.record.NetworkLibrary
 import com.nuvio.app.features.livetv.record.NetworkLibraryPlatform
+import com.nuvio.app.features.livetv.record.NetworkUploads
 import com.nuvio.app.features.livetv.record.RecordingPlatform
 import com.nuvio.app.features.livetv.record.RecordingRules
 import com.nuvio.app.features.livetv.sports.SportsRepository
@@ -163,6 +164,8 @@ import nuvio.composeapp.generated.resources.livetv_show_on_profiles_all
 import nuvio.composeapp.generated.resources.livetv_show_on_profiles_count
 import nuvio.composeapp.generated.resources.livetv_show_on_profiles_description
 import nuvio.composeapp.generated.resources.livetv_show_on_profiles_value
+import nuvio.composeapp.generated.resources.livetv_show_on_this_profile
+import nuvio.composeapp.generated.resources.livetv_ui_playlist_profile_hidden
 import nuvio.composeapp.generated.resources.livetv_guides_all
 import nuvio.composeapp.generated.resources.livetv_guides_description
 import nuvio.composeapp.generated.resources.livetv_guides_none
@@ -261,6 +264,8 @@ import nuvio.composeapp.generated.resources.livetv_rec_space_rule_description
 import nuvio.composeapp.generated.resources.livetv_rec_space_rule_stop
 import nuvio.composeapp.generated.resources.livetv_rec_storage
 import nuvio.composeapp.generated.resources.livetv_rec_storage_description
+import nuvio.composeapp.generated.resources.livetv_rec_storage_network_description
+import nuvio.composeapp.generated.resources.livetv_rec_storage_choice_message
 import nuvio.composeapp.generated.resources.livetv_rec_this_device
 import nuvio.composeapp.generated.resources.livetv_rec_network_folder
 import nuvio.composeapp.generated.resources.livetv_rec_network_folder_description
@@ -326,6 +331,8 @@ import nuvio.composeapp.generated.resources.livetv_vod_update_now_description
 import nuvio.composeapp.generated.resources.livetv_section_guides
 import nuvio.composeapp.generated.resources.livetv_section_playlists
 import nuvio.composeapp.generated.resources.livetv_section_watching
+import nuvio.composeapp.generated.resources.livetv_backup_order_title
+import nuvio.composeapp.generated.resources.livetv_backup_order_row_subtitle
 import nuvio.composeapp.generated.resources.livetv_section_channel_display
 import nuvio.composeapp.generated.resources.livetv_phone_logos
 import nuvio.composeapp.generated.resources.livetv_phone_logos_description
@@ -346,8 +353,6 @@ import nuvio.composeapp.generated.resources.livetv_reminder_lead
 import nuvio.composeapp.generated.resources.livetv_reminder_lead_description
 import nuvio.composeapp.generated.resources.livetv_reminder_lead_at_start
 import nuvio.composeapp.generated.resources.livetv_reminder_lead_minutes
-import nuvio.composeapp.generated.resources.livetv_continue_watching
-import nuvio.composeapp.generated.resources.livetv_continue_watching_description
 import com.nuvio.app.features.livetv.reminders.LiveTvReminders
 import androidx.compose.material.icons.filled.Notifications
 import nuvio.composeapp.generated.resources.livetv_parental_pin
@@ -400,38 +405,80 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import nuvio.composeapp.generated.resources.livetv_ui_cal_games
+import nuvio.composeapp.generated.resources.livetv_ui_cal_games_desc
+import nuvio.composeapp.generated.resources.livetv_ui_cal_hide_spoilers
+import nuvio.composeapp.generated.resources.livetv_ui_cal_hide_spoilers_desc
+import nuvio.composeapp.generated.resources.livetv_ui_cal_new_cards
+import nuvio.composeapp.generated.resources.livetv_ui_cal_new_cards_desc
+import nuvio.composeapp.generated.resources.livetv_ui_cal_nothing_saved
+import nuvio.composeapp.generated.resources.livetv_ui_cal_nothing_saved_desc
+import nuvio.composeapp.generated.resources.livetv_ui_cal_saved_channels
+import nuvio.composeapp.generated.resources.livetv_ui_cal_saved_network
+import nuvio.composeapp.generated.resources.livetv_ui_cal_saved_show
+import nuvio.composeapp.generated.resources.livetv_ui_cal_upcoming_row
+import nuvio.composeapp.generated.resources.livetv_ui_cal_upcoming_row_desc
+import nuvio.composeapp.generated.resources.livetv_ui_calendar
+import nuvio.composeapp.generated.resources.livetv_ui_channel_count
+import nuvio.composeapp.generated.resources.livetv_ui_connected
+import nuvio.composeapp.generated.resources.livetv_ui_connections
+import nuvio.composeapp.generated.resources.livetv_ui_days
+import nuvio.composeapp.generated.resources.livetv_ui_expired
+import nuvio.composeapp.generated.resources.livetv_ui_expires_in
+import nuvio.composeapp.generated.resources.livetv_ui_expires_today
+import nuvio.composeapp.generated.resources.livetv_ui_hours
+import nuvio.composeapp.generated.resources.livetv_ui_minutes
+import nuvio.composeapp.generated.resources.livetv_ui_movies
+import nuvio.composeapp.generated.resources.livetv_ui_netfolder_failed
+import nuvio.composeapp.generated.resources.livetv_ui_none
+import nuvio.composeapp.generated.resources.livetv_ui_off
+import nuvio.composeapp.generated.resources.livetv_ui_profile_n
+import nuvio.composeapp.generated.resources.livetv_ui_series
+import nuvio.composeapp.generated.resources.livetv_ui_zone_central_eu
+import nuvio.composeapp.generated.resources.livetv_ui_zone_eastern_eu
+import nuvio.composeapp.generated.resources.livetv_ui_zone_gulf
+import nuvio.composeapp.generated.resources.livetv_ui_zone_india
+import nuvio.composeapp.generated.resources.livetv_ui_zone_moscow
+import nuvio.composeapp.generated.resources.livetv_ui_zone_turkey
+import nuvio.composeapp.generated.resources.livetv_ui_zone_uk
+import nuvio.composeapp.generated.resources.livetv_ui_zone_us_central
+import nuvio.composeapp.generated.resources.livetv_ui_zone_us_eastern
+import nuvio.composeapp.generated.resources.livetv_ui_zone_us_mountain
+import nuvio.composeapp.generated.resources.livetv_ui_zone_us_pacific
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.StringResource
 
 private val REFRESH_HOURS = listOf(3, 6, 12, 24, 48, 72, 168)
 private val FUTURE_DAYS = listOf(1, 2, 3, 5, 7, 10, 14)
 private val PAST_HOURS = listOf(1, 3, 6, 12, 24, 48, 72, 168, 336)
 
+@Composable
 private fun pastHoursLabel(h: Int): String = when {
-    h == 1 -> "1 hour"
-    h < 24 -> "$h hours"
-    h == 24 -> "1 day"
-    else -> "${h / 24} days"
+    h < 24 -> pluralStringResource(Res.plurals.livetv_ui_hours, h, h)
+    else -> pluralStringResource(Res.plurals.livetv_ui_days, h / 24, h / 24)
 }
 /** Time shifts in minutes, half an hour apart, a day either way (the TV app's choices). */
 private val EPG_OFFSETS = (-48..48).map { it * 30 }
 
 /** Time zones offered for a playlist's catch-up (the common ones IPTV servers run on), as on the TV app. */
-private val CATCHUP_ZONES = listOf(
-    "UTC" to "UTC",
-    "Europe/London" to "UK & Ireland (London)",
-    "Europe/Amsterdam" to "Central Europe (Amsterdam, Paris, Berlin)",
-    "Europe/Athens" to "Eastern Europe (Athens, Bucharest)",
-    "Europe/Istanbul" to "Turkey (Istanbul)",
-    "Europe/Moscow" to "Moscow",
-    "Asia/Dubai" to "Gulf (Dubai)",
-    "Asia/Kolkata" to "India",
-    "America/New_York" to "US Eastern (New York)",
-    "America/Chicago" to "US Central (Chicago)",
-    "America/Denver" to "US Mountain (Denver)",
-    "America/Los_Angeles" to "US Pacific (Los Angeles)",
+private val CATCHUP_ZONES: List<Pair<String, StringResource?>> = listOf(
+    "UTC" to null,
+    "Europe/London" to Res.string.livetv_ui_zone_uk,
+    "Europe/Amsterdam" to Res.string.livetv_ui_zone_central_eu,
+    "Europe/Athens" to Res.string.livetv_ui_zone_eastern_eu,
+    "Europe/Istanbul" to Res.string.livetv_ui_zone_turkey,
+    "Europe/Moscow" to Res.string.livetv_ui_zone_moscow,
+    "Asia/Dubai" to Res.string.livetv_ui_zone_gulf,
+    "Asia/Kolkata" to Res.string.livetv_ui_zone_india,
+    "America/New_York" to Res.string.livetv_ui_zone_us_eastern,
+    "America/Chicago" to Res.string.livetv_ui_zone_us_central,
+    "America/Denver" to Res.string.livetv_ui_zone_us_mountain,
+    "America/Los_Angeles" to Res.string.livetv_ui_zone_us_pacific,
 )
 
 /** A zone id in words: one of the list's names, else as found (e.g. "GMT+01:00"). */
-private fun zoneName(id: String): String = CATCHUP_ZONES.firstOrNull { it.first == id }?.second ?: id
+@Composable
+private fun zoneName(id: String): String = CATCHUP_ZONES.firstOrNull { it.first == id }?.let { z -> z.second?.let { stringResource(it) } ?: z.first } ?: id
 
 /** The time on that zone's clock now, to match against the provider's. */
 private fun zoneClock(id: String): String {
@@ -457,9 +504,10 @@ internal fun offsetLabel(min: Int, none: String): String {
     return if (a % 60 == 0) "$sign${a / 60} h" else "$sign${a / 60} h ${a % 60} min"
 }
 
+@Composable
 internal fun hoursLabel(h: Int): String = when {
-    h >= 24 && h % 24 == 0 -> if (h == 24) "1 day" else "${h / 24} days"
-    else -> "$h hours"
+    h >= 24 && h % 24 == 0 -> pluralStringResource(Res.plurals.livetv_ui_days, h / 24, h / 24)
+    else -> pluralStringResource(Res.plurals.livetv_ui_hours, h, h)
 }
 
 private sealed interface LiveDialog {
@@ -479,6 +527,7 @@ private sealed interface LiveDialog {
     data object FutureDays : LiveDialog
     data object PastHours : LiveDialog
     data object StreamFormat : LiveDialog
+    data object BackupOrder : LiveDialog
     data class CatchupZone(val source: PlaylistSource) : LiveDialog
     data class PlaylistGuideShift(val source: PlaylistSource) : LiveDialog
     data class PlaylistCatchupShift(val source: PlaylistSource) : LiveDialog
@@ -504,6 +553,7 @@ private sealed interface LiveDialog {
     /** The PIN before playlist logins are shown or handed out; [then] runs once it's right. */
     data class LoginPin(val then: () -> Unit) : LiveDialog
     data object NetworkFolder : LiveDialog
+    data object RecordStorage : LiveDialog
     data object ParentalGroups : LiveDialog
     data object Reminders : LiveDialog
     data object ReminderLead : LiveDialog
@@ -548,7 +598,6 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
     val profileState by ProfileRepository.state.collectAsStateWithLifecycle()
     val profiles = profileState.profiles
     val reminderLead by LiveTvPreferences.reminderLeadMinutes.collectAsStateWithLifecycle()
-    val showInContinueWatching by LiveTvPreferences.showInContinueWatching.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<LiveDialog?>(null) }
     /** Runs [go] now, or after the PIN when playlist logins are locked. */
     fun withLogins(go: () -> Unit) {
@@ -608,7 +657,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     if (i > 0) SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
                         title = pl.name,
-                        description = playlistStatus(pl, accounts[pl.id]),
+                        description = playlistStatus(pl, accounts[pl.id], hiddenHere = pl.id in userState.hiddenPlaylists),
                         icon = if (pl.isXtream || pl.isStalker) Icons.Filled.Login else Icons.Filled.ListAlt,
                         isTablet = isTablet,
                         onClick = { dialog = LiveDialog.PlaylistActions(pl) },
@@ -666,7 +715,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     title = stringResource(Res.string.livetv_days_ahead),
                     description = stringResource(Res.string.livetv_days_ahead_description),
                     isTablet = isTablet,
-                    trailingContent = { ValueLabel(if (settings.epgFutureDays == 1) "1 day" else "${settings.epgFutureDays} days") },
+                    trailingContent = { ValueLabel(pluralStringResource(Res.plurals.livetv_ui_days, settings.epgFutureDays, settings.epgFutureDays)) },
                     onClick = { dialog = LiveDialog.FutureDays },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
@@ -814,12 +863,12 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     onCheckedChange = { on -> update { it.copy(autoBackupChannel = on) } },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
-                SettingsSwitchRow(
-                    title = stringResource(Res.string.livetv_continue_watching),
-                    description = stringResource(Res.string.livetv_continue_watching_description),
-                    checked = showInContinueWatching,
+                SettingsNavigationRow(
+                    title = stringResource(Res.string.livetv_backup_order_title),
+                    description = stringResource(Res.string.livetv_backup_order_row_subtitle),
                     isTablet = isTablet,
-                    onCheckedChange = { on -> LiveTvPreferences.setShowInContinueWatching(on) },
+                    trailingContent = { ValueLabel(backupGroupByLabel(com.nuvio.app.features.livetv.model.BackupOrder.groupBy(settings))) },
+                    onClick = { dialog = LiveDialog.BackupOrder },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
@@ -1025,32 +1074,32 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
             }
         }
 
-        SettingsSection(title = "Calendar", isTablet = isTablet) {
+        SettingsSection(title = stringResource(Res.string.livetv_ui_calendar), isTablet = isTablet) {
             SettingsGroup(isTablet = isTablet) {
                 SettingsSwitchRow(
-                    title = "Upcoming row on Home",
-                    description = "Your shows' next episodes in Home's Upcoming row.",
+                    title = stringResource(Res.string.livetv_ui_cal_upcoming_row),
+                    description = stringResource(Res.string.livetv_ui_cal_upcoming_row_desc),
                     checked = settings.calendarUpcomingRow, isTablet = isTablet,
                     onCheckedChange = { on -> update { it.copy(calendarUpcomingRow = on) } },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
-                    title = "New episode cards on Home",
-                    description = "A card in Continue Watching when a followed show has a new episode out.",
+                    title = stringResource(Res.string.livetv_ui_cal_new_cards),
+                    description = stringResource(Res.string.livetv_ui_cal_new_cards_desc),
                     checked = settings.calendarNewEpisodeCards, isTablet = isTablet,
                     onCheckedChange = { on -> update { it.copy(calendarNewEpisodeCards = on) } },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
-                    title = "Hide spoilers",
-                    description = "Hide titles and pictures of episodes you haven't reached yet.",
+                    title = stringResource(Res.string.livetv_ui_cal_hide_spoilers),
+                    description = stringResource(Res.string.livetv_ui_cal_hide_spoilers_desc),
                     checked = settings.calendarHideSpoilers, isTablet = isTablet,
                     onCheckedChange = { on -> update { it.copy(calendarHideSpoilers = on) } },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(
-                    title = "Games on the Calendar",
-                    description = "Games for the teams you follow in Sports.",
+                    title = stringResource(Res.string.livetv_ui_cal_games),
+                    description = stringResource(Res.string.livetv_ui_cal_games_desc),
                     checked = settings.calendarSports, isTablet = isTablet,
                     onCheckedChange = { on -> update { it.copy(calendarSports = on) } },
                 )
@@ -1061,12 +1110,12 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
             val picks by CalendarRepository.channelPicks.collectAsStateWithLifecycle()
             val channelCount by LiveTvRepository.channels.collectAsStateWithLifecycle()
             val savedList = remember(picks, channelCount) { CalendarRepository.savedChannels() }
-            SettingsSection(title = "Calendar saved channels", isTablet = isTablet) {
+            SettingsSection(title = stringResource(Res.string.livetv_ui_cal_saved_channels), isTablet = isTablet) {
                 SettingsGroup(isTablet = isTablet) {
                     if (savedList.isEmpty()) {
                         SettingsNavigationRow(
-                            title = "Nothing saved yet",
-                            description = "On the Calendar, open an episode, choose the channel, then pick Always use.",
+                            title = stringResource(Res.string.livetv_ui_cal_nothing_saved),
+                            description = stringResource(Res.string.livetv_ui_cal_nothing_saved_desc),
                             isTablet = isTablet, onClick = {},
                         )
                     }
@@ -1074,7 +1123,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                         if (i > 0) SettingsGroupDivider(isTablet = isTablet)
                         SettingsNavigationRow(
                             title = sc.label,
-                            description = sc.channel + (if (sc.forShow) " (this show)" else " (this network)") + " - tap to forget",
+                            description = stringResource(if (sc.forShow) Res.string.livetv_ui_cal_saved_show else Res.string.livetv_ui_cal_saved_network, sc.channel),
                             isTablet = isTablet,
                             onClick = { CalendarRepository.forgetSaved(sc.pickKey) },
                         )
@@ -1131,14 +1180,22 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     onClick = { dialog = LiveDialog.RecordKeep },
                 )
                 SettingsGroupDivider(isTablet = isTablet)
+                // Where new recordings go: this phone, or the network folder (recorded here, then copied there).
+                val toNetwork = NetworkLibraryPlatform.available && settings.recordingStorage == NetworkUploads.STORAGE_ID &&
+                    NetworkFolderConfig.fromJson(networkFolderJson) != null
                 SettingsNavigationRow(
                     title = stringResource(Res.string.livetv_rec_storage),
-                    description = stringResource(Res.string.livetv_rec_storage_description),
+                    description = stringResource(if (toNetwork) Res.string.livetv_rec_storage_network_description else Res.string.livetv_rec_storage_description),
                     isTablet = isTablet,
-                    trailingContent = { ValueLabel(stringResource(Res.string.livetv_rec_this_device) + " · " + RecordingRules.sizeLabel(LiveTvRecorder.freeBytes())) },
-                    onClick = {},
+                    trailingContent = {
+                        ValueLabel(
+                            if (toNetwork) stringResource(Res.string.livetv_rec_network_folder)
+                            else stringResource(Res.string.livetv_rec_this_device) + " · " + RecordingRules.sizeLabel(LiveTvRecorder.freeBytes())
+                        )
+                    },
+                    onClick = { if (NetworkLibraryPlatform.available) dialog = LiveDialog.RecordStorage },
                 )
-                // The network folder the TVs record to (synced): set up or changed here too.
+                // The network folder (its address kept on this phone only): set up or changed here.
                 if (NetworkLibraryPlatform.available) {
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
@@ -1245,7 +1302,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     else -> {
                         SettingsNavigationRow(
                             title = stringResource(Res.string.livetv_drive_account),
-                            description = (drive.email ?: "Connected") + (drive.lastSyncMs.takeIf { it > 0 }?.let { " · " + formatLocalDateTime(it) } ?: ""),
+                            description = (drive.email ?: stringResource(Res.string.livetv_ui_connected)) + (drive.lastSyncMs.takeIf { it > 0 }?.let { " · " + formatLocalDateTime(it) } ?: ""),
                             icon = Icons.Filled.Backup,
                             isTablet = isTablet,
                             onClick = {},
@@ -1323,9 +1380,27 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
         }
         is LiveDialog.EditEpg -> EpgForm(d.source, onDismiss = close)
         LiveDialog.NetworkFolder -> NetworkFolderForm(onDismiss = close)
+        LiveDialog.RecordStorage -> {
+            val folderSetUp = NetworkFolderConfig.fromJson(networkFolderJson) != null
+            ChoiceDialog(
+                title = stringResource(Res.string.livetv_rec_storage),
+                options = listOf(
+                    "" to stringResource(Res.string.livetv_rec_this_device),
+                    NetworkUploads.STORAGE_ID to stringResource(Res.string.livetv_rec_network_folder) +
+                        (if (folderSetUp) "" else " (" + stringResource(Res.string.livetv_rec_network_not_set_up).lowercase() + ")"),
+                ),
+                selected = if (settings.recordingStorage == NetworkUploads.STORAGE_ID && folderSetUp) NetworkUploads.STORAGE_ID else "",
+                onDismiss = close,
+                message = stringResource(Res.string.livetv_rec_storage_choice_message),
+            ) { v ->
+                update { it.copy(recordingStorage = v) }
+                // Not set up yet: straight to setting it up (once this list has closed).
+                if (v == NetworkUploads.STORAGE_ID && !folderSetUp) scope.launch { withLogins { dialog = LiveDialog.NetworkFolder } }
+            }
+        }
         is LiveDialog.PlaylistActions -> ActionsDialog(
             title = d.source.name,
-            subtitle = playlistStatus(d.source, accounts[d.source.id]),
+            subtitle = playlistStatus(d.source, accounts[d.source.id], hiddenHere = d.source.id in userState.hiddenPlaylists),
             onDismiss = close,
             actions = listOfNotNull(
                 stringResource(Res.string.action_edit) to { withLogins { dialog = LiveDialog.EditPlaylist(d.source) } },
@@ -1359,8 +1434,14 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
                     }
                 },
             ) else emptyList()) + listOfNotNull(
-                // Which Nuvio profiles see this playlist (only with two or more profiles).
-                profiles.takeIf { it.size >= 2 }?.let { list ->
+                // Which Nuvio profiles see this playlist (only with two or more profiles). With one
+                // profile, a playlist still hidden on it (set when there were more, or from sync)
+                // gets a way to show it again.
+                if (profiles.size < 2 && d.source.id in userState.hiddenPlaylists) {
+                    stringResource(Res.string.livetv_show_on_this_profile) to {
+                        LiveTvPreferences.showPlaylistOnThisProfile(d.source.id); close()
+                    }
+                } else profiles.takeIf { it.size >= 2 }?.let { list ->
                     val shownOn = list.count { d.source.id !in LiveTvPreferences.hiddenPlaylistsOf(it.profileIndex) }
                     stringResource(
                         Res.string.livetv_show_on_profiles_value,
@@ -1381,7 +1462,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
             ChoiceDialog(
                 title = stringResource(Res.string.livetv_catchup_zone),
                 message = stringResource(Res.string.livetv_catchup_zone_description, d.source.name),
-                options = listOf("" to automatic) + CATCHUP_ZONES.map { (id, name) -> id to "$name · ${zoneClock(id)}" },
+                options = listOf("" to automatic) + CATCHUP_ZONES.map { (id, _) -> id to "${zoneName(id)} · ${zoneClock(id)}" },
                 selected = d.source.catchupTimezone,
                 onDismiss = close,
             ) { v -> LiveTvRepository.setPlaylistCatchupZone(d.source.id, v) }
@@ -1469,7 +1550,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
         ) { v -> update { it.copy(epgRefreshHours = v) } }
         LiveDialog.FutureDays -> ChoiceDialog(
             title = stringResource(Res.string.livetv_days_ahead),
-            options = FUTURE_DAYS.map { it to if (it == 1) "1 day" else "$it days" },
+            options = FUTURE_DAYS.map { it to pluralStringResource(Res.plurals.livetv_ui_days, it, it) },
             selected = settings.epgFutureDays,
             onDismiss = close,
         ) { v -> update { it.copy(epgFutureDays = v) }; LiveTvRepository.refreshEpgOnly() }
@@ -1479,6 +1560,7 @@ private fun LiveTvSettingsBody(isTablet: Boolean, onlyRecordings: Boolean = fals
             selected = settings.epgPastHours,
             onDismiss = close,
         ) { v -> update { it.copy(epgPastHours = v) }; LiveTvRepository.refreshEpgOnly() }
+        LiveDialog.BackupOrder -> BackupOrderDialog(onDismiss = close)
         LiveDialog.StreamFormat -> ChoiceDialog(
             title = stringResource(Res.string.livetv_stream_format),
             options = listOf("auto" to "Auto", "ts" to "MPEG-TS", "m3u8" to "HLS (m3u8)"),
@@ -1624,7 +1706,8 @@ private fun ValueLabel(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.nuvio.colors.accent)
 }
 
-private fun minutesLabel(m: Int) = if (m == 0) "None" else if (m == 1) "1 minute" else "$m minutes"
+@Composable
+private fun minutesLabel(m: Int) = if (m == 0) stringResource(Res.string.livetv_ui_none) else pluralStringResource(Res.plurals.livetv_ui_minutes, m, m)
 
 @Composable
 private fun scoreDelayLabel(seconds: Int): String = when {
@@ -1640,9 +1723,10 @@ private fun leadLabel(m: Int): String = if (m == 0) stringResource(Res.string.li
 private fun streamFormatLabel(f: String) = when (f) { "ts" -> "MPEG-TS"; "m3u8" -> "HLS (m3u8)"; else -> "Auto" }
 
 @Composable
-private fun playlistStatus(pl: PlaylistSource, account: PlaylistAccount?): String {
+private fun playlistStatus(pl: PlaylistSource, account: PlaylistAccount?, hiddenHere: Boolean = false): String {
     val parts = ArrayList<String>()
-    if (!pl.enabled) parts += "Off"
+    if (!pl.enabled) parts += stringResource(Res.string.livetv_ui_off)
+    if (hiddenHere) parts += stringResource(Res.string.livetv_ui_playlist_profile_hidden)
     if ((pl.isXtream || pl.isStalker) && !pl.importLive) {
         // TV channels switched off for this login: nothing to update or count on the Live TV side.
         parts += stringResource(if (pl.importVod) Res.string.livetv_xtream_movies_only else Res.string.livetv_xtream_nothing_included)
@@ -1650,12 +1734,19 @@ private fun playlistStatus(pl: PlaylistSource, account: PlaylistAccount?): Strin
         if (pl.lastError != null) parts += pl.lastError
         else if (pl.lastUpdatedMs > 0) parts += stringResource(Res.string.livetv_updated_at, formatLocalDateTime(pl.lastUpdatedMs))
         else parts += stringResource(Res.string.livetv_never_updated)
-        if (pl.channelCount > 0) parts += "${pl.channelCount} channels"
+        if (pl.channelCount > 0) parts += stringResource(Res.string.livetv_ui_channel_count, pl.channelCount)
     }
     account?.let { a ->
-        a.daysLeftLabel()?.let { parts += if (it == "expired") "Expired" else "Expires in $it" }
+        a.daysLeftLabel()?.let {
+            val d = (a.daysLeft() ?: 0L).toInt()
+            parts += when (it) {
+                "expired" -> stringResource(Res.string.livetv_ui_expired)
+                "today" -> stringResource(Res.string.livetv_ui_expires_today)
+                else -> stringResource(Res.string.livetv_ui_expires_in, pluralStringResource(Res.plurals.livetv_ui_days, d, d))
+            }
+        }
         if (a.status.isNotBlank() && !a.status.equals("Active", true)) parts += a.status
-        if (a.maxConnections > 0) parts += "${a.activeConnections}/${a.maxConnections} connections"
+        if (a.maxConnections > 0) parts += stringResource(Res.string.livetv_ui_connections, a.activeConnections, a.maxConnections)
     }
     return parts.joinToString(" · ")
 }
@@ -1663,7 +1754,7 @@ private fun playlistStatus(pl: PlaylistSource, account: PlaylistAccount?): Strin
 @Composable
 private fun epgStatus(src: EpgSource): String {
     val parts = ArrayList<String>()
-    if (!src.enabled) parts += "Off"
+    if (!src.enabled) parts += stringResource(Res.string.livetv_ui_off)
     if (src.lastError != null) parts += src.lastError
     else if (src.lastUpdatedMs > 0) parts += stringResource(Res.string.livetv_updated_at, formatLocalDateTime(src.lastUpdatedMs))
     else parts += stringResource(Res.string.livetv_never_updated)
@@ -1742,7 +1833,7 @@ private fun PlaylistProfilesDialog(pl: PlaylistSource, profiles: List<NuvioProfi
         Column(modifier = Modifier.weight(1f, fill = false).heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
             profiles.forEach { prof ->
                 SettingsSwitchRow(
-                    title = prof.name.ifBlank { "Profile ${prof.profileIndex}" }, checked = hidden[prof.profileIndex] != true, isTablet = false, horizontalPadding = 0.dp,
+                    title = prof.name.ifBlank { stringResource(Res.string.livetv_ui_profile_n, prof.profileIndex) }, checked = hidden[prof.profileIndex] != true, isTablet = false, horizontalPadding = 0.dp,
                     onCheckedChange = { on -> LiveTvPreferences.setPlaylistShownOn(pl.id, prof.profileIndex, on); version++ },
                 )
             }
@@ -1951,6 +2042,7 @@ private fun NetworkFolderForm(onDismiss: () -> Unit) {
     val checkingText = stringResource(Res.string.livetv_network_checking)
     val checkingVpnText = stringResource(Res.string.livetv_network_checking_vpn)
     val badAddressText = stringResource(Res.string.livetv_network_bad_address, NETWORK_ADDRESS_EXAMPLE)
+    val netFailedText = stringResource(Res.string.livetv_ui_netfolder_failed)
     val savedText = stringResource(Res.string.livetv_network_saved)
     val removedText = stringResource(Res.string.livetv_network_removed)
     val signingInText = stringResource(Res.string.livetv_network_find_signing_in)
@@ -1989,7 +2081,7 @@ private fun NetworkFolderForm(onDismiss: () -> Unit) {
         status = checkingText
         scope.launch {
             val problem = runCatching { NetworkLibraryPlatform.test(c) { status = checkingVpnText } }
-                .getOrElse { it.message ?: "The network folder didn't work" }
+                .getOrElse { it.message ?: netFailedText }
             checking = false
             if (problem == null) save(c)
             else { failed = true; status = problem }
@@ -2401,7 +2493,7 @@ private fun LockedGroupsDialog(onDismiss: () -> Unit) {
             items(vod, key = { "v:" + it.uid }) { c ->
                 val id = "vod:" + c.uid
                 val locked = id in user.lockedGroups
-                DialogOption(text = c.name, description = if (c.kind == VodKind.MOVIE) "Movies" else "Series", selected = locked, onClick = { LiveTvPreferences.setGroupLocked(id, !locked); if (locked) ParentalControls.relock() })
+                DialogOption(text = c.name, description = stringResource(if (c.kind == VodKind.MOVIE) Res.string.livetv_ui_movies else Res.string.livetv_ui_series), selected = locked, onClick = { LiveTvPreferences.setGroupLocked(id, !locked); if (locked) ParentalControls.relock() })
             }
         }
         DialogButtons { DialogButton(text = stringResource(Res.string.action_close), style = DialogButtonStyle.Primary, onClick = onDismiss) }

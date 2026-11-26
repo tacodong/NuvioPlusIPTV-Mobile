@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Начало по-рано</string>
+    <string name="livetv_rec_pad_after">Продължи записа след</string>
+    <string name="livetv_rec_pad_default">По подразбиране (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d мин преди</string>
+    <string name="livetv_rec_pad_line_after">+%1$d мин след</string>
+    <string name="livetv_rec_pad_hint">Само за този сериал. Вече зададените епизоди също се променят.</string>
+</resources>

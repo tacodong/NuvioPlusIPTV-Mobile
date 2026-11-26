@@ -108,7 +108,7 @@ internal object SportsWatchPolicy {
         matches.values.forEach { list ->
             list.forEach { match ->
                 val channel = match.channel
-                if (rules.permitsAddon(channel)) putIfAbsent(channel.key, channel)
+                if (rules.permitsAddon(channel)) getOrPut(channel.key) { channel }
             }
         }
     }

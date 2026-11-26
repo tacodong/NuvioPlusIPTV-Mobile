@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Impossibile riprodurre questo titolo.</string>
+    <string name="livetv_error_renew">Il provider non è riuscito a rinnovare questo flusso. Controlla la sorgente e le impostazioni VPN.</string>
+    <string name="livetv_error_open_channel">Il provider non è riuscito ad aprire questo canale. Controlla la sorgente e le impostazioni VPN.</string>
+    <string name="livetv_error_connection_lost">Connessione persa con questo canale in diretta. Tocca riproduci o scegli un altro canale.</string>
+    <string name="livetv_error_catchup">Impossibile rivedere questo programma. Il provider potrebbe non averlo nel catch-up</string>
+    <string name="livetv_error_catchup_code">Impossibile rivedere questo programma. Il provider potrebbe non averlo nel catch-up (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Il provider ha rifiutato il flusso (HTTP %1$d): limite dell\'account, scaduto o bloccato</string>
+    <string name="livetv_error_not_found">Flusso non trovato (HTTP 404). Prova un altro formato di flusso nelle impostazioni della playlist</string>
+    <string name="livetv_error_too_many">Troppe connessioni su questo account (HTTP %1$d)</string>
+    <string name="livetv_error_server">Errore del server del provider (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Il provider non sta inviando correttamente questo canale in questo momento</string>
+    <string name="livetv_error_unreachable">Impossibile raggiungere il provider in questo momento</string>
+    <string name="livetv_error_decoder">Questo telefono non è riuscito a riprodurre l\'immagine o l\'audio di questo canale</string>
+    <string name="livetv_error_drm">Questo canale è protetto e non è stato possibile sbloccarlo</string>
+    <string name="livetv_error_not_playing">Questo canale non è in onda in questo momento</string>
+</resources>

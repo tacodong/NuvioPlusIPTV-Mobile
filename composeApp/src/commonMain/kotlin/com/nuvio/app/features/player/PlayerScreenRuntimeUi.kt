@@ -595,8 +595,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
             ),
     ) {
         val playbackKey = activePlaybackKey
+        val liveGeneration = livePlaybackGeneration
         val sourcePlaybackKey = playbackKey.copy(playbackEngine = null)
-        val initialPositionRequestKey = currentInitialPositionRequestKey()
 
         val resolvedAutoEngineState = remember(sourcePlaybackKey) {
             mutableStateOf<AndroidPlaybackEngine?>(null)
@@ -616,74 +616,83 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi(
         val resolvedAutoEngine = resolvedAutoEngineState.value
 
         if (renderPlayerSurface) {
-            val surfaceSource = currentPlayerSurfaceSource
-            val sourceAvailable = surfaceSource != null
-            PlatformPlayerSurface(
-                sourceUrl = surfaceSource?.sourceUrl.orEmpty(),
-                sourceAvailable = sourceAvailable,
-                sourceAudioUrl = surfaceSource?.sourceAudioUrl,
-                stalkerMediaPolicy = activeStalkerMediaPolicy.takeIf { sourceAvailable },
-                useYoutubeChunkedPlayback = !surfaceSource?.sourceAudioUrl.isNullOrBlank() &&
-                    surfaceSource?.sourceUrl?.substringAfter("://")?.substringBefore('/')
-                        ?.endsWith("googlevideo.com", ignoreCase = true) == true,
-                sourceHeaders = surfaceSource?.sourceHeaders.orEmpty(),
-                sourceResponseHeaders = surfaceSource?.sourceResponseHeaders.orEmpty(),
-                externalSubtitles = surfaceSource?.externalSubtitles.orEmpty(),
-                streamType = surfaceSource?.streamType,
-                modifier = videoModifier,
-                playWhenReady = shouldPlay && sourceAvailable,
-                initialPositionMs = surfaceSource?.initialPositionMs,
-                initialPositionRequestKey = surfaceSource?.initialPositionRequestKey,
-                resizeMode = if (partyPanelInset > 0.dp) PlayerResizeMode.Fit else resizeMode,
-                playbackEngine = playbackEngineOverride ?: resolvedAutoEngine,
-                playerControlsState = playerControlsState,
-                onPlayerControlsAction = { action -> handlePlayerControlsAction(action) },
-                onPlayerControlsEvent = { type, value -> handlePlayerControlsEvent(type, value) },
-                onPlayerControlsScrubChange = { positionMs ->
-                    handlePlayerControlsScrubChange(positionMs)
-                    true
-                },
-                onPlayerControlsScrubFinished = { positionMs ->
-                    handlePlayerControlsScrubFinished(positionMs)
-                    true
-                },
-                onInitialPositionHandled = { key, handled ->
-                    if (key == currentInitialPositionRequestKey()) {
-                        initialSeekApplied = handled
-                    }
-                },
-                onControllerReady = { controller ->
-                    playerController = controller.takeIf { sourceAvailable }
-                    playerLifecycleController = controller
-                    playerControllerSourceUrl = surfaceSource?.sourceUrl
-                },
-                onSnapshot = { snapshot ->
-                    if (!updatePlaybackSnapshot(snapshot, playbackKey)) return@PlatformPlayerSurface
-                    refreshAudioTracksIfChanged()
-                    if (!snapshot.isLoading) initialLoadCompleted = true
-                    if (snapshot.isEnded) {
-                        shouldPlay = false
-                        controlsVisible = !playerControlsLocked
-                    }
-                },
-                onError = { message ->
-                    if (message != null && tryRefreshExpiredLinkAfterError(message)) {
-                        return@PlatformPlayerSurface
-                    }
-                    if (message != null && tryFallbackToNextSourceAfterError(message)) {
-                        return@PlatformPlayerSurface
-                    }
-                    if (message != null && !isDesktop && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
-                        return@PlatformPlayerSurface
-                    }
-                    errorMessage = message
-                    if (message != null) {
-                        scrubbingPositionMs = null
-                        controlsVisible = !playerControlsLocked
-                        removeFailedStreamFromCache()
-                    }
-                },
-            )
+            // Keep the desktop host across ordinary source swaps; rebuild on an explicit live retry.
+            key(if (isDesktop) null else playbackKey, liveGeneration) {
+                val active = remember { mutableStateOf(true) }
+                DisposableEffect(Unit) {
+                    onDispose { active.value = false }
+                }
+                fun isCurrentSurface() = active.value && playbackKey == activePlaybackKey && liveGeneration == livePlaybackGeneration
+                val surfaceSource = currentPlayerSurfaceSource
+                val sourceAvailable = surfaceSource != null
+                PlatformPlayerSurface(
+                    sourceUrl = surfaceSource?.sourceUrl.orEmpty(),
+                    sourceAvailable = sourceAvailable,
+                    sourceAudioUrl = surfaceSource?.sourceAudioUrl,
+                    stalkerMediaPolicy = activeStalkerMediaPolicy.takeIf { sourceAvailable },
+                    useYoutubeChunkedPlayback = !surfaceSource?.sourceAudioUrl.isNullOrBlank() &&
+                        surfaceSource?.sourceUrl?.substringAfter("://")?.substringBefore('/')
+                            ?.endsWith("googlevideo.com", ignoreCase = true) == true,
+                    sourceHeaders = surfaceSource?.sourceHeaders.orEmpty(),
+                    sourceResponseHeaders = surfaceSource?.sourceResponseHeaders.orEmpty(),
+                    externalSubtitles = surfaceSource?.externalSubtitles.orEmpty(),
+                    streamType = surfaceSource?.streamType,
+                    continuousLive = sourceAvailable && isContinuousLivePlayback,
+                    modifier = videoModifier,
+                    playWhenReady = shouldPlay && sourceAvailable,
+                    initialPositionMs = surfaceSource?.initialPositionMs,
+                    initialPositionRequestKey = surfaceSource?.initialPositionRequestKey,
+                    resizeMode = if (partyPanelInset > 0.dp) PlayerResizeMode.Fit else resizeMode,
+                    playbackEngine = playbackEngineOverride ?: resolvedAutoEngine,
+                    playerControlsState = playerControlsState,
+                    onPlayerControlsAction = { action -> handlePlayerControlsAction(action) },
+                    onPlayerControlsEvent = { type, value -> handlePlayerControlsEvent(type, value) },
+                    onPlayerControlsScrubChange = { positionMs ->
+                        handlePlayerControlsScrubChange(positionMs)
+                        true
+                    },
+                    onPlayerControlsScrubFinished = { positionMs ->
+                        handlePlayerControlsScrubFinished(positionMs)
+                        true
+                    },
+                    onInitialPositionHandled = { key, handled ->
+                        if (isCurrentSurface() && key == currentInitialPositionRequestKey()) {
+                            initialSeekApplied = handled
+                        }
+                    },
+                    onControllerReady = { controller ->
+                        if (!isCurrentSurface()) return@PlatformPlayerSurface
+                        playerController = controller.takeIf { sourceAvailable }
+                        playerLifecycleController = controller
+                        playerControllerSourceUrl = surfaceSource?.sourceUrl
+                    },
+                    onSnapshot = { snapshot ->
+                        if (!sourceAvailable || !isCurrentSurface() || !updatePlaybackSnapshot(snapshot, playbackKey)) return@PlatformPlayerSurface
+                        refreshAudioTracksIfChanged()
+                        if (!snapshot.isLoading) initialLoadCompleted = true
+                        handleLivePlaybackEnd(snapshot, playbackKey, liveGeneration)
+                    },
+                    onError = { message ->
+                        if (!sourceAvailable || !isCurrentSurface()) return@PlatformPlayerSurface
+                        if (message != null) cancelLiveEndReconnect()
+                        if (message != null && tryRefreshExpiredLinkAfterError(message)) {
+                            return@PlatformPlayerSurface
+                        }
+                        if (message != null && tryFallbackToNextSourceAfterError(message)) {
+                            return@PlatformPlayerSurface
+                        }
+                        if (message != null && !isDesktop && maybeFailoverPlaybackEngine(resolvedAutoEngine)) {
+                            return@PlatformPlayerSurface
+                        }
+                        errorMessage = message
+                        if (message != null) {
+                            scrubbingPositionMs = null
+                            controlsVisible = !playerControlsLocked
+                            removeFailedStreamFromCache()
+                        }
+                    },
+                )
+            }
         }
 
         AnimatedVisibility(

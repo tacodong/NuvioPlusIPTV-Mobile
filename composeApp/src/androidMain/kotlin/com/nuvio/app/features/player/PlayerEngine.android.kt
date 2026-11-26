@@ -74,9 +74,6 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
-import androidx.media3.extractor.ts.TsExtractor
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
@@ -124,6 +121,7 @@ actual fun PlatformPlayerSurface(
     stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
+    continuousLive: Boolean,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -217,6 +215,7 @@ actual fun PlatformPlayerSurface(
             sourceResponseHeaders = sourceResponseHeaders,
             externalSubtitles = externalSubtitles,
             streamType = streamType,
+            continuousLive = continuousLive,
             useYoutubeChunkedPlayback = useYoutubeChunkedPlayback,
             modifier = modifier,
             playWhenReady = playWhenReady,
@@ -278,6 +277,7 @@ private fun ExoPlayerSurface(
     sourceResponseHeaders: Map<String, String>,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
+    continuousLive: Boolean,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -320,6 +320,7 @@ private fun ExoPlayerSurface(
         sanitizedSourceHeaders,
         sanitizedSourceResponseHeaders,
         normalizedStreamType.orEmpty(),
+        continuousLive,
         useYoutubeChunkedPlayback,
         initialPositionRequestKey.orEmpty(),
     )
@@ -383,19 +384,7 @@ private fun ExoPlayerSurface(
         LiveTvPlayback.looksForCaptions(sourceUrl).also { if (it) LiveCaptions.reset() }
     }
     val extractorsFactory = remember(sourceUrl, stalkerMediaPolicy, liveCaptions) {
-        DefaultExtractorsFactory()
-            .setTsExtractorFlags(
-                if (liveCaptions) {
-                    DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
-                        DefaultTsPayloadReaderFactory.FLAG_OVERRIDE_CAPTION_DESCRIPTORS
-                } else {
-                    DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS
-                }
-            )
-            .setTsExtractorTimestampSearchBytes(1500 * TsExtractor.TS_PACKET_SIZE)
-            .let { factory ->
-                if (liveCaptions) LiveCaptions.Extractors(factory.setTsSubtitleFormats(LiveCaptions.formats)) else factory
-            }
+        playerExtractorsFactory(liveCaptions)
             .let { factory -> // AutoSync hook: no observation while disabled.
                 AutoSyncPreferencesRepository.ensureLoaded()
                 if (stalkerMediaPolicy == null && AutoSyncPreferencesRepository.preferredSubtitleAutoSyncOnStart.value) {
@@ -412,6 +401,7 @@ private fun ExoPlayerSurface(
         useYoutubeChunkedPlayback,
         externalSubtitles,
         normalizedStreamType,
+        continuousLive,
         playerSettings.vodCacheEnabled,
         playerSettings.vodCacheSizeMode,
         playerSettings.vodCacheSizeMb,
@@ -431,35 +421,19 @@ private fun ExoPlayerSurface(
             responseHeaders = sanitizedSourceResponseHeaders,
             streamType = normalizedStreamType,
         ).localConfiguration?.mimeType
-        val adaptive = mimeType == MimeTypes.APPLICATION_M3U8 ||
-            mimeType == MimeTypes.APPLICATION_MPD ||
-            mimeType == MimeTypes.APPLICATION_SS
-        // A torrent response that closes early would be stored as the whole file.
-        // The next open past that length then fails before the stream can resume.
-        if (loopbackSource && playerSettings.vodCacheEnabled && !useYoutubeChunkedPlayback && !adaptive) {
-            Log.i(TAG, "Skipping VOD cache for loopback playback")
-        }
-        val media = if (
-            stalkerMediaPolicy != null || !useVodCacheForSource(
-                vodCacheEnabled = playerSettings.vodCacheEnabled,
-                youtubeChunked = useYoutubeChunkedPlayback,
-                adaptive = adaptive,
-                loopback = loopbackSource,
-            )
-        ) {
-            // upstream ends in a DefaultDataSource, which opens the data: init segment this may add.
-            // Stalker links can be single-use: no extra segment reads for them.
-            if (mimeType == MimeTypes.APPLICATION_M3U8 && stalkerMediaPolicy == null) HlsParameterSetInitDataSource.Factory(upstream) else upstream
-        } else {
-            VodCache.wrap(
-                context = context,
-                upstream = upstream,
-                url = sourceUrl,
-                enabled = true,
-                sizeMode = playerSettings.vodCacheSizeMode,
-                sizeMb = playerSettings.vodCacheSizeMb,
-            )
-        }
+        val media = playerMediaDataSourceFactory(
+            context = context,
+            upstream = upstream,
+            sourceUrl = sourceUrl,
+            mimeType = mimeType,
+            continuousLive = continuousLive,
+            vodCacheEnabled = playerSettings.vodCacheEnabled,
+            youtubeChunked = useYoutubeChunkedPlayback,
+            loopback = loopbackSource,
+            stalker = stalkerMediaPolicy != null,
+            sizeMode = playerSettings.vodCacheSizeMode,
+            sizeMb = playerSettings.vodCacheSizeMb,
+        )
         SubtitleRoutingDataSourceFactory(
             media = media,
             subtitles = subtitleDataSourceFactory(context, externalSubtitles),
@@ -506,6 +480,7 @@ private fun ExoPlayerSurface(
         sanitizedSourceHeaders,
         sanitizedSourceResponseHeaders,
         normalizedStreamType,
+        continuousLive,
         useYoutubeChunkedPlayback,
         effectiveDecoderPriority,
         initialPositionRequestKey,
@@ -2152,6 +2127,7 @@ private class NuvioLibmpvView(
                         language = track.language,
                         isSelected = track.isSelected,
                         isForced = track.isForced,
+                        formatBadge = track.formatBadge,
                     )
                 }
 
@@ -2340,11 +2316,15 @@ private class NuvioLibmpvView(
             .filter { node -> node.nodeString("type") == type }
             .mapIndexedNotNull { index, node ->
                 val id = node.nodeInt("id") ?: return@mapIndexedNotNull null
+                val codec = node.nodeString("codec")
+                val isSubtitle = type == "sub"
                 val rawLabel = node.nodeString("title")
                     ?: node.nodeString("external-filename")?.substringAfterLast('/')
-                    ?: node.nodeString("codec")
+                    ?: codec.takeUnless { isSubtitle }
                 val language = node.nodeString("lang") ?: normalizeLanguageCode(rawLabel)
+                val languageLabel = language.takeIf { isSubtitle }?.let(::languageLabelResForCode)
                 val label = rawLabel?.takeIf { it.isNotBlank() }
+                    ?: languageLabel?.let { runBlocking { getString(it) } }
                     ?: runBlocking { getString(Res.string.compose_player_track_number, index + 1) }
                 LibmpvTrack(
                     id = id,
@@ -2357,6 +2337,7 @@ private class NuvioLibmpvView(
                         trackId = id.toString(),
                         hasForcedSelectionFlag = node.nodeBoolean("forced") ?: false,
                     ),
+                    formatBadge = if (isSubtitle) subtitleFormatBadgeForCodec(codec) else null,
                 )
             }
     }
@@ -2368,6 +2349,7 @@ private data class LibmpvTrack(
     val language: String?,
     val isSelected: Boolean,
     val isForced: Boolean,
+    val formatBadge: SubtitleFormatBadge?,
 )
 
 private const val LIBMPV_MAX_VOLUME_PERCENT = 400
@@ -2423,7 +2405,7 @@ private fun SubtitleStyleState.toMpvSubtitleBorderStyle(): String =
 
 private const val MPV_SUBTITLE_FONT_SIZE_SCALE = 55.0 / 18.0
 private const val MPV_SUBTITLE_FONT_SIZE_MIN = 36
-private const val MPV_SUBTITLE_FONT_SIZE_MAX = 122
+private const val MPV_SUBTITLE_FONT_SIZE_MAX = 183
 private const val MPV_SUBTITLE_OUTLINE_SIZE_SCALE = 1.5
 
 private fun ExoPlayer.snapshot(): PlayerPlaybackSnapshot {
@@ -2925,7 +2907,7 @@ private fun ExoPlayer.extractSubtitleTracks(context: Context): List<SubtitleTrac
             SubtitleTrack(
                 index = idx,
                 id = captionKind ?: format.id ?: idx.toString(),
-                label = captionKind?.let { LiveTvCaptions.label(it) } ?: trackNameProvider.getTrackName(format),
+                label = captionKind?.let { LiveTvCaptions.label(it) } ?: trackNameProvider.getSubtitleTrackName(format),
                 language = format.language,
                 isSelected = group.isSelected,
                 isForced = inferForcedSubtitleTrack(
@@ -2934,11 +2916,24 @@ private fun ExoPlayer.extractSubtitleTracks(context: Context): List<SubtitleTrac
                     trackId = format.id,
                     hasForcedSelectionFlag = hasForcedSelectionFlag,
                 ),
+                formatBadge = format.subtitleFormatBadge(),
             )
         )
         idx++
     }
     return tracks
+}
+
+private fun Format.subtitleFormatBadge(): SubtitleFormatBadge? {
+    if (isAssSubtitleFormat()) return SubtitleFormatBadge.ASS
+    val mimeTypes = listOfNotNull(sampleMimeType) +
+        codecs?.split(',')?.map { it.trim().lowercase() }.orEmpty()
+    return when {
+        MimeTypes.APPLICATION_PGS in mimeTypes -> SubtitleFormatBadge.PGS
+        MimeTypes.APPLICATION_VOBSUB in mimeTypes -> SubtitleFormatBadge.VOBSUB
+        MimeTypes.APPLICATION_DVBSUBS in mimeTypes -> SubtitleFormatBadge.DVB
+        else -> null
+    }
 }
 
 private fun ExoPlayer.selectTrackByIndex(trackType: Int, targetIndex: Int): Boolean {

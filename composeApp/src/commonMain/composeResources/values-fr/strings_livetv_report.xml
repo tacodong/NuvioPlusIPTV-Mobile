@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_section_help">Aide</string>
+    <string name="livetv_report_title">Rapport de démarrage</string>
+    <string name="livetv_report_description">Ce que Live TV a fait depuis le démarrage de l’app : chargement, guide, Sports, À la demande, enregistrements et problèmes de lecture</string>
+    <string name="livetv_report_subtitle">Depuis le démarrage de l’app. Envoyez-le quand quelque chose ne fonctionne pas, pour qu’on voie clairement ce qui s’est passé.</string>
+    <string name="livetv_report_empty">Rien pour l’instant : ouvrez d’abord la TV en direct.</string>
+    <string name="livetv_report_copy_short">Copier la version courte</string>
+    <string name="livetv_report_copy_full">Tout copier</string>
+    <string name="livetv_report_share">Partager</string>
+    <string name="livetv_report_copied_short">Rapport court copié : il tient dans un seul message Discord</string>
+    <string name="livetv_report_copied_full">Rapport complet copié</string>
+</resources>

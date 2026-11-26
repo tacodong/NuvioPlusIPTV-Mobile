@@ -133,7 +133,9 @@ internal object LiveTvRepository {
             // The channel list saved last time goes on screen first; only playlists that changed
             // since are read again (quietly, the channels already showing).
             runCatching { mutex.withLock { runCatching { loadSavedChannels() }; rebuildLocked() } }
-            if (updateCheckDelayMs > 0) delay(updateCheckDelayMs)
+            // Nothing saved to show yet (first start, or the saved list couldn't be used): read the
+            // playlists now rather than wait.
+            if (updateCheckDelayMs > 0 && _channels.value.isNotEmpty()) delay(updateCheckDelayMs)
             autoCheck()
             firstCheckDone = true
             // Keep checking while the app stays open: the guide runs out after a day or two.
@@ -954,6 +956,8 @@ internal object LiveTvRepository {
             if (prefs.currentSettings().hideStrayEntries) "" else ":stray=off"
     }
 
+    private class ChannelEntryFailure(cause: Throwable) : RuntimeException(cause)
+
     /**
      * Makes one channel list from every playlist that's on (numbers carry on from one playlist
      * to the next). Only playlists that changed are read again: the others' channels are taken
@@ -1015,54 +1019,77 @@ internal object LiveTvRepository {
                 continue
             }
             if (!pl.isM3u && !pl.isXtream) continue
-            // Movies and episodes are left out while reading (see the check below), counted for
-            // the stray-entry check.
+            val firstNumber = counter
+            val tail = PlaylistChannelTail(out, usedKeys, firstNumber)
+            // Each link is sorted once, before its entry is built: movies and episodes are left
+            // out while reading; the marked/unmarked counts decide the stray check at the end
+            // (only known once the whole playlist is read), with one flag per unmarked channel.
             var vodLinks = 0
-            val parsed = runCatching {
-                LiveTvFiles.readChunks(LiveTvDirs.PLAYLISTS, file) { chunks -> M3uParser.parse(linesOf(chunks)) { url -> isVodEntry(url).also { if (it) vodLinks++ } } }
-            }.getOrNull() ?: continue
-            embeddedEpgUrls[pl.id] = parsed.epgUrls
+            var liveLinks = 0
+            var unmarkedLinks = 0
+            var linkKind = PlaylistLinks.Kind.UNMARKED
             // The playlist's own User-Agent: one shared copy for every channel with no headers of its own.
             val agent = pl.effectiveUserAgent
             val agentOnly = if (agent.isNotBlank()) mapOf("User-Agent" to agent) else emptyMap()
-            var count = 0
-            val hideStrays = prefs.currentSettings().hideStrayEntries &&
-                isMarkedPlaylist(parsed.entries.count { LIVE_PATH.containsMatchIn(it.url) } + vodLinks, parsed.entries.count { !LIVE_PATH.containsMatchIn(it.url) })
-            var strays = 0
-            for (e in parsed.entries) {
-                // Many providers' M3U links also list every movie and episode: not TV channels.
-                if (isVodEntry(e.url)) continue
-                if (hideStrays && isStrayEntry(e)) { strays++; continue }
-                count++
-                val groupTitle = e.group?.ifBlank { null } ?: "Uncategorized"
-                val baseKey = "${pl.id}|${e.tvgId ?: ""}|${e.name}"
-                var key = baseKey
-                var n = 2
-                while (!usedKeys.add(key)) { key = "$baseKey#${n++}" }
-                val number = e.chno ?: counter
-                counter = maxOf(counter, number) + 1
-                val headers = if (agent.isNotBlank() && e.headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
-                    if (e.headers.isEmpty()) agentOnly else e.headers + ("User-Agent" to agent)
-                } else e.headers
-                out += LiveChannel(
-                    key = key,
-                    sourceId = pl.id,
-                    sourceName = pl.name,
-                    name = e.name,
-                    tvgId = e.tvgId,
-                    tvgName = e.tvgName,
-                    logo = e.logo,
-                    groupId = if (multi) "${pl.id}::$groupTitle" else groupTitle,
-                    group = groupTitle,
-                    number = number,
-                    url = e.url,
-                    headers = headers,
-                    catchup = e.catchup,
-                    drm = e.drm,
-                    tvgShiftMinutes = e.tvgShiftMinutes,
-                    autoNumber = e.chno == null
-                )
+            val parsed = runCatching {
+                LiveTvFiles.readChunks(LiveTvDirs.PLAYLISTS, file) { chunks ->
+                    M3uParser.read(linesOf(chunks), { url ->
+                        linkKind = PlaylistLinks.classify(url)
+                        (linkKind == PlaylistLinks.Kind.VOD).also { if (it) vodLinks++ }
+                    }) { e ->
+                        try {
+                            if (linkKind == PlaylistLinks.Kind.LIVE) liveLinks++ else {
+                                unmarkedLinks++
+                                tail.unmarkedEntry()
+                            }
+                            val groupTitle = e.group?.ifBlank { null } ?: "Uncategorized"
+                            val baseKey = "${pl.id}|${e.tvgId ?: ""}|${e.name}"
+                            var key = baseKey
+                            var n = 2
+                            while (!usedKeys.add(key)) { key = "$baseKey#${n++}" }
+                            val number = e.chno ?: counter
+                            counter = maxOf(counter, number) + 1
+                            val headers = if (agent.isNotBlank() && e.headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
+                                if (e.headers.isEmpty()) agentOnly else e.headers + ("User-Agent" to agent)
+                            } else e.headers
+                            out += LiveChannel(
+                                key = key,
+                                sourceId = pl.id,
+                                sourceName = pl.name,
+                                name = e.name,
+                                tvgId = e.tvgId,
+                                tvgName = e.tvgName,
+                                logo = e.logo,
+                                groupId = if (multi) "${pl.id}::$groupTitle" else groupTitle,
+                                group = groupTitle,
+                                number = number,
+                                url = e.url,
+                                headers = headers,
+                                catchup = e.catchup,
+                                drm = e.drm,
+                                tvgShiftMinutes = e.tvgShiftMinutes,
+                                autoNumber = e.chno == null
+                            )
+                        } catch (failure: Throwable) {
+                            // Building a channel used to happen after reading, outside the read's
+                            // own failure handling: keep it that way rather than hiding the error.
+                            throw ChannelEntryFailure(failure)
+                        }
+                    }
+                }
             }
+            parsed.exceptionOrNull()?.let { failure -> if (failure is ChannelEntryFailure) throw failure.cause ?: failure }
+            val epgUrls = parsed.getOrNull()
+            if (epgUrls == null) {
+                tail.rollback()
+                counter = firstNumber
+                continue
+            }
+            embeddedEpgUrls[pl.id] = epgUrls
+            val hideStrays = prefs.currentSettings().hideStrayEntries && isMarkedPlaylist(liveLinks + vodLinks, unmarkedLinks)
+            if (hideStrays) counter = tail.removeStrays(counter) { EPISODE_NAME.containsMatchIn(it) }
+            val strays = tail.removed
+            val count = unmarkedLinks + liveLinks - strays
             REPORT.add("Playlist \"${pl.name}\": $count channels read" + if (strays > 0) ", $strays stray entr${if (strays == 1) "y" else "ies"} left out" else "")
             if (count != pl.channelCount) {
                 prefs.updatePlaylists { list -> list.map { if (it.id == pl.id) it.copy(channelCount = count) else it } }
@@ -1220,10 +1247,13 @@ internal object LiveTvRepository {
             val urls = mutableListOf<String>()
             pl.xtreamEpgUrl()?.let { urls += it }
             urls += embeddedEpgUrls[pl.id].orEmpty()
-            urls.distinct().forEach { url ->
-                // The same link as a guide already in the list: that one is this playlist's built-in guide too.
+            urls.distinctBy { guideKey(it) }.forEach { link ->
+                // The same guide as one already in the list (even written differently): that one
+                // is this playlist's built-in guide too, so it isn't downloaded and read twice.
+                val existing = targets.firstOrNull { it.stalkerSource == null && it.url.isNotBlank() && guideKey(it.url) == guideKey(link) }
+                val url = existing?.url ?: link
                 ownersByUrl.getOrPut(url) { HashSet() } += pl.id
-                if (targets.none { it.url == url }) {
+                if (existing == null) {
                     targets += EpgTarget(
                         "auto_" + stableHash(url), null, "${pl.name} (built-in)", url, pl.effectiveUserAgent,
                         playlistId = pl.id, shiftMs = pl.guideShiftMinutes * MINUTE,
@@ -1250,6 +1280,22 @@ internal object LiveTvRepository {
     }
 
     /**
+     * What makes two guide links the same guide: one Xtream login's xmltv.php (on any of the
+     * provider's addresses), or the same address written differently (http/https, letter case,
+     * order of the parts after "?").
+     */
+    private fun guideKey(link: String): String {
+        val u = runCatching { Url(link.trim()) }.getOrNull() ?: return link.trim()
+        val q = u.parameters
+        val user = q["username"]
+        val pass = q["password"]
+        if (u.encodedPath.endsWith("xmltv.php", ignoreCase = true) && !user.isNullOrBlank() && !pass.isNullOrBlank()) return "xmltv|$user|$pass"
+        val params = q.entries().flatMap { (k, v) -> v.map { "$k=$it" } }.sorted().joinToString("&")
+        val port = if (u.specifiedPort > 0) ":${u.specifiedPort}" else ""
+        return "${u.host.lowercase()}$port${u.encodedPath}?$params"
+    }
+
+    /**
      * Guide file id -> the playlists it's switched on for, for guides that aren't on for every
      * playlist (as last collected). A guide not listed here is used by every playlist.
      */
@@ -1263,7 +1309,7 @@ internal object LiveTvRepository {
     private fun guideUsersStamp(): String? {
         val g = guideUsers
         if (g.isEmpty()) return null
-        return g.toSortedMap().entries.joinToString(";") { (id, set) -> id + "=" + set.sorted().joinToString(",") }.hashCode().toString()
+        return g.entries.sortedBy { it.key }.joinToString(";") { (id, set) -> id + "=" + set.sorted().joinToString(",") }.hashCode().toString()
     }
 
     private fun targetStamp(t: EpgTarget): String =
@@ -1304,7 +1350,8 @@ internal object LiveTvRepository {
 
         val byTvgId = HashMap<String, MutableList<LiveChannel>>()
         val byName = HashMap<String, MutableList<LiveChannel>>()
-        channels.forEach { c ->
+        // No guide can use these when this setup has no guide sources.
+        if (targets.isNotEmpty()) channels.forEach { c ->
             if (c.key in overrides) return@forEach
             c.tvgId?.lowercase()?.takeIf { it.isNotBlank() }?.let { byTvgId.getOrPut(it) { ArrayList() }.add(c) }
             normalize(c.tvgName ?: "").takeIf { it.isNotEmpty() }?.let { byName.getOrPut(it) { ArrayList() }.add(c) }
@@ -1464,6 +1511,29 @@ internal object LiveTvRepository {
             c.icon?.takeIf { it.isNotBlank() }?.let { logos[key] = it }
         }
         if (tvgShifts.isNotEmpty()) REPORT.add("Guide: ${tvgShifts.size} channels moved by the playlist's tvg-shift")
+        // Shows that already aired and the new guide no longer has (many guides start at "now", or
+        // put "No information" over yesterday): carried over from the stored guide, so the guide
+        // and catch-up still show them for as long as Past Shows Kept says. Only for channels still
+        // on the same guide channel.
+        runCatching {
+            val storedMatches = EpgStore.autoMatches()
+            val same = programs.keys.filter { key ->
+                val c = best[key] ?: return@filter false
+                val before = overrides[key] ?: storedMatches[key] ?: return@filter false
+                before.sourceId == c.sourceId && before.xmltvId == c.xmltvId
+            }
+            var carried = 0
+            for (part in same.chunked(400)) {
+                val old = EpgStore.range(windowStart, now, light = false, channels = part)
+                for (key in part) {
+                    val before = old[key] ?: continue
+                    carryAired(before, programs[key].orEmpty(), windowStart, now)?.let { (list, added) ->
+                        programs[key] = list; carried += added
+                    }
+                }
+            }
+            if (carried > 0) REPORT.add("Guide: kept $carried shows from before that the new guide no longer lists (within Past Shows Kept)")
+        }
         setStatus(loading = true, message = "Storing the guide…")
         runCatching { EpgStore.replaceAll(guideFingerprint(settings, targets), programs, auto) }
             .onFailure {
@@ -1509,6 +1579,25 @@ internal object LiveTvRepository {
     }
 
     private fun isPlaceholderListing(list: List<EpgProgram>): Boolean = list.all { isPlaceholderTitle(it.title) }
+
+    /**
+     * [new] with the real shows of [old] that ended between [from] and [until] added wherever
+     * [new] has no real show at that time (a placeholder there gives way, unless it's still on
+     * after [until]). Null when nothing was added.
+     */
+    private fun carryAired(old: List<EpgProgram>, new: List<EpgProgram>, from: Long, until: Long): Pair<List<EpgProgram>, Int>? {
+        val out = ArrayList(new)
+        var added = 0
+        for (o in old.sortedBy { it.startMs }) {
+            if (o.stopMs <= from || o.stopMs > until || o.stopMs <= o.startMs || isPlaceholderTitle(o.title)) continue
+            fun overlaps(p: EpgProgram) = p.startMs < o.stopMs && p.stopMs > o.startMs
+            if (out.any { overlaps(it) && (!isPlaceholderTitle(it.title) || it.stopMs > until) }) continue
+            out.removeAll { overlaps(it) }
+            out += o
+            added++
+        }
+        return if (added == 0) null else out.sortedBy { it.startMs } to added
+    }
 
     /** How many pickers (Assign EPG, Change logo) are open and want every guide's channel list. */
     @kotlin.concurrent.Volatile private var listsWanted = 0
@@ -1782,8 +1871,6 @@ internal object LiveTvRepository {
             """to be announced|tba|tbd|n/?a|off air|no data|no epg|not available|information not available|""" +
             """regular programming|scheduled programming|paid programming|coming soon|no program guide available)\.?"""
     )
-    private val VOD_PATH = Regex("""/(movie|movies|series|vod)/""", RegexOption.IGNORE_CASE)
-    private val VOD_EXT = Regex("""\.(mp4|mkv|avi|mov|wmv|m4v|webm|flv)(\?|$)""", RegexOption.IGNORE_CASE)
     /** An Xtream channel, movie or episode link, with the login in it. */
     private val XTREAM_CHANNEL_LINK = Regex(
         """^(https?://[^/\s?#]+)/(?:live/|movie/|series/)?([^/\s?#]+)/([^/\s?#]+)/\d+(?:\.[A-Za-z0-9]+)?(?:\?.*)?$""",
@@ -1795,9 +1882,8 @@ internal object LiveTvRepository {
     private val countryEnd = Regex("""(\.(com|co|net|tv))?\.[a-z]{2}$""", RegexOption.IGNORE_CASE)
 
     /** A movie or episode in an M3U (by its link), not a live channel. */
-    fun isVodEntry(url: String): Boolean = VOD_PATH.containsMatchIn(url) || VOD_EXT.containsMatchIn(url)
+    fun isVodEntry(url: String): Boolean = PlaylistLinks.classify(url) == PlaylistLinks.Kind.VOD
 
-    private val LIVE_PATH = Regex("""/live/""", RegexOption.IGNORE_CASE)
     /** "S01E02", "S1 E2", "S01.E02": named like a series episode, not a channel. */
     private val EPISODE_NAME = Regex("""\bS\d{1,3}\s*[._-]?\s*E\d{1,4}\b""", RegexOption.IGNORE_CASE)
 
@@ -1815,7 +1901,7 @@ internal object LiveTvRepository {
      * ("EURO Russian" with "RU | Telekanal S02 E02"). A marked live channel is never one.
      */
     internal fun isStrayEntry(e: M3uEntry): Boolean =
-        !LIVE_PATH.containsMatchIn(e.url) && EPISODE_NAME.containsMatchIn(e.name)
+        !PlaylistLinks.hasLivePath(e.url) && EPISODE_NAME.containsMatchIn(e.name)
 
     /** "Programming", "No information", "To Be Announced"… (no real show). */
     fun isPlaceholderTitle(title: String): Boolean = PLACEHOLDER_TITLES.matches(title.trim().lowercase())

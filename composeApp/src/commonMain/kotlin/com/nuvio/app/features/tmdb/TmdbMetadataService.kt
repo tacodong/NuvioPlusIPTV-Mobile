@@ -1151,6 +1151,16 @@ object TmdbMetadataService {
         }
     }
 
+    /** Live TV recordings: one episode's description, in the TMDB language setting. */
+    suspend fun episodeOverview(tmdbId: String, season: Int, episode: Int): String? =
+        fetchEpisodeEnrichment(tmdbId, listOf(season), TmdbSettingsRepository.snapshot().language)[season to episode]?.overview
+
+    /** Live TV recordings: a movie's description, in the TMDB language setting. */
+    suspend fun movieOverview(tmdbId: String): String? {
+        val settings = TmdbSettingsRepository.snapshot()
+        return fetchEnrichment(tmdbId, "movie", settings.language, settings)?.description
+    }
+
     private suspend fun fetchEpisodeEnrichment(
         tmdbId: String,
         seasonNumbers: List<Int>,

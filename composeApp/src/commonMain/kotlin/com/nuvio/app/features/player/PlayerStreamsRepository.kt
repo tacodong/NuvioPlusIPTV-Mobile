@@ -20,6 +20,10 @@ import com.nuvio.app.features.streams.StreamBadgeSettingsRepository
 import com.nuvio.app.features.streams.StreamLoadCompletion
 import com.nuvio.app.features.streams.StreamSearchSessions
 import com.nuvio.app.features.streams.StreamSearchTargets
+import com.nuvio.app.features.streams.ActiveStreamRecovery
+import com.nuvio.app.features.streams.StreamSourceRecovery
+import com.nuvio.app.features.streams.hasSourceFailures
+import com.nuvio.app.features.streams.recoveringGroups
 import com.nuvio.app.features.streams.withoutPendingGroups
 import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.streams.sortedForGroupedDisplay
@@ -57,6 +61,13 @@ object PlayerStreamsRepository {
     private var episodeStreamsJob: Job? = null
     private var episodeStreamsRequestKey: String? = null
 
+    private class RecoverySlot(scope: CoroutineScope) {
+        val observer = ActiveStreamRecovery(scope) { ProfileRepository.activeProfileId }
+        var arm: (() -> Unit)? = null
+    }
+    private val sourceRecovery = RecoverySlot(scope)
+    private val episodeRecovery = RecoverySlot(scope)
+
     fun loadSources(
         type: String,
         videoId: String,
@@ -76,6 +87,7 @@ object PlayerStreamsRepository {
             setRequestKey = { sourceRequestKey = it },
             jobHolder = { sourceJob },
             setJob = { sourceJob = it },
+            recovery = sourceRecovery,
         )
     }
 
@@ -98,6 +110,7 @@ object PlayerStreamsRepository {
             setRequestKey = { episodeStreamsRequestKey = it },
             jobHolder = { episodeStreamsJob },
             setJob = { episodeStreamsJob = it },
+            recovery = episodeRecovery,
         )
     }
 
@@ -113,6 +126,7 @@ object PlayerStreamsRepository {
     }
 
     private fun cancelSourceJob() {
+        sourceRecovery.observer.cancel()
         val job = sourceJob ?: return
         job.cancel()
         sourceJob = null
@@ -128,6 +142,7 @@ object PlayerStreamsRepository {
     }
 
     private fun cancelEpisodeStreamsJob() {
+        episodeRecovery.observer.cancel()
         val job = episodeStreamsJob ?: return
         job.cancel()
         episodeStreamsJob = null
@@ -157,6 +172,8 @@ object PlayerStreamsRepository {
     }
 
     fun clearEpisodeStreams() {
+        episodeRecovery.observer.cancel()
+        episodeRecovery.arm = null
         PluginRepository.setLocalPluginSearchPaused(true)
         episodeStreamsJob?.cancel()
         episodeStreamsRequestKey = null
@@ -164,6 +181,8 @@ object PlayerStreamsRepository {
     }
 
     fun clearAll() {
+        sourceRecovery.observer.cancel()
+        sourceRecovery.arm = null
         PluginRepository.setLocalPluginSearchPaused(true)
         sourceJob?.cancel()
         sourceRequestKey = null
@@ -183,7 +202,11 @@ object PlayerStreamsRepository {
         setRequestKey: (String?) -> Unit,
         jobHolder: () -> Job?,
         setJob: (Job) -> Unit,
+        recovery: RecoverySlot,
+        recovering: Boolean = false,
     ) {
+        val profile = ProfileRepository.activeProfileId
+        val recoveryRevision = StreamSourceRecovery.revision.value
         val pluginUiState = if (AppFeaturePolicy.pluginsEnabled) {
             PluginRepository.initialize()
             PluginRepository.uiState.value
@@ -195,18 +218,21 @@ object PlayerStreamsRepository {
         val current = stateFlow.value
         val cachedKey = requestKeyHolder()
         if (
-            !forceRefresh &&
+            !forceRefresh && !recovering &&
             cachedKey == requestKey &&
             (current.groups.isNotEmpty() || current.emptyStateReason != null || current.isAnyLoading)
         ) {
             log.d { "skip $panelName request=$requestKey reason=already-active ${current.streamDiagnostics()}" }
+            recovery.arm?.invoke()
             return
         }
 
         log.d { "start $panelName request=$requestKey force=$forceRefresh previous=${current.streamDiagnostics()}" }
+        recovery.observer.cancel()
+        recovery.arm = null
         setRequestKey(requestKey)
         jobHolder()?.cancel()
-        stateFlow.value = StreamsUiState()
+        if (!recovering) stateFlow.value = StreamsUiState()
 
         val streamBadgeRules = StreamBadgeSettingsRepository.snapshot()
         val embeddedStreams = MetaDetailsRepository.findEmbeddedStreams(videoId)
@@ -311,8 +337,13 @@ object PlayerStreamsRepository {
                 isLoading = true,
             )
         } + serverSources.map { it.loadingGroup() }, installedAddonOrder, preferredGroupIds)
+            .let { if (recovering) it.recoveringGroups(current) else it }
         val isInitiallyLoading = initialGroups.any { it.isLoading }
-        stateFlow.value = StreamsUiState(
+        stateFlow.value = if (recovering) current.copy(
+            groups = initialGroups,
+            isAnyLoading = isInitiallyLoading,
+            emptyStateReason = null,
+        ) else StreamsUiState(
             groups = initialGroups,
             activeAddonIds = initialGroups.map { it.addonId }.toSet(),
             isAnyLoading = isInitiallyLoading,
@@ -365,13 +396,14 @@ object PlayerStreamsRepository {
             }
 
             StreamSearchSessions.search(
-                profileId = ProfileRepository.activeProfileId,
+                profileId = profile,
                 targets = searchTargets,
                 forceRefresh = forceRefresh,
             ).collect { completion ->
+                if (requestKeyHolder() != requestKey || ProfileRepository.activeProfileId != profile) return@collect
                 when (completion) {
                     is StreamLoadCompletion.Addon -> {
-                        publishStreamGroup(presentStreamGroup(completion.group))
+                        if (!recovering || !completion.reused) publishStreamGroup(presentStreamGroup(completion.group))
                     }
 
                     is StreamLoadCompletion.PluginScraper -> {
@@ -387,7 +419,7 @@ object PlayerStreamsRepository {
                                     if (group.addonId != completion.addonId) {
                                         group
                                     } else {
-                                        val mergedStreams = if (completion.streams.isEmpty()) {
+                                        val mergedStreams = if (completion.streams.isEmpty() || (recovering && completion.reused)) {
                                             group.streams
                                         } else {
                                             (group.streams + completion.streams).sortedForGroupedDisplay()
@@ -448,6 +480,16 @@ object PlayerStreamsRepository {
             }
         }
         setJob(job)
+        val request = ActiveStreamRecovery.Request(profile, job, recoveryRevision,
+            hasFailures = { stateFlow.value.hasSourceFailures() || StreamSearchSessions.hasFailures(profile, searchTargets) },
+            retry = {
+                fetchStreams(panelName, type, videoId, season, episode, false, stateFlow, requestKeyHolder, setRequestKey,
+                    jobHolder, setJob, recovery, recovering = true)
+            })
+        recovery.arm = {
+            if (requestKeyHolder() == requestKey && ProfileRepository.activeProfileId == profile) recovery.observer.watch(request)
+        }
+        recovery.arm?.invoke()
     }
 }
 

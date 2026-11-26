@@ -4,6 +4,9 @@
  */
 package com.nuvio.app.controller
 
+import kotlin.concurrent.Volatile
+import kotlin.time.TimeSource
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,10 +147,10 @@ object ControllerManager {
     val unhandledEvents: SharedFlow<ControllerEvent> = _unhandledEvents.asSharedFlow()
 
     @Volatile
-    private var lastControllerInputEpochMs: Long = 0L
+    private var lastControllerInput: TimeSource.Monotonic.ValueTimeMark? = null
 
     fun notifyControllerInput(): Boolean {
-        lastControllerInputEpochMs = System.currentTimeMillis()
+        lastControllerInput = TimeSource.Monotonic.markNow()
         notifyNavigationInput()
         val transitioned = !_isControllerActive.value
         if (transitioned) {
@@ -158,7 +161,7 @@ object ControllerManager {
 
     /** Marks spatial navigation as active without enabling controller-only hint UI. */
     fun notifyNavigationInput(): Boolean {
-        lastControllerInputEpochMs = System.currentTimeMillis()
+        lastControllerInput = TimeSource.Monotonic.markNow()
         val transitioned = !_isNavigationActive.value
         if (transitioned) {
             _isNavigationActive.value = true
@@ -168,8 +171,7 @@ object ControllerManager {
 
     fun notifyMouseOrKeyboardInput() {
         // Guard against synthetic AWT mouse move events fired immediately during layout/cursor changes
-        val elapsed = System.currentTimeMillis() - lastControllerInputEpochMs
-        if (elapsed < 180L) return
+        if (lastControllerInput?.elapsedNow()?.let { it < 180.milliseconds } == true) return
         if (_isControllerActive.value) {
             _isControllerActive.value = false
         }

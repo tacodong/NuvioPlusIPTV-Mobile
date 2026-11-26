@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_backups_same_channel">Rovnaký kanál</string>
+    <string name="livetv_backups_addon_tag">Doplnok</string>
+    <string name="livetv_backups_playlist_tag">Playlist</string>
+    <string name="livetv_backups_quality_other">Iná kvalita</string>
+    <string name="livetv_backup_order_title">Záložné a kanály zápasu</string>
+    <string name="livetv_backup_order_group_by">Zoskupiť podľa</string>
+    <string name="livetv_backup_order_by_source">Playlist / doplnok</string>
+    <string name="livetv_backup_order_by_quality">Kvalita</string>
+    <string name="livetv_backup_order_no_headings">Bez nadpisov</string>
+    <string name="livetv_backup_order_sources">Poradie playlistov a doplnkov</string>
+    <string name="livetv_backup_order_sources_hint">šípky posunú položku; nové idú na koniec</string>
+    <string name="livetv_backup_order_qualities">Poradie kvality</string>
+    <string name="livetv_backup_order_quality_unknown">Kvalita nie je v názve</string>
+    <string name="livetv_backup_order_reset">Späť na predvolené poradie</string>
+    <string name="livetv_backup_order_no_sources">Zatiaľ žiadne playlisty ani doplnky</string>
+</resources>

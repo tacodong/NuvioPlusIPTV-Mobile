@@ -1,8 +1,11 @@
 package com.nuvio.app.features.livetv.record
 
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.atomicfu.locks.SynchronizedObject
 import com.nuvio.app.features.livetv.data.LiveTvDirs
 import com.nuvio.app.features.livetv.data.LiveTvFiles
 import com.nuvio.app.features.livetv.data.LiveTvPreferences
+import com.nuvio.app.features.livetv.data.optLong
 import com.nuvio.app.features.livetv.data.optString
 import com.nuvio.app.features.livetv.model.LiveTvClock
 import kotlinx.coroutines.CoroutineScope
@@ -28,8 +31,8 @@ import kotlin.concurrent.Volatile
 
 /**
  * A shared folder on a computer or NAS (Windows file sharing, "SMB"), set up on a TV for its
- * recordings. Same fields and JSON as the TV app's; synced (Live TV sync, Logins part) so the
- * phone can watch what the TVs record there without typing the address again.
+ * recordings. Same fields and JSON as the TV app's. The first one set up is synced (Live TV
+ * sync, Logins part) to start other devices off; after that each device keeps its own address.
  */
 data class NetworkFolderConfig(
     val host: String,
@@ -124,6 +127,17 @@ internal expect object NetworkLibraryPlatform {
 
     /** Makes folder [name] inside [config]'s folder. Throws when it can't. */
     suspend fun makeFolder(config: NetworkFolderConfig, name: String)
+
+    // ── Recording to the network folder ──
+
+    /**
+     * Copies the finished recording [rec] (its video at [localPath] on this phone) to the folder,
+     * the way the TV app keeps its recordings there: one file per show in a folder named after
+     * it, plus its details, playlist and join index, so the TVs and this phone list and play it.
+     * Its details go last (they say the rest is complete). Returns its id there. Throws when it
+     * can't (nothing half-copied is listed: a later try starts over).
+     */
+    suspend fun publish(config: NetworkFolderConfig, rec: LiveTvRecording, localPath: String, onProgress: (Float) -> Unit): String
 }
 
 /** A computer or NAS found on the home network that has file sharing. */
@@ -178,6 +192,15 @@ internal object NetworkLibrary {
     @Volatile private var config: NetworkFolderConfig? = null
     @Volatile private var started = false
     @Volatile private var lastRefreshAt = 0L
+    /**
+     * Each recording's details as last read, and when they last changed / were last read
+     * (kept with the saved list). A TV's recording sends new details every few seconds, so one
+     * still saying "recording" that hasn't changed for [STALL_MS] while being looked at was given
+     * up on by that TV (closed, asleep, off the network).
+     */
+    private data class Seen(val info: String, val changedAt: Long, val checkedAt: Long)
+    private val seenLock = SynchronizedObject()
+    private val seen = HashMap<String, Seen>()
 
     fun isNetwork(rec: LiveTvRecording): Boolean = rec.dir.startsWith(DIR_PREFIX)
     private fun idOf(rec: LiveTvRecording): String = rec.dir.removePrefix(DIR_PREFIX)
@@ -193,6 +216,7 @@ internal object NetworkLibrary {
                 config = c
                 runCatching { NetworkLibraryPlatform.configChanged(c) }
                 if (c == null) {
+                    synchronized(seenLock) { seen.clear() }
                     _state.value = State()
                     runCatching { LiveTvFiles.delete(LiveTvDirs.STATE, CACHE) }
                 } else {
@@ -215,10 +239,20 @@ internal object NetworkLibrary {
                 _state.update { it.copy(checking = true) }
                 try {
                     val found = NetworkLibraryPlatform.list(c)
+                    val checkedAt = LiveTvClock.nowMs()
+                    synchronized(seenLock) {
+                        seen.keys.retainAll(found.keys)
+                        found.forEach { (id, text) ->
+                            val before = seen[id]
+                            seen[id] = Seen(text, if (before == null || before.info != text) checkedAt else before.changedAt, checkedAt)
+                        }
+                    }
                     val list = found.mapNotNull { (id, text) -> parse(id, text) }.sortedByDescending { it.startedAtMs }
                     if (config != c) return@withLock
                     _state.value = State(folderLabel = c.label, recordings = list, reachable = true)
                     writeCache(c.label, found)
+                    // Reachable again: recordings waiting on this phone go across.
+                    NetworkUploads.kick()
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -252,12 +286,18 @@ internal object NetworkLibrary {
     }
 
     /**
-     * Saves the folder set up on this phone (null removes it). It goes to the TVs with Live TV
-     * sync, like a folder set up on a TV; each TV still picks where its own recordings go.
+     * Saves the folder set up on this phone (null removes it), for this phone only: a TV's
+     * address never replaces it, and it never replaces a TV's (the first one saved anywhere
+     * still starts new devices off).
      */
     fun save(c: NetworkFolderConfig?) {
         LiveTvPreferences.setNetworkFolderJson(c?.toJson() ?: "")
+        // No folder any more: new recordings stay on this phone.
+        if (c == null && LiveTvPreferences.currentSettings().recordingStorage == NetworkUploads.STORAGE_ID) {
+            LiveTvPreferences.updateSettings { it.copy(recordingStorage = "") }
+        }
         start()
+        if (c != null) NetworkUploads.kick(force = true)
     }
 
     /** The set-up screen closed without saving: the VPN goes back to the saved folder's address. */
@@ -276,17 +316,44 @@ internal object NetworkLibrary {
     private fun parse(id: String, text: String): LiveTvRecording? = runCatching {
         LiveTvRecording.fromJson(Json.parseToJsonElement(text).jsonObject, DIR_PREFIX + id)
             ?.copy(id = id, fileName = "index.m3u8")
+            ?.let(::givenUpOn)
     }.getOrNull()
+
+    /**
+     * A TV's recording that stopped being updated before it finished shows as ended, so it can
+     * be watched as far as it got, or deleted. If that TV carries on, its next details bring it
+     * back as recording.
+     */
+    private fun givenUpOn(rec: LiveTvRecording): LiveTvRecording {
+        if (!rec.isRecording) return rec
+        val s = synchronized(seenLock) { seen[rec.id] } ?: return rec
+        if (s.checkedAt - s.changedAt < STALL_MS) return rec
+        return rec.copy(
+            status = RecordingStatus.DONE,
+            endedAtMs = rec.endedAtMs?.takeIf { it > 0L } ?: s.changedAt,
+            problem = "The TV stopped sending this before it finished, so it may stop early",
+        )
+    }
+
+    /** A recording whose details haven't changed this long is taken as given up on. */
+    private const val STALL_MS = 10L * 60_000
 
     // ---- the last list read, for when the folder can't be reached
 
     private fun readCache(label: String): List<LiveTvRecording> = runCatching {
         val o = Json.parseToJsonElement(LiveTvFiles.readSmall(LiveTvDirs.STATE, CACHE) ?: return emptyList()).jsonObject
         if (o.optString("folder") != label) return emptyList()
-        o["items"]!!.jsonArray.mapNotNull { e ->
-            val item = e.jsonObject
-            parse(item.optString("id"), item.optString("info"))
-        }.sortedByDescending { it.startedAtMs }
+        val items = o["items"]!!.jsonArray.map { it.jsonObject }
+        synchronized(seenLock) {
+            items.forEach { item ->
+                val id = item.optString("id")
+                val changedAt = item.optLong("changedAt")
+                if (id.isNotEmpty() && changedAt > 0L && id !in seen)
+                    seen[id] = Seen(item.optString("info"), changedAt, item.optLong("checkedAt", changedAt))
+            }
+        }
+        items.mapNotNull { item -> parse(item.optString("id"), item.optString("info")) }
+            .sortedByDescending { it.startedAtMs }
     }.getOrDefault(emptyList())
 
     private fun writeCache(label: String, found: Map<String, String>) {
@@ -294,10 +361,109 @@ internal object NetworkLibrary {
             val o: JsonObject = buildJsonObject {
                 put("folder", label)
                 put("items", buildJsonArray {
-                    found.forEach { (id, info) -> add(buildJsonObject { put("id", id); put("info", info) }) }
+                    found.forEach { (id, info) ->
+                        val s = synchronized(seenLock) { seen[id] }
+                        add(buildJsonObject {
+                            put("id", id); put("info", info)
+                            if (s != null) { put("changedAt", s.changedAt); put("checkedAt", s.checkedAt) }
+                        })
+                    }
                 })
             }
             LiveTvFiles.writeSmall(LiveTvDirs.STATE, CACHE, o.toString())
         }
     }
+}
+
+/**
+ * Recordings made on this phone with Storage set to the network folder: recorded here as usual,
+ * then copied to the network folder once they finish (the TVs and this phone then play them
+ * from there) and removed from the phone. One that can't be copied yet (away from home, the
+ * computer asleep) waits on the phone, still playable here, and is tried again later.
+ */
+internal object NetworkUploads {
+    /** In a recording's folder on the phone: it goes to the network folder once it finishes. */
+    const val MARKER = "network.pending"
+
+    data class State(
+        /** The recording being copied, and how far (0..1). */
+        val copyingId: String? = null,
+        val progress: Float = 0f,
+        /** Why the last try didn't work, in plain words (null: it did, or none yet). */
+        val problem: String? = null,
+    )
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val lock = Mutex()
+    private val _state = MutableStateFlow(State())
+    val state: StateFlow<State> = _state.asStateFlow()
+    @Volatile private var lastTryAt = 0L
+
+    /** Copying (or about to): keeps the app running in the background meanwhile. */
+    val busy: Boolean get() = _state.value.copyingId != null
+
+    /** Recordings started now go to the network folder (Storage is set to it and one is set up). */
+    fun wanted(): Boolean =
+        NetworkLibraryPlatform.available &&
+            LiveTvPreferences.currentSettings().recordingStorage == STORAGE_ID &&
+            NetworkFolderConfig.fromJson(LiveTvPreferences.currentNetworkFolderJson()) != null
+
+    fun mark(dir: String) { runCatching { RecordingPlatform.writeText("$dir/$MARKER", "") } }
+
+    fun isPending(rec: LiveTvRecording): Boolean =
+        !NetworkLibrary.isNetwork(rec) && rec.status == RecordingStatus.DONE && runCatching { RecordingPlatform.exists(rec.dir + "/" + MARKER) }.getOrDefault(false)
+
+    /** A recording finished: copy it across if it's one for the network folder. */
+    fun finished(rec: LiveTvRecording) {
+        if (isPending(rec)) kick(force = true)
+    }
+
+    /**
+     * Copies every finished recording waiting for the network folder, one at a time (the app
+     * opening, Recordings opening, a recording finishing). Not more than every minute unless [force].
+     */
+    fun kick(force: Boolean = false) {
+        if (!NetworkLibraryPlatform.available) return
+        val now = LiveTvClock.nowMs()
+        if (!force && now - lastTryAt < 60_000L) return
+        lastTryAt = now
+        scope.launch {
+            if (lock.isLocked) return@launch
+            lock.withLock { copyAll() }
+        }
+    }
+
+    private suspend fun copyAll() {
+        while (true) {
+            val config = NetworkFolderConfig.fromJson(LiveTvPreferences.currentNetworkFolderJson()) ?: return
+            // (One with nothing in it just stays on the phone.)
+            val rec = LiveTvRecorder.recordings.value
+                .filter { isPending(it) && RecordingPlatform.fileSize(LiveTvRecorder.filePath(it)) > 0L }
+                .minByOrNull { it.startedAtMs } ?: return
+            val path = LiveTvRecorder.filePath(rec)
+            _state.value = State(copyingId = rec.id, progress = 0f)
+            RecordingPlatform.keepAlive(true)
+            try {
+                NetworkLibraryPlatform.publish(config, rec, path) { p -> _state.update { it.copy(progress = p) } }
+                com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Recording \"${rec.title}\": copied to the network folder")
+                // On the network folder now (listed from there): off the phone.
+                LiveTvRecorder.removeCopied(rec.id)
+                _state.value = State()
+                NetworkLibrary.refresh(force = true)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                _state.value = State()
+                throw e
+            } catch (e: Throwable) {
+                val why = runCatching { NetworkLibraryPlatform.describe(e, config) }.getOrDefault("The network folder couldn't be reached")
+                com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Recording \"${rec.title}\": not copied to the network folder yet ($why)")
+                _state.value = State(problem = why)
+                return
+            } finally {
+                LiveTvRecorder.stopServiceIfIdle()
+            }
+        }
+    }
+
+    /** The "Save recordings to" choice for the network folder (the TV app's id). */
+    const val STORAGE_ID = "network"
 }

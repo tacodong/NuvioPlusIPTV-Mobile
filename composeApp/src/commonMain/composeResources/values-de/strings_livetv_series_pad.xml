@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Früher starten</string>
+    <string name="livetv_rec_pad_after">Danach weiter aufnehmen</string>
+    <string name="livetv_rec_pad_default">Standard (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d Min. vorher</string>
+    <string name="livetv_rec_pad_line_after">+%1$d Min. danach</string>
+    <string name="livetv_rec_pad_hint">Nur für diese Serie. Bereits geplante Folgen werden ebenfalls angepasst.</string>
+</resources>

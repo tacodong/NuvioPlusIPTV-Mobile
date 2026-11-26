@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Починати раніше</string>
+    <string name="livetv_rec_pad_after">Продовжувати запис після</string>
+    <string name="livetv_rec_pad_default">За замовчуванням (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d хв до</string>
+    <string name="livetv_rec_pad_line_after">+%1$d хв після</string>
+    <string name="livetv_rec_pad_hint">Лише для цього серіалу. Уже заплановані серії теж зміняться.</string>
+</resources>

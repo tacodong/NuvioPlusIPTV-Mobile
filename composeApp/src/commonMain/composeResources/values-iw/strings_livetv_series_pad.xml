@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">התחלה מוקדמת</string>
+    <string name="livetv_rec_pad_after">המשך הקלטה אחרי</string>
+    <string name="livetv_rec_pad_default">ברירת מחדל (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d דק׳ לפני</string>
+    <string name="livetv_rec_pad_line_after">+%1$d דק׳ אחרי</string>
+    <string name="livetv_rec_pad_hint">רק לסדרה הזו. גם פרקים שכבר נקבעו ישתנו.</string>
+</resources>

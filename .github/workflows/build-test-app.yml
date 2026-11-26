@@ -11,12 +11,13 @@ on:
         default: dev
         type: string
       notes:
-        description: "What changed (blank = the last commit's title)"
+        description: "What changed (blank = TEST_NOTES.md, or the last commit's title if that's empty)"
         required: false
         type: string
 
+# Write lets the build take the lines it used out of TEST_NOTES.md.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: mobile-test-build

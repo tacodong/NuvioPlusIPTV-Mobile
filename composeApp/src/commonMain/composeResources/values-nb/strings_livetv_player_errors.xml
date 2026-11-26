@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Denne tittelen kunne ikke spilles av.</string>
+    <string name="livetv_error_renew">Leverandøren kunne ikke fornye denne strømmen. Sjekk kilden og VPN-innstillingene.</string>
+    <string name="livetv_error_open_channel">Leverandøren kunne ikke åpne denne kanalen. Sjekk kilden og VPN-innstillingene.</string>
+    <string name="livetv_error_connection_lost">Mistet forbindelsen til denne direktekanalen. Trykk på spill av eller velg en annen kanal.</string>
+    <string name="livetv_error_catchup">Dette programmet kunne ikke spilles av på nytt. Leverandøren har det kanskje ikke i arkivet</string>
+    <string name="livetv_error_catchup_code">Dette programmet kunne ikke spilles av på nytt. Leverandøren har det kanskje ikke i arkivet (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Leverandøren avviste strømmen (HTTP %1$d): kontogrense, utløpt eller blokkert</string>
+    <string name="livetv_error_not_found">Strømmen ble ikke funnet (HTTP 404). Prøv et annet strømformat i innstillingene for spillelisten</string>
+    <string name="livetv_error_too_many">For mange tilkoblinger på denne kontoen (HTTP %1$d)</string>
+    <string name="livetv_error_server">Serverfeil hos leverandøren (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Leverandøren sender ikke denne kanalen riktig akkurat nå</string>
+    <string name="livetv_error_unreachable">Får ikke kontakt med leverandøren akkurat nå</string>
+    <string name="livetv_error_decoder">Denne telefonen kunne ikke spille av bildet eller lyden til denne kanalen</string>
+    <string name="livetv_error_drm">Denne kanalen er beskyttet og kunne ikke låses opp</string>
+    <string name="livetv_error_not_playing">Denne kanalen sender ikke akkurat nå</string>
+</resources>

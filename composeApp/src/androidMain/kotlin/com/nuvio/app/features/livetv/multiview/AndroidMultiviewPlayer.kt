@@ -29,6 +29,8 @@ import com.nuvio.app.features.livetv.ui.LiveTvViewState
 import com.nuvio.app.features.player.playbackAudioAttributes
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.vpn.android.VpnPlaybackProtection
+import com.nuvio.vpn.android.VpnPlaybackDiagnostics
+import com.nuvio.app.features.livetv.model.LiveTvLoadReport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +72,8 @@ internal class AndroidMultiviewPlayer(
     private var reconnectAttempt = 0
     /** When the stream last started playing; a stream that keeps going a while earns fresh tries. */
     private var playingSince = 0L
+    private var diagnosticReader: MultiviewPlaybackDiagnostics.Reader? = null
+    private var diagnosticJob: Job? = null
     private var reconnecting = false
     private var surface: MultiviewVideoView? = null
     private val focus = MultiviewAudioFocus.session(this.context)
@@ -259,22 +263,33 @@ internal class AndroidMultiviewPlayer(
                 // Some providers (Stalker portals) look the link up first, so this waits for it here.
                 val request = override ?: LiveTvPlayback.requestFor(selected)
                 val source = multiviewMediaSource(context, selected, request)
+                val protectionStarted = SystemClock.elapsedRealtime()
                 // Re-check when profile/scope settings change while the connection is prepared.
-                do {
-                    val revision = VpnPlaybackProtection.settingsRevision()
-                    awaitVpnForPlayback(context, request.url)
-                    selected.drm?.license?.trim()?.takeIf {
-                        it.startsWith("http://", true) || it.startsWith("https://", true)
-                    }?.let { awaitVpnForPlayback(context, it) }
-                } while (revision != VpnPlaybackProtection.settingsRevision())
+                try {
+                    do {
+                        val revision = VpnPlaybackProtection.settingsRevision()
+                        awaitVpnForPlayback(context, request.url)
+                        selected.drm?.license?.trim()?.takeIf {
+                            it.startsWith("http://", true) || it.startsWith("https://", true)
+                        }?.let { awaitVpnForPlayback(context, it) }
+                    } while (revision != VpnPlaybackProtection.settingsRevision())
+                    val waited = SystemClock.elapsedRealtime() - protectionStarted
+                    if (waited >= 1_000) LiveTvLoadReport.add("Multiview protection: preparation_wait_ms=$waited; outcome=ready")
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    LiveTvLoadReport.add("Multiview protection: preparation_wait_ms=${SystemClock.elapsedRealtime() - protectionStarted}; outcome=failed")
+                    throw failure
+                }
                 if (token != generation || !canPlay()) return@launch
                 val player = buildPlayer()
                 engine = player
+                diagnosticReader = playbackDiagnostics.register { diagnosticSnapshot(player, request.url) }
                 player.addAnalyticsListener(decoderReport)
                 MultiviewDecoderReport.openPlayers += player
                 player.addListener(object : Player.Listener {
                     override fun onEvents(player: Player, events: Player.Events) {
                         if (engine !== player) return
+                        diagnosticReader?.stateChanged(player.playbackState, player.playWhenReady, player.isPlaying)
                         if (player.isPlaying) {
                             if (playingSince == 0L) playingSince = SystemClock.elapsedRealtime()
                             reconnecting = false
@@ -295,6 +310,7 @@ internal class AndroidMultiviewPlayer(
 
                     override fun onPlayerError(error: PlaybackException) {
                         if (engine !== player) return
+                        diagnosticReader?.failed(error.errorCode)
                         // The same stream fallbacks as the full-screen player: a link that doesn't say what
                         // it is tried as HLS then DASH, an unreadable HLS playlist as TS.
                         val other = if (selected.drm == null && selected.stalker == null) otherFormat(error, request) else null
@@ -331,6 +347,12 @@ internal class AndroidMultiviewPlayer(
                 if (engine !== player) return@launch
                 player.playWhenReady = true
                 player.prepare()
+                diagnosticJob = scope.launch {
+                    while (engine === player && canPlay()) {
+                        delay(MultiviewPlaybackDiagnostics.SAMPLE_MS)
+                        if (engine === player && canPlay()) playbackDiagnostics.sample()
+                    }
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -388,6 +410,10 @@ internal class AndroidMultiviewPlayer(
 
     private fun stopEngine() {
         generation++
+        diagnosticJob?.cancel()
+        diagnosticJob = null
+        diagnosticReader?.close()
+        diagnosticReader = null
         prepareJob?.cancel()
         prepareJob = null
         val previous = engine
@@ -407,6 +433,20 @@ internal class AndroidMultiviewPlayer(
             release()
         }
         mutableState.value = mutableState.value.copy(isLoading = false, isPlaying = false)
+    }
+
+    private fun diagnosticSnapshot(player: ExoPlayer, source: String): MultiviewPlaybackDiagnostics.Snapshot {
+        val counters = player.videoDecoderCounters
+        counters?.ensureUpdated()
+        return MultiviewPlaybackDiagnostics.Snapshot(
+            player.playbackState, player.playWhenReady, player.isPlaying, player.totalBufferedDuration,
+            counters, counters?.renderedOutputBufferCount, counters?.droppedBufferCount,
+            VpnPlaybackDiagnostics.playbackSample(source),
+        )
+    }
+
+    private companion object {
+        val playbackDiagnostics = MultiviewPlaybackDiagnostics(LiveTvLoadReport::add)
     }
 
     private fun buildPlayer(): ExoPlayer {

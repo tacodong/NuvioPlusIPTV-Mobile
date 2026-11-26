@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Nie udało się odtworzyć tego tytułu.</string>
+    <string name="livetv_error_renew">Dostawca nie mógł odnowić tego strumienia. Sprawdź źródło i ustawienia VPN.</string>
+    <string name="livetv_error_open_channel">Dostawca nie mógł otworzyć tego kanału. Sprawdź źródło i ustawienia VPN.</string>
+    <string name="livetv_error_connection_lost">Utracono połączenie z tym kanałem na żywo. Naciśnij odtwarzanie lub wybierz inny kanał.</string>
+    <string name="livetv_error_catchup">Nie udało się ponownie odtworzyć tego programu. Dostawca może nie mieć go w catch-upie</string>
+    <string name="livetv_error_catchup_code">Nie udało się ponownie odtworzyć tego programu. Dostawca może nie mieć go w catch-upie (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Dostawca odrzucił strumień (HTTP %1$d): limit konta, wygasło lub zablokowane</string>
+    <string name="livetv_error_not_found">Nie znaleziono strumienia (HTTP 404). Wypróbuj inny format strumienia w ustawieniach playlisty</string>
+    <string name="livetv_error_too_many">Za dużo połączeń na tym koncie (HTTP %1$d)</string>
+    <string name="livetv_error_server">Błąd serwera dostawcy (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Dostawca nie przesyła teraz poprawnie tego kanału</string>
+    <string name="livetv_error_unreachable">Nie można teraz połączyć się z dostawcą</string>
+    <string name="livetv_error_decoder">Ten telefon nie mógł odtworzyć obrazu lub dźwięku tego kanału</string>
+    <string name="livetv_error_drm">Ten kanał jest chroniony i nie udało się go odblokować</string>
+    <string name="livetv_error_not_playing">Ten kanał nie jest teraz nadawany</string>
+</resources>

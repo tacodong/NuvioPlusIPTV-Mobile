@@ -149,6 +149,7 @@ import com.nuvio.app.features.livetv.player.LiveTvPlayback
 import com.nuvio.app.features.livetv.multiview.MultiviewScreen
 import com.nuvio.app.features.livetv.multiview.MultiviewSession
 import com.nuvio.app.features.livetv.multiview.LocalOpenMultiview
+import com.nuvio.app.features.livetv.multiview.LocalOpenNuvioTitle
 import com.nuvio.app.features.livetv.multiview.MultiviewQueue
 import com.nuvio.app.features.livetv.sports.SportsWatchController
 import com.nuvio.app.features.livetv.multiview.isMultiviewSupported
@@ -1005,7 +1006,9 @@ internal fun MainAppContent(
 
         androidx.compose.runtime.SideEffect { com.nuvio.app.features.livetv.ui.OnDemandSearchBridge.actions = onDemandActions }
 
-        fun openRecording(rec: LiveTvRecording) {
+        fun openRecording(rec: LiveTvRecording) { coroutineScope.launch {
+            // The poster Recordings showed (already found there, so no wait), not the channel's logo.
+            val poster = withTimeoutOrNull(1_500) { runCatching { com.nuvio.app.features.livetv.ui.recordingPosterFor(rec) }.getOrNull() }
             val playerLaunch = PlayerLaunch(
                 profileId = activePlaybackProfileId,
                 title = rec.title,
@@ -1013,7 +1016,7 @@ internal fun MainAppContent(
                 // A TV's recording from the network folder is served as an HLS playlist.
                 streamType = if (com.nuvio.app.features.livetv.record.NetworkLibrary.isNetwork(rec)) "hls" else null,
                 logo = rec.channelLogo,
-                poster = rec.channelLogo,
+                poster = poster ?: rec.channelLogo,
                 streamTitle = rec.title,
                 streamSubtitle = rec.channelName,
                 pauseDescription = rec.description,
@@ -1027,7 +1030,7 @@ internal fun MainAppContent(
             )
             val launchId = PlayerLaunchStore.put(playerLaunch)
             navController.navigate(PlayerRoute(launchId = launchId, title = rec.title))
-        }
+        } }
 
         fun openLiveCatchup(channel: LiveChannel, program: EpgProgram) {
             liveChannelOpenJob?.cancel()
@@ -1064,6 +1067,14 @@ internal fun MainAppContent(
             if (!isMultiviewSupported) return
             channelKey?.let(MultiviewQueue::addFirst)
             navController.navigate(LiveTvMultiviewRoute()) {
+                if (navController.currentRoute is PlayerRoute) popUpTo<PlayerRoute> { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+
+        /** Find in Nuvio from the player's guide: the title's page, in place of the player. */
+        fun openNuvioTitleFromPlayer(type: String, tmdbId: Int, title: String) {
+            navController.navigate(DetailRoute(type = type, id = "tmdb:$tmdbId", title = title)) {
                 if (navController.currentRoute is PlayerRoute) popUpTo<PlayerRoute> { inclusive = true }
                 launchSingleTop = true
             }
@@ -1581,6 +1592,7 @@ internal fun MainAppContent(
             SharedTransitionLayout {
                 CompositionLocalProvider(
                     LocalOpenMultiview provides ::openMultiviewWith,
+                    LocalOpenNuvioTitle provides ::openNuvioTitleFromPlayer,
                     LocalPosterClickAnchor provides if (posterNavigationEnabled) posterNavigation::prepare else null,
                     LocalUseNativeNavigation provides useNativeNavigation,
                     LocalNativeNavigationBarHidden provides (currentRoute?.hidesNavigationBar == true),
@@ -1976,6 +1988,7 @@ internal fun MainAppContent(
                         onPlayChannel = ::openLiveChannel,
                         modifier = Modifier.fillMaxSize(),
                         onPlayCatchup = ::openLiveCatchup,
+                        onOpenTitle = { type, tmdbId, title -> navController.navigate(DetailRoute(type = type, id = "tmdb:$tmdbId", title = title)) },
                     )
                 }
                 entry<LiveTvRecordingsRoute> { route ->

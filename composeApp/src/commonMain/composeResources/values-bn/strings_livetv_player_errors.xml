@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">এই শিরোনামটি চালানো যায়নি।</string>
+    <string name="livetv_error_renew">প্রদানকারী এই স্ট্রিমটি নবায়ন করতে পারেনি। উৎস এবং VPN সেটিংস পরীক্ষা করুন।</string>
+    <string name="livetv_error_open_channel">প্রদানকারী এই চ্যানেলটি খুলতে পারেনি। উৎস এবং VPN সেটিংস পরীক্ষা করুন।</string>
+    <string name="livetv_error_connection_lost">এই লাইভ চ্যানেলের সংযোগ বিচ্ছিন্ন হয়েছে। চালাতে ট্যাপ করুন বা অন্য চ্যানেল বেছে নিন।</string>
+    <string name="livetv_error_catchup">এই অনুষ্ঠানটি আবার দেখা যায়নি। প্রদানকারীর আর্কাইভে এটি নাও থাকতে পারে</string>
+    <string name="livetv_error_catchup_code">এই অনুষ্ঠানটি আবার দেখা যায়নি। প্রদানকারীর আর্কাইভে এটি নাও থাকতে পারে (HTTP %1$d)</string>
+    <string name="livetv_error_refused">প্রদানকারী স্ট্রিমটি প্রত্যাখ্যান করেছে (HTTP %1$d): অ্যাকাউন্টের সীমা, মেয়াদোত্তীর্ণ বা অবরুদ্ধ</string>
+    <string name="livetv_error_not_found">স্ট্রিম পাওয়া যায়নি (HTTP 404)। প্লেলিস্টের সেটিংসে অন্য স্ট্রিম ফরম্যাট চেষ্টা করুন</string>
+    <string name="livetv_error_too_many">এই অ্যাকাউন্টে অনেক বেশি সংযোগ (HTTP %1$d)</string>
+    <string name="livetv_error_server">প্রদানকারীর সার্ভার ত্রুটি (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">প্রদানকারী এখন এই চ্যানেলটি ঠিকভাবে পাঠাচ্ছে না</string>
+    <string name="livetv_error_unreachable">এখন প্রদানকারীর সাথে যোগাযোগ করা যাচ্ছে না</string>
+    <string name="livetv_error_decoder">এই ফোন এই চ্যানেলের ছবি বা শব্দ চালাতে পারেনি</string>
+    <string name="livetv_error_drm">এই চ্যানেলটি সুরক্ষিত এবং আনলক করা যায়নি</string>
+    <string name="livetv_error_not_playing">এই চ্যানেলটি এখন সম্প্রচার করছে না</string>
+</resources>

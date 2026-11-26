@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_error_title_unplayable">Δεν ήταν δυνατή η αναπαραγωγή αυτού του τίτλου.</string>
+    <string name="livetv_error_renew">Ο πάροχος δεν μπόρεσε να ανανεώσει αυτή τη ροή. Ελέγξτε την πηγή και τις ρυθμίσεις VPN.</string>
+    <string name="livetv_error_open_channel">Ο πάροχος δεν μπόρεσε να ανοίξει αυτό το κανάλι. Ελέγξτε την πηγή και τις ρυθμίσεις VPN.</string>
+    <string name="livetv_error_connection_lost">Η σύνδεση με αυτό το ζωντανό κανάλι χάθηκε. Πατήστε αναπαραγωγή ή επιλέξτε άλλο κανάλι.</string>
+    <string name="livetv_error_catchup">Δεν ήταν δυνατή η επανάληψη αυτής της εκπομπής. Ο πάροχος ίσως δεν την έχει στο αρχείο του</string>
+    <string name="livetv_error_catchup_code">Δεν ήταν δυνατή η επανάληψη αυτής της εκπομπής. Ο πάροχος ίσως δεν την έχει στο αρχείο του (HTTP %1$d)</string>
+    <string name="livetv_error_refused">Ο πάροχος απέρριψε τη ροή (HTTP %1$d): όριο λογαριασμού, έληξε ή αποκλείστηκε</string>
+    <string name="livetv_error_not_found">Η ροή δεν βρέθηκε (HTTP 404). Δοκιμάστε άλλη μορφή ροής στις ρυθμίσεις της λίστας</string>
+    <string name="livetv_error_too_many">Πάρα πολλές συνδέσεις σε αυτόν τον λογαριασμό (HTTP %1$d)</string>
+    <string name="livetv_error_server">Σφάλμα διακομιστή του παρόχου (HTTP %1$d)</string>
+    <string name="livetv_error_bad_stream">Ο πάροχος δεν στέλνει σωστά αυτό το κανάλι αυτή τη στιγμή</string>
+    <string name="livetv_error_unreachable">Δεν είναι δυνατή η σύνδεση με τον πάροχο αυτή τη στιγμή</string>
+    <string name="livetv_error_decoder">Αυτό το τηλέφωνο δεν μπόρεσε να αναπαράγει την εικόνα ή τον ήχο αυτού του καναλιού</string>
+    <string name="livetv_error_drm">Αυτό το κανάλι είναι προστατευμένο και δεν ήταν δυνατό να ξεκλειδωθεί</string>
+    <string name="livetv_error_not_playing">Αυτό το κανάλι δεν μεταδίδει αυτή τη στιγμή</string>
+</resources>

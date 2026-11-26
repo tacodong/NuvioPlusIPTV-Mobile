@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Commencer plus tôt</string>
+    <string name="livetv_rec_pad_after">Continuer après</string>
+    <string name="livetv_rec_pad_default">Par défaut (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d min avant</string>
+    <string name="livetv_rec_pad_line_after">+%1$d min après</string>
+    <string name="livetv_rec_pad_hint">Pour cette série uniquement. Les épisodes déjà programmés changent aussi.</string>
+</resources>

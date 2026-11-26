@@ -149,6 +149,8 @@ internal object LiveTvRecorder {
             return failed
         }
         save(rec)
+        // Storage set to the network folder: recorded here, then copied there once it finishes.
+        if (NetworkUploads.wanted()) NetworkUploads.mark(dir)
         update(rec)
         com.nuvio.app.features.livetv.model.LiveTvLoadReport.add(
             (if (finite) "Saving catch-up \"$title\" on ${channel.name}" else "Recording \"$title\" on ${channel.name} until ${com.nuvio.app.core.format.formatLocalTime(stopAtMs)}") +
@@ -194,6 +196,7 @@ internal object LiveTvRecorder {
             problem = if (hasVideo) null else "Stopped before anything was recorded"
         )
         save(done); update(done)
+        NetworkUploads.finished(done)
         com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Recording \"${done.title}\" was stuck; ended by hand: ${done.status}")
         synchronized(lock) { forced += id; jobs.remove(id)?.cancel(); catchupSources.remove(id); stopRequested.remove(id) }
         stopServiceIfIdle()
@@ -375,7 +378,7 @@ internal object LiveTvRecorder {
                 else if (byHand) "Stopped before anything was recorded"
                 else (problem ?: latest.problem ?: "Nothing could be recorded from this channel ($NO_VIDEO_SHORT)")
             )
-            if (_recordings.value.any { it.id == done.id }) { save(done); update(done) }
+            if (_recordings.value.any { it.id == done.id }) { save(done); update(done); NetworkUploads.finished(done) }
             com.nuvio.app.features.livetv.model.LiveTvLoadReport.add("Recording \"${done.title}\" finished: ${done.status}, ${(latest.durationSec / 60).toInt()} of ${(expectedSec / 60).toInt()} min" +
                 (if (byHand) ", stopped by hand" else "") + (done.problem?.let { " ($it)" } ?: ""))
             synchronized(lock) { jobs.remove(rec.id); stopRequested.remove(rec.id) }
@@ -666,11 +669,22 @@ internal object LiveTvRecorder {
             val running = _recordings.value.filter { it.isRecording }
             _recordings.value = (out.filterNot { o -> running.any { it.id == o.id } } + running).sortedByDescending { it.startedAtMs }
         }
+        // Finished ones still waiting for the network folder: try again now.
+        NetworkUploads.kick(force = true)
     }
 
     fun stopServiceIfIdle() {
         val idle = synchronized(lock) { jobs.isEmpty() } || _recordings.value.none { it.isRecording }
-        if (idle) RecordingPlatform.keepAlive(false)
+        // Still copying a recording to the network folder: keep going in the background.
+        if (idle && !NetworkUploads.busy) RecordingPlatform.keepAlive(false)
+    }
+
+    /** A recording copied to the network folder (and listed from there now): off this phone. */
+    fun removeCopied(id: String) {
+        val rec = _recordings.value.firstOrNull { it.id == id } ?: return
+        if (rec.isRecording) return
+        _recordings.value = _recordings.value.filterNot { it.id == id }
+        runCatching { RecordingPlatform.deleteDir(rec.dir) }
     }
 
     private const val NO_VIDEO = "The provider answered but sent no video. If you're watching this channel, your provider may only allow one connection at a time"

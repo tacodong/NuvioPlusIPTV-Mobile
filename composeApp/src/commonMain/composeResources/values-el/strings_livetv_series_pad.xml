@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Έναρξη νωρίτερα</string>
+    <string name="livetv_rec_pad_after">Συνέχιση εγγραφής μετά</string>
+    <string name="livetv_rec_pad_default">Προεπιλογή (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d λεπ. πριν</string>
+    <string name="livetv_rec_pad_line_after">+%1$d λεπ. μετά</string>
+    <string name="livetv_rec_pad_hint">Μόνο για αυτή τη σειρά. Αλλάζουν και τα επεισόδια που έχουν ήδη οριστεί.</string>
+</resources>

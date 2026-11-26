@@ -85,8 +85,13 @@ internal object StreamSearchSessions {
         val isComplete: Boolean = false,
     )
 
-    private class Session(val totalTasks: Int) {
-        val progress = MutableStateFlow(Progress())
+    private class Session(
+        val totalTasks: Int,
+        val recoveryRevision: Long,
+        retained: List<StreamLoadCompletion> = emptyList(),
+        val retainedAtMs: Long? = null,
+    ) {
+        val progress = MutableStateFlow(Progress(completions = retained))
         var job: Job? = null
         var completedAtMs: Long? = null
         var invalidated = false
@@ -129,24 +134,42 @@ internal object StreamSearchSessions {
         sessions.clear()
     }
 
+    suspend fun hasFailures(profileId: Int, targets: StreamSearchTargets): Boolean = mutex.withLock {
+        sessions[StreamSearchKey(profileId, targets.type, targets.videoId, targets.season, targets.episode,
+            targets.sourceConfiguration)]?.progress?.value?.completions?.any { it.failed() } == true
+    }
+
     private suspend fun acquire(key: StreamSearchKey, targets: StreamSearchTargets, forceRefresh: Boolean): Session {
         var created: Session? = null
         val selected = mutex.withLock {
+            val recoveryRevision = StreamSourceRecovery.revision.value
+            var queriedTargets = targets
+            var retained = emptyList<StreamLoadCompletion>()
+            var retainedAtMs: Long? = null
+            var recovering = false
             removeExpiredLocked()
             removeObsoleteLocked(key)
             if (forceRefresh) {
                 sessions.remove(key)?.cancel()
             } else {
                 sessions[key]?.let { existing ->
-                    log.d { "Joining source search for ${key.type} ${key.videoId}" }
-                    return@withLock existing
+                    val failed = existing.progress.value.completions.filter { it.failed() }
+                    if (!existing.progress.value.isComplete || recoveryRevision <= existing.recoveryRevision || failed.isEmpty()) {
+                        log.d { "Joining source search for ${key.type} ${key.videoId}" }
+                        return@withLock existing
+                    }
+                    // Keep working sources and their original expiry; only failed tasks query again.
+                    queriedTargets = targets.onlyFailed(failed)
+                    retained = existing.progress.value.completions.filterNot { it.failed() }.map { it.reused() }
+                    retainedAtMs = existing.completedAtMs
+                    recovering = true
                 }
             }
-            Session(targets.totalTasks).also { session ->
+            Session(targets.totalTasks, recoveryRevision, retained, retainedAtMs).also { session ->
                 session.job = scope.launch(start = CoroutineStart.LAZY) {
                     try {
                         coroutineScope {
-                            launchStreamSearchTasks(targets, forceRefresh) { completion ->
+                            launchStreamSearchTasks(queriedTargets, forceRefresh || recovering) { completion ->
                                 session.progress.update { it.copy(completions = it.completions + completion) }
                             }
                         }
@@ -164,7 +187,6 @@ internal object StreamSearchSessions {
     }
 
     private suspend fun complete(key: StreamSearchKey, session: Session) {
-        session.progress.update { it.copy(isComplete = true) }
         if (session.invalidated) return
         mutex.withLock {
             if (sessions[key] !== session) return@withLock
@@ -174,7 +196,9 @@ internal object StreamSearchSessions {
                     is StreamLoadCompletion.PluginScraper -> completion.streams.isNotEmpty()
                 }
             }
-            if (hasResults) session.completedAtMs = epochMs() else sessions.remove(key)
+            if (hasResults) session.completedAtMs = session.retainedAtMs ?: epochMs() else sessions.remove(key)
+            // A subscriber may immediately rejoin after seeing completion; publish expiry first.
+            session.progress.update { it.copy(isComplete = true) }
         }
     }
 
@@ -223,6 +247,29 @@ internal object StreamSearchSessions {
         progress.update { it.copy(isComplete = true) }
         job?.cancel()
     }
+}
+
+private fun StreamLoadCompletion.failed(): Boolean = when (this) {
+    is StreamLoadCompletion.Addon -> group.streams.isEmpty() && !group.error.isNullOrBlank()
+    is StreamLoadCompletion.PluginScraper -> streams.isEmpty() && !error.isNullOrBlank()
+}
+
+private fun StreamLoadCompletion.reused(): StreamLoadCompletion = when (this) {
+    is StreamLoadCompletion.Addon -> copy(reused = true)
+    is StreamLoadCompletion.PluginScraper -> copy(reused = true)
+}
+
+private fun StreamSearchTargets.onlyFailed(failed: List<StreamLoadCompletion>): StreamSearchTargets {
+    val addons = failed.filterIsInstance<StreamLoadCompletion.Addon>().mapTo(HashSet()) { it.group.addonId }
+    val plugins = failed.filterIsInstance<StreamLoadCompletion.PluginScraper>()
+    return StreamSearchTargets(type, videoId, season, episode,
+        streamAddons.filter { it.addonId in addons }, serverSources.filter { it.addonId in addons },
+        pluginProviderGroups.mapNotNull { group ->
+            val scrapers = group.scrapers.filter { scraper ->
+                plugins.any { it.addonId == group.addonId && (it.scraperId == null || it.scraperId == scraper.id) }
+            }
+            group.copy(scrapers = scrapers).takeIf { scrapers.isNotEmpty() }
+        }, debridConfiguration)
 }
 
 /** Queries every addon, server and plugin scraper of [targets] in parallel and reports each result. */
@@ -284,6 +331,7 @@ private fun CoroutineScope.launchStreamSearchTasks(
                     onSuccess = { results ->
                         StreamLoadCompletion.PluginScraper(
                             addonId = providerGroup.addonId,
+                            scraperId = scraper.id,
                             streams = results.map { result ->
                                 result.toStreamItem(
                                     scraper = scraper,
@@ -299,6 +347,7 @@ private fun CoroutineScope.launchStreamSearchTasks(
                         log.w(error) { "Plugin scraper failed: ${scraper.name}" }
                         StreamLoadCompletion.PluginScraper(
                             addonId = providerGroup.addonId,
+                            scraperId = scraper.id,
                             streams = emptyList(),
                             error = error.message ?: getString(Res.string.streams_failed_to_load_scraper, scraper.name),
                         )

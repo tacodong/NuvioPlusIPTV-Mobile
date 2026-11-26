@@ -53,6 +53,9 @@ internal object LiveTvBackup {
                     }
                     buildJsonObject { put("t", "str"); put("v", v) }
                 }
+                // This phone lost the key to its copy. Leave it out instead of stopping sync: the
+                // combine step keeps the copy other devices and the cloud have, which then repairs it.
+                is PrefValue.UnavailableBackupSecret -> return@forEach
             }
             put(name, entry)
         }
@@ -64,7 +67,8 @@ internal object LiveTvBackup {
         fun raw(key: String) = data.optJSONObject(key)?.optString("v")
         return runCatching { parseObject(raw("vpn_profiles_v1").orEmpty()).optJSONArray("profiles")?.isNotEmpty() == true }.getOrDefault(false) ||
             runCatching { LiveTvCodec.decodePlaylists(raw(LiveTvKeys.playlists)).isNotEmpty() }.getOrDefault(false) ||
-            runCatching { LiveTvCodec.decodeEpgs(raw(LiveTvKeys.epgs)).isNotEmpty() }.getOrDefault(false)
+            runCatching { LiveTvCodec.decodeEpgs(raw(LiveTvKeys.epgs)).isNotEmpty() }.getOrDefault(false) ||
+            UsenetBackupCompatibility.hasSources(data)
     }
 
     /** The result of [importInto]: the new map, and the playlists that need downloading again. */
@@ -76,12 +80,15 @@ internal object LiveTvBackup {
      * download status. [Imported.changed] lists playlists whose address or login changed.
      */
     fun importInto(local: Map<String, PrefValue>, data: JsonObject): Imported {
+        UsenetBackupCompatibility.validate(data)
         val changed = HashSet<String>()
         val p = local.toMutableMap()
         val localPlaylists = LiveTvCodec.decodePlaylists(local.str(LiveTvKeys.playlists)).associateBy { it.id }
         val localEpgs = LiveTvCodec.decodeEpgs(local.str(LiveTvKeys.epgs)).associateBy { it.id }
         // Remove synced keys the other device doesn't have, then write everything it does.
-        local.keys.filter { it !in LiveTvKeys.SYNC_EXCLUDED && !data.containsKey(it) }.forEach { p.remove(it) }
+        local.keys.filter {
+            it !in LiveTvKeys.SYNC_EXCLUDED && !data.containsKey(it) && local[it] !is PrefValue.UnavailableBackupSecret
+        }.forEach { p.remove(it) }
         data.forEach { (name, element) ->
             if (name in LiveTvKeys.SYNC_EXCLUDED) return@forEach
             val e = element as? JsonObject ?: return@forEach
@@ -178,10 +185,14 @@ internal fun LiveTvPreferencesStore.exportForSync(): JsonObject {
  * Replaces this device's Live TV setup with [data] from [exportForSync], keeping per-device
  * state. Returns the playlists whose address or login changed: they need downloading again.
  */
-internal fun LiveTvPreferencesStore.importFromSync(data: JsonObject): Set<String> {
-    val nativeVpnRestored = usesPlatformVpnBackup &&
+internal fun LiveTvPreferencesStore.importFromSync(data: JsonObject, applyVpnBackup: Boolean = true): Set<String> {
+    // Validate before native VPN restore or any preference changes.
+    UsenetBackupCompatibility.validate(data)
+    val nativeVpnRestored = applyVpnBackup && usesPlatformVpnBackup &&
         data.optJSONObject("vpn_profiles_v1")?.optString("v")?.let { restoreVpnBackup(it) } == true
-    val preferences = if (nativeVpnRestored) JsonObject(data.filterKeys { it != "vpn_profiles_v1" }) else data
+    val preferences = if (usesPlatformVpnBackup && (nativeVpnRestored || !applyVpnBackup)) {
+        JsonObject(data.filterKeys { it != "vpn_profiles_v1" })
+    } else data
     var changed: Set<String> = emptySet()
     edit { p ->
         val imported = LiveTvBackup.importInto(p, preferences)

@@ -1,6 +1,5 @@
 package com.nuvio.app.features.watchprogress
 
-import com.nuvio.app.features.livetv.data.LiveTvPreferences
 
 import co.touchlab.kermit.Logger
 import com.nuvio.app.core.auth.AuthRepository
@@ -1267,6 +1266,31 @@ object WatchProgressRepository {
         pushDeleteToServer(entriesToRemove)
     }
 
+    /** Clears Live TV entries saved by older versions (or synced in from them), here and on the server. */
+    fun removeLiveTvProgress() {
+        ensureLoaded()
+        val entriesToRemove = currentEntries().filter { entry -> entry.isLiveTvEntry() }
+        if (entriesToRemove.isEmpty()) return
+
+        activeProgressProvider()?.let { provider ->
+            val locallyRemovedEntries = removeStoredLocalEntries(entriesToRemove)
+            provider.applyOptimisticRemoval(entriesToRemove)
+            if (locallyRemovedEntries.isNotEmpty()) persist()
+            publish()
+            syncScope.launch {
+                removeProviderProgress(provider, entriesToRemove, "remove live tv progress")
+            }
+            return
+        }
+
+        entriesToRemove.forEach { entry ->
+            removeLocalEntry(entry.resolvedProgressKey())
+        }
+        publish()
+        persist()
+        pushDeleteToServer(entriesToRemove)
+    }
+
     fun progressForVideo(
         videoId: String,
         parentMetaId: String? = null,
@@ -1317,10 +1341,8 @@ object WatchProgressRepository {
         persist: Boolean,
         syncRemote: Boolean,
     ) {
-        // Live TV is only recorded as watch progress when the Live TV setting puts it in Continue Watching.
-        if ((session.contentType == LiveTvWatchProgressType || session.parentMetaType == LiveTvWatchProgressType) &&
-            !LiveTvPreferences.showInContinueWatching.value
-        ) return
+        // Live TV (channels, catch-up, recordings) is never recorded as watch progress.
+        if (session.contentType == LiveTvWatchProgressType || session.parentMetaType == LiveTvWatchProgressType) return
         // Adult On Demand titles never go in Continue watching.
         if (com.nuvio.app.features.livetv.ondemand.OnDemandPlayback.neverSaves(session.videoId)) return
         val targetProfileId = session.profileId

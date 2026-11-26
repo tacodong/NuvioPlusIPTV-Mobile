@@ -17,4 +17,6 @@ internal actual object NetworkLibraryPlatform {
     actual suspend fun shares(host: String, username: String, password: String): List<SmbShare> = throw UnsupportedOperationException("Not available on this device")
     actual suspend fun folders(config: NetworkFolderConfig): List<String> = throw UnsupportedOperationException("Not available on this device")
     actual suspend fun makeFolder(config: NetworkFolderConfig, name: String): Unit = throw UnsupportedOperationException("Not available on this device")
+    actual suspend fun publish(config: NetworkFolderConfig, rec: LiveTvRecording, localPath: String, onProgress: (Float) -> Unit): String =
+        throw UnsupportedOperationException("Not available on this device")
 }

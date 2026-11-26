@@ -18,12 +18,13 @@ on:
         default: dev
         type: string
       notes:
-        description: "What changed (blank = the last commit's title)"
+        description: "What changed (blank = TEST_NOTES.md, or the last commit's title if that's empty)"
         required: false
         type: string
 
+# Write is only used to take the lines that went into a test build out of TEST_NOTES.md.
 permissions:
-  contents: read
+  contents: write
 
 env:
   TEST_REPO: homelessbrian/Nuvio_Testing
@@ -133,10 +134,45 @@ jobs:
           apk=$(ls "$dir"/*arm64-v8a*.apk 2>/dev/null | head -n 1 || true)
           [ -n "$apk" ] || apk=$(ls "$dir"/*.apk | head -n 1)
           mkdir -p out && cp "$apk" "out/Nuvio-IPTV-Mobile-Test-$CODE.apk"
-          [ -n "$NOTES" ] || NOTES=$(git log -1 --format=%s)
+          # The notes: what's typed in the box, or else TEST_NOTES.md (what's changed since the last
+          # test build), or else the last commit's title.
+          if [ -n "$NOTES" ]; then
+            printf '%s\n' "$NOTES" > out/test-notes.md
+            echo "Using the notes typed in the box."
+          elif [ -f TEST_NOTES.md ] && python3 .github/test-notes.py build TEST_NOTES.md out/test-notes.md; then
+            touch out/used-test-notes
+            echo "Using TEST_NOTES.md."
+          else
+            git log -1 --format=%s > out/test-notes.md
+            echo "TEST_NOTES.md has nothing listed: using the last commit's title."
+          fi
+          cat out/test-notes.md
           gh release create "mobile-test-$CODE" "out/Nuvio-IPTV-Mobile-Test-$CODE.apk" "out/openvpn2-corresponding-source.tar.gz" -R "$TEST_REPO" \
-            --title "Mobile $NAME" --notes "$NOTES" --prerelease
+            --title "Mobile $NAME" --notes-file out/test-notes.md --prerelease
           echo "::notice title=Test build ready::$NAME was sent to the test repo."
+
+      # Takes the lines this build used out of TEST_NOTES.md on the branch it was built from, so
+      # the next test build only lists what's new since. Anything added while this build ran stays.
+      - name: Clear the used test notes
+        if: hashFiles('out/used-test-notes') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.ver.outputs.name }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 -b "$BRANCH" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" notes-repo
+          cd notes-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          for try in 1 2 3; do
+            python3 ../.github/test-notes.py clear TEST_NOTES.md ../out/test-notes.md
+            if git diff --quiet -- TEST_NOTES.md; then echo "Nothing to clear."; exit 0; fi
+            git commit -q -m "Test notes: cleared what went into test build $NAME" -- TEST_NOTES.md
+            if git push -q origin "HEAD:$BRANCH"; then echo "TEST_NOTES.md cleared."; exit 0; fi
+            git fetch -q --depth 1 origin "$BRANCH" && git reset -q --hard "origin/$BRANCH"
+          done
+          echo "::warning::Couldn't clear TEST_NOTES.md on $BRANCH; take out the lines that went into $NAME by hand."
 
       - name: Delete test builds older than a week
         env:

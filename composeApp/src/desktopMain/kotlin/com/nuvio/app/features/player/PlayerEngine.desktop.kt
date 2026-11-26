@@ -52,6 +52,7 @@ actual fun PlatformPlayerSurface(
     stalkerMediaPolicy: com.nuvio.app.features.livetv.stalker.StalkerMediaPolicy?,
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle>,
     streamType: String?,
+    continuousLive: Boolean,
     useYoutubeChunkedPlayback: Boolean,
     modifier: Modifier,
     playWhenReady: Boolean,
@@ -91,7 +92,7 @@ actual fun PlatformPlayerSurface(
             modifier = modifier,
             playWhenReady = playWhenReady,
             resizeMode = resizeMode,
-            initialPositionMs = initialPositionMs ?: 0L,
+            initialPositionMs = if (continuousLive) 0L else initialPositionMs ?: 0L,
             initialPositionRequestKey = initialPositionRequestKey,
             playerControlsState = playerControlsState,
             onPlayerControlsAction = onPlayerControlsAction,
@@ -181,6 +182,7 @@ private fun NativePlayerSurface(
     val latestOnPlayerControlsScrubFinished = rememberUpdatedState(onPlayerControlsScrubFinished)
     val latestOnInitialPositionHandled = rememberUpdatedState(onInitialPositionHandled)
     val latestOnError = rememberUpdatedState(onError)
+    val latestOnSnapshot = rememberUpdatedState(onSnapshot)
     val playerSettings by PlayerSettingsRepository.uiState.collectAsState()
     val decoderPriority = playerSettings.decoderPriority
     val nvidiaRtxSuperResolutionEnabled = playerSettings.nvidiaRtxSuperResolutionEnabled
@@ -310,7 +312,7 @@ private fun NativePlayerSurface(
 
     LaunchedEffect(controller) {
         while (true) {
-            if (!controller.isReleasing) onSnapshot(controller.snapshot())
+            if (!controller.isReleasing) latestOnSnapshot.value(controller.snapshot())
             delay(250L)
         }
     }

@@ -27,11 +27,13 @@ internal data class PluginProviderGroup(
 )
 
 internal sealed interface StreamLoadCompletion {
-    data class Addon(val group: AddonStreamGroup) : StreamLoadCompletion
+    data class Addon(val group: AddonStreamGroup, val reused: Boolean = false) : StreamLoadCompletion
     data class PluginScraper(
         val addonId: String,
         val streams: List<StreamItem>,
         val error: String?,
+        val scraperId: String? = null,
+        val reused: Boolean = false,
     ) : StreamLoadCompletion
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="livetv_rec_pad_before">Bắt đầu sớm hơn</string>
+    <string name="livetv_rec_pad_after">Tiếp tục ghi sau khi hết</string>
+    <string name="livetv_rec_pad_default">Mặc định (%1$s)</string>
+    <string name="livetv_rec_pad_line_before">+%1$d phút trước</string>
+    <string name="livetv_rec_pad_line_after">+%1$d phút sau</string>
+    <string name="livetv_rec_pad_hint">Chỉ cho bộ phim này. Các tập đã hẹn cũng được đổi theo.</string>
+</resources>
